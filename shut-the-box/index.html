@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shut the Box</title>
+    <link rel="stylesheet" href="style.css"> <!-- CSSファイルの読み込み -->
+</head>
+<body>
+
+<h1>Shut the Box</h1>
+
+<h2>Rules:</h2>
+<p>
+    Shut the Box is a traditional pub game. The objective is to close all the numbered tiles by rolling dice
+    and selecting combinations of tiles that match the total of the dice roll.
+</p>
+<p>
+    On each turn, roll the dice and select any combination of open tiles that adds up to the total of the dice.
+    After confirming your selection, the chosen tiles will be closed and no longer available for the rest of the game.
+</p>
+<p>
+    The game continues until you successfully close all the tiles or are unable to make a valid combination.
+</p>
+<p>
+    <strong>Scoring:</strong> Your score is the sum of the closed tile numbers when the game ends.
+</p>
+
+<!-- ボタン類の設定 -->
+<div class="buttonContainer">
+    <button id="rollButton" onclick="rollDice()">Roll</button>
+    <button id="confirmButton" onclick="checkCombination()">Confirm</button>
+    <button id="reloadButton" onclick="location.reload()">Play Again</button>
+</div>
+
+<!-- タイル表示、結果メッセージ、ログ表示のコンテナ -->
+<div id="tilesContainer"></div>
+<div id="resultMessage"></div>
+<div id="logContainer"></div>
+
+<a href="../index.html">Return to main page</a>
+
+<script src="script.js"></script> <!-- JavaScriptファイルの読み込み -->
+
+</body>
+</html>
