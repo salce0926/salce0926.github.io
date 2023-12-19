@@ -3,29 +3,59 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>スイカゲーム</title>
+  <title>スイカフォール</title>
   <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f8f8f8;
+      font-family: 'Arial', sans-serif;
+    }
+
+    #gameContainer {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
     canvas {
-      border: 1px solid #000;
+      background-color: #FFF5C2;
+      display: block;
+      margin: 0 auto;
     }
-    .buttonContainer {
-      display: inline-flex;
-    }
+
     #reloadButton {
-      width: 60px;
-      height: 60px;
+      width: 120px;
+      height: 40px;
       font-size: 16px;
-      margin: 10px;
+      margin-top: 20px;
       cursor: pointer;
+    }
+
+    #rules {
+      text-align: center;
+      font-size: 14px;
+      margin-top: 20px;
+    }
+
+    #rules p {
+      margin: 5px 0;
     }
   </style>
 </head>
 <body>
-  <div>
+  <div id="gameContainer">
     <canvas id="gameCanvas" width="400" height="600"></canvas>
     <!-- ボタン類の設定 -->
-    <div class="buttonContainer">
-      <button id="reloadButton" onclick="resetGame()">Play Again</button>
+    <button id="reloadButton" onclick="resetGame()">Play</button>
+    <div id="rules">
+      <p><strong>遊び方:</strong> 果物を落としてスイカを収穫しよう！</p>
+      <p><strong>ポイント:</strong> 同じ種類の果物を合体させると進化！</p>
+      <p><strong>注意:</strong> 果物が画面上部に到達するとゲームオーバー。</p>
     </div>
   </div>
 
@@ -52,16 +82,16 @@
     // サイズと色の情報を持つ配列
     const fruitInfo = [
       { size: 20, color: '#FF0000' },    // 赤
-      { size: 40, color: '#FF8C00' },    // ダークオレンジ (20 + 20)
-      { size: 60, color: '#FFD700' },    // 金色 (40 + 20)
-      { size: 80, color: '#00FF00' },    // 緑 (60 + 20)
-      { size: 100, color: '#32CD32' },   // ライムグリーン (80 + 20)
-      { size: 120, color: '#0000FF' },   // 青 (100 + 20)
-      { size: 140, color: '#4B0082' },   // インディゴ (120 + 20)
-      { size: 160, color: '#8A2BE2' },   // ブルー・バイオレット (140 + 20)
-      { size: 180, color: '#800000' },   // マルーン (160 + 20)
-      { size: 200, color: '#FF1493' },   // ディープピンク (180 + 20)
-      { size: 220, color: '#8B4513' },   // シエナ (200 + 20)
+      { size: 40, color: '#FF8C00' },    // ダークオレンジ
+      { size: 60, color: '#FFD700' },    // 金色
+      { size: 80, color: '#00FF00' },    // 緑
+      { size: 100, color: '#32CD32' },   // ライムグリーン
+      { size: 120, color: '#0000FF' },   // 青
+      { size: 140, color: '#4B0082' },   // インディゴ
+      { size: 160, color: '#8A2BE2' },   // ブルー・バイオレット
+      { size: 180, color: '#800000' },   // マルーン
+      { size: 200, color: '#FF1493' },   // ディープピンク
+      { size: 220, color: '#8B4513' },   // シエナ
     ];
 
     let nextFruit = generateFruit(); // 次に落ちる果物
@@ -84,7 +114,7 @@
       ctx.closePath();
 
       // 床の描画
-      ctx.fillStyle = 'brown';
+      ctx.fillStyle = '#DED0B6';
       ctx.fillRect(0, canvas.height - floorHeight, canvas.width, floorHeight);
 
       // 壁の描画
@@ -127,6 +157,7 @@
         ctx.fill();
         ctx.closePath();
       }
+
       // 操作中の果物を描画
       if (dragFruit) {
         ctx.beginPath();
@@ -183,11 +214,12 @@
     }
 
     function resetGame() {
-      fruits = [];
-      nextFruit = generateFruit();
-      score = 0;
-      drawFruits();
-      location.reload();
+        fruits = [];
+        nextFruit = generateFruit();
+        score = 0;
+        gameover = false;
+        drawFruits();
+        location.reload();
     }
 
     function checkCollision() {
@@ -248,40 +280,40 @@
     let clickX = null; // クリックしたx座標
 
     canvas.addEventListener('mousedown', (event) => {
-        if(!gameover){
-            // 果物を配列に追加
-            dragFruit = nextFruit;
-            getClickX();
-            nextFruit = generateFruit();   
-        }
+      if (!gameover) {
+        // 果物を配列に追加
+        dragFruit = nextFruit;
+        getClickX(event);
+        nextFruit = generateFruit();
+      }
     });
-    
+
     canvas.addEventListener('mousemove', (event) => {
-        // ドラッグ中の果物が存在すれば座標を更新
-        if (dragFruit) {
-            getClickX();
-            dragFruit.x = clickX;
-        }
+      // ドラッグ中の果物が存在すれば座標を更新
+      if (dragFruit) {
+        getClickX(event);
+        dragFruit.x = clickX;
+      }
     });
 
     canvas.addEventListener('mouseup', () => {
       // ドラッグ中の果物が存在すればフラグを解除
       if (dragFruit) {
-        getClickX();
+        getClickX(event);
         dragFruit.x = clickX;
         fruits.push(dragFruit);
         dragFruit = null;
       }
     });
 
-    function getClickX(){
-        clickX = event.clientX - canvas.getBoundingClientRect().left;
-        // 壁を通り抜けないように修正
-        if (clickX < gameArea.left + fruitInfo[dragFruit.type].size / 2) {
-            clickX = gameArea.left + fruitInfo[dragFruit.type].size / 2;
-        } else if (clickX > gameArea.right - fruitInfo[dragFruit.type].size / 2) {
-            clickX = gameArea.right - fruitInfo[dragFruit.type].size / 2;
-        }
+    function getClickX(event) {
+      clickX = event.clientX - canvas.getBoundingClientRect().left;
+      // 壁を通り抜けないように修正
+      if (clickX < gameArea.left + fruitInfo[dragFruit.type].size / 2) {
+        clickX = gameArea.left + fruitInfo[dragFruit.type].size / 2;
+      } else if (clickX > gameArea.right - fruitInfo[dragFruit.type].size / 2) {
+        clickX = gameArea.right - fruitInfo[dragFruit.type].size / 2;
+      }
     }
 
     function generateFruit() {
@@ -302,7 +334,7 @@
         x: x,
         y: y,
         type: randomSize,
-        vy: gravity*2,
+        vy: gravity * 2,
       };
       return fruit;
     }
@@ -311,7 +343,6 @@
       updateFruits();
       checkCollision();
       drawFruits();
-      if(dragFruit !== null) console.log(dragFruit);
       if (!gameover) requestAnimationFrame(gameLoop);
     }
 
