@@ -1,0 +1,40 @@
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f8f8f8;
+    font-family: 'Arial', sans-serif;
+}
+
+#gameContainer {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+canvas {
+    background-color: #FFF5C2;
+    display: block;
+    margin: 0 auto;
+}
+
+#reloadButton {
+    width: 120px;
+    height: 40px;
+    font-size: 16px;
+    margin-top: 20px;
+    cursor: pointer;
+}
+
+#rules {
+    text-align: center;
+    font-size: 14px;
+    margin-top: 20px;
+}
+
+#rules p {
+    margin: 5px 0;
+}

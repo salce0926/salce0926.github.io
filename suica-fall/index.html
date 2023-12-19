@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スイカフォール</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <!-- ボタン類の設定 -->
+    <button id="reloadButton" onclick="resetGame()">Play</button>
+    <div id="rules">
+      <p><strong>遊び方:</strong> 果物を落としてスイカを収穫しよう！</p>
+      <p><strong>ポイント:</strong> 同じ種類の果物を合体させると進化！</p>
+      <p><strong>注意:</strong> 果物が画面上部に到達するとゲームオーバー。</p>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
