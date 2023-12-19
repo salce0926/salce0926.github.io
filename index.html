@@ -4,23 +4,79 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Salce's pages</title>
-    <!-- <link rel="stylesheet" href="style.css"> CSSファイルの読み込み -->
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f8f8;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            padding: 20px;
+            background-color: #eee;
+        }
+
+        .game-container {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            max-width: 800px;
+            margin: 20px auto;
+        }
+
+        .game {
+            text-align: center;
+            padding: 20px;
+            margin: 10px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .game:hover {
+            transform: scale(1.05);
+        }
+
+        a {
+            text-decoration: none;
+            color: #4285f4;
+            transition: color 0.3s ease;
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+
+        .game:hover a {
+            color: #0d47a1;
+        }
+    </style>
 </head>
 <body>
 
 <h1>Salce's pages</h1>
 
-<p>
-    <a href="./shut-the-box/index.html">Shut The Box</a>
-</p>
-<p>
-    <a href="./suica-fall/index.html">Suica Fall</a>
-</p>
-<p>
-    <a href="./avoid-game/index.html">Avoid Game(Keyboard)</a>
-</p>
-
-<!-- <script src="script.js"></script> JavaScriptファイルの読み込み -->
+<div class="game-container">
+    <div class="game">
+        <h2>Shut The Box</h2>
+        <p>A classic dice game. Can you close the box?</p>
+        <a href="./shut-the-box/index.html">Play Now</a>
+    </div>
+    <div class="game">
+        <h2>Suica Fall</h2>
+        <p>Strategically drop and merge fruits to harvest juicy watermelons!</p>
+        <a href="./suica-fall/index.html">Play Now</a>
+    </div>
+    <div class="game">
+        <h2>Avoid Game (Keyboard)</h2>
+        <p>Use your keyboard to navigate and avoid obstacles.</p>
+        <a href="./avoid-game/index.html">Play Now</a>
+    </div>
+</div>
 
 </body>
 </html>
