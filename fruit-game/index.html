@@ -40,7 +40,6 @@
     const friction = 0.8; // 摩擦係数
 
     let fruits = [];
-    let nextFruit = null; // 次に落ちる果物
     let score = 0;
     let gameover = false;
     const gameArea = {
@@ -65,6 +64,9 @@
       { size: 220, color: '#8B4513' },   // シエナ (200 + 20)
     ];
 
+    let nextFruit = generateFruit(); // 次に落ちる果物
+    let dragFruit = null; // ドラッグ中の果物
+
     function getRandomSize() {
       // 小さい方から5つのサイズをランダムに選ぶ
       const sizes = [0, 1, 2, 3, 4];
@@ -80,7 +82,7 @@
       ctx.strokeStyle = 'red';
       ctx.stroke();
       ctx.closePath();
-      
+
       // 床の描画
       ctx.fillStyle = 'brown';
       ctx.fillRect(0, canvas.height - floorHeight, canvas.width, floorHeight);
@@ -90,21 +92,52 @@
       ctx.fillRect(canvas.width - wallWidth, 0, wallWidth, canvas.height);
 
       // nextの描画
-      ctx.strokeRect(canvas.width - fruitInfo[4].size - wallWidth, 0, fruitInfo[4].size, fruitInfo[4].size);
+      ctx.strokeRect(
+        canvas.width - fruitInfo[4].size - wallWidth,
+        0,
+        fruitInfo[4].size,
+        fruitInfo[4].size
+      );
 
       for (const fruit of fruits) {
         ctx.beginPath();
-        ctx.arc(fruit.x, fruit.y, fruitInfo[fruit.type].size / 2, 0, Math.PI * 2);
+        ctx.arc(
+          fruit.x,
+          fruit.y,
+          fruitInfo[fruit.type].size / 2,
+          0,
+          Math.PI * 2
+        );
         ctx.fillStyle = fruitInfo[fruit.type].color;
         ctx.fill();
         ctx.closePath();
-    }
-    
-    // 次に落ちる果物を描画
-    if (nextFruit) {
+      }
+
+      // 次に落ちる果物を描画
+      if (nextFruit) {
         ctx.beginPath();
-        ctx.arc(canvas.width - fruitInfo[4].size / 2 - wallWidth, fruitInfo[4].size / 2, fruitInfo[nextFruit.type].size / 2, 0, Math.PI * 2);
+        ctx.arc(
+          canvas.width - fruitInfo[4].size / 2 - wallWidth,
+          fruitInfo[4].size / 2,
+          fruitInfo[nextFruit.type].size / 2,
+          0,
+          Math.PI * 2
+        );
         ctx.fillStyle = fruitInfo[nextFruit.type].color;
+        ctx.fill();
+        ctx.closePath();
+      }
+      // 操作中の果物を描画
+      if (dragFruit) {
+        ctx.beginPath();
+        ctx.arc(
+          clickX,
+          dragFruit.y,
+          fruitInfo[dragFruit.type].size / 2,
+          0,
+          Math.PI * 2
+        );
+        ctx.fillStyle = fruitInfo[dragFruit.type].color;
         ctx.fill();
         ctx.closePath();
       }
@@ -121,18 +154,28 @@
           fruit.y = gameArea.bottom - fruitInfo[fruit.type].size / 2;
           fruit.vy *= friction; // 床に接触したら摩擦を適用
         }
-        
+
         // 壁を通り抜けないように修正
         if (fruit.x < gameArea.left + fruitInfo[fruit.type].size / 2) {
-            fruit.x = gameArea.left + fruitInfo[fruit.type].size / 2;
-            fruit.vy *= friction; // 壁に接触したら摩擦を適用
-        } else if (fruit.x > gameArea.right - fruitInfo[fruit.type].size / 2) {
-            fruit.x = gameArea.right - fruitInfo[fruit.type].size / 2;
-            fruit.vy *= friction; // 壁に接触したら摩擦を適用
+          fruit.x = gameArea.left + fruitInfo[fruit.type].size / 2;
+          fruit.vy *= friction; // 壁に接触したら摩擦を適用
+        } else if (
+          fruit.x >
+          gameArea.right - fruitInfo[fruit.type].size / 2
+        ) {
+          fruit.x =
+            gameArea.right - fruitInfo[fruit.type].size / 2;
+          fruit.vy *= friction; // 壁に接触したら摩擦を適用
         }
 
         // 画面上部に到達した場合にゲームオーバー
-        if (!gameover && fruit.y < gameArea.top + roofHeight + fruitInfo[fruit.type].size / 2) {
+        if (
+          !gameover &&
+          fruit.y <
+            gameArea.top +
+              roofHeight +
+              fruitInfo[fruit.type].size / 2
+        ) {
           gameover = true;
           alert('Game Over! Score: ' + score);
         }
@@ -141,7 +184,7 @@
 
     function resetGame() {
       fruits = [];
-      nextFruit = null;
+      nextFruit = generateFruit();
       score = 0;
       drawFruits();
       location.reload();
@@ -154,13 +197,20 @@
           const nextFruit = fruits[j];
 
           const distance = Math.sqrt(
-            Math.pow(currentFruit.x - nextFruit.x, 2) + Math.pow(currentFruit.y - nextFruit.y, 2)
+            Math.pow(currentFruit.x - nextFruit.x, 2) +
+              Math.pow(currentFruit.y - nextFruit.y, 2)
           );
 
-          const overlap = (fruitInfo[currentFruit.type].size + fruitInfo[nextFruit.type].size) / 2 - distance;
+          const overlap =
+            (fruitInfo[currentFruit.type].size +
+              fruitInfo[nextFruit.type].size) /
+              2 -
+            distance;
 
           // 統合判定
-          const canMerge = currentFruit.type < 10 && currentFruit.type === nextFruit.type;
+          const canMerge =
+            currentFruit.type < 10 &&
+            currentFruit.type === nextFruit.type;
 
           // 通り抜け防止の判定
           if (overlap > 0) {
@@ -172,7 +222,7 @@
                 x: (currentFruit.x + nextFruit.x) / 2,
                 y: (currentFruit.y + nextFruit.y) / 2,
                 type: currentFruit.type + 1,
-                vy: gravity,
+                vy: 0,
               });
               score += 10;
               // 衝突があった場合、iおよびjの値をデクリメントして、次の組み合わせを検証する
@@ -180,7 +230,10 @@
               break;
             }
             // 通り抜けを防ぐ処理
-            const angle = Math.atan2(nextFruit.y - currentFruit.y, nextFruit.x - currentFruit.x);
+            const angle = Math.atan2(
+              nextFruit.y - currentFruit.y,
+              nextFruit.x - currentFruit.x
+            );
             currentFruit.x -= overlap / 2 * Math.cos(angle);
             currentFruit.y -= overlap / 2 * Math.sin(angle);
             nextFruit.x += overlap / 2 * Math.cos(angle);
@@ -192,53 +245,78 @@
       }
     }
 
-    function spawnFruit() {
-        if (gameover) return;
+    let clickX = null; // クリックしたx座標
 
-        // 果物を配列に追加
-        if(!nextFruit) nextFruit = generateFruit();
-        fruits.push(nextFruit);
+    canvas.addEventListener('mousedown', (event) => {
+        if(!gameover){
+            // 果物を配列に追加
+            dragFruit = nextFruit;
+            getClickX();
+            nextFruit = generateFruit();   
+        }
+    });
+    
+    canvas.addEventListener('mousemove', (event) => {
+        // ドラッグ中の果物が存在すれば座標を更新
+        if (dragFruit) {
+            getClickX();
+            dragFruit.x = clickX;
+        }
+    });
 
-        nextFruit = generateFruit();
+    canvas.addEventListener('mouseup', () => {
+      // ドラッグ中の果物が存在すればフラグを解除
+      if (dragFruit) {
+        getClickX();
+        dragFruit.x = clickX;
+        fruits.push(dragFruit);
+        dragFruit = null;
+      }
+    });
+
+    function getClickX(){
+        clickX = event.clientX - canvas.getBoundingClientRect().left;
+        // 壁を通り抜けないように修正
+        if (clickX < gameArea.left + fruitInfo[dragFruit.type].size / 2) {
+            clickX = gameArea.left + fruitInfo[dragFruit.type].size / 2;
+        } else if (clickX > gameArea.right - fruitInfo[dragFruit.type].size / 2) {
+            clickX = gameArea.right - fruitInfo[dragFruit.type].size / 2;
+        }
     }
 
-    function generateFruit(){
-        // ランダムなサイズで果物を生成
-        const randomSize = getRandomSize();
+    function generateFruit() {
+      // ランダムなサイズで果物を生成
+      const randomSize = getRandomSize();
 
-        // 果物の x 座標を計算
-        const x =
-            Math.random() * (canvas.width - 2 * wallWidth - fruitInfo[randomSize].size) +
-            wallWidth +
-            fruitInfo[randomSize].size / 2;
+      // 果物の x 座標を仮設定
+      const x = 0;
 
-        // 果物の y 座標を計算
-        const y = gameArea.top + roofHeight + fruitInfo[randomSize].size / 2;
+      // 果物の y 座標を計算
+      const y =
+        gameArea.top +
+        roofHeight +
+        fruitInfo[randomSize].size / 2;
 
-        // 次に落ちる果物のプロパティを設定
-        fruit = {
-            x: x,
-            y: y,
-            type: randomSize,
-            vy: gravity,
-        };
-        return fruit;
+      // 次に落ちる果物のプロパティを設定
+      const fruit = {
+        x: x,
+        y: y,
+        type: randomSize,
+        vy: gravity*2,
+      };
+      return fruit;
     }
 
     function gameLoop() {
       updateFruits();
       checkCollision();
       drawFruits();
+      if(dragFruit !== null) console.log(dragFruit);
       if (!gameover) requestAnimationFrame(gameLoop);
     }
 
     // ゲームループを開始
     gameLoop();
-
-    // スポーンは1秒に1回
-    setInterval(() => {
-      spawnFruit();
-    }, 1000);
   </script>
 </body>
 </html>
