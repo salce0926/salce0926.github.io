@@ -8,10 +8,26 @@
     canvas {
       border: 1px solid #000;
     }
+    .buttonContainer {
+      display: inline-flex;
+    }
+    #reloadButton {
+      width: 60px;
+      height: 60px;
+      font-size: 16px;
+      margin: 10px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  <div>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <!-- ボタン類の設定 -->
+    <div class="buttonContainer">
+      <button id="reloadButton" onclick="resetGame()">Play Again</button>
+    </div>
+  </div>
 
   <script>
     const canvas = document.getElementById('gameCanvas');
@@ -20,6 +36,8 @@
     const wallWidth = 10; // 左右の壁の幅
     const floorHeight = 10; // 床の高さ
     const roofHeight = 100; // 天井の高さ
+    const friction = 0.98; // 摩擦係数
+
     let fruits = [];
     let score = 0;
     let gameover = false;
@@ -79,38 +97,38 @@
     }
 
     function updateFruits() {
-        for (const fruit of fruits) {
-            fruit.y += 2; // 落下速度
+      for (const fruit of fruits) {
+        fruit.vy += 0.1; // 重力を速度に加える
+        fruit.vy *= friction; // 摩擦を適用
+        fruit.y += fruit.vy; // 速度を位置に加える
 
-            // 落下後の床や壁を通り抜けないように修正
-            if (fruit.y > gameArea.bottom - fruitInfo[fruit.type].size / 2) {
-            fruit.y = gameArea.bottom - fruitInfo[fruit.type].size / 2;
-            }
-
-            // 壁を通り抜けないように修正
-            if (fruit.x < gameArea.left + fruitInfo[fruit.type].size / 2) {
-            fruit.x = gameArea.left + fruitInfo[fruit.type].size / 2;
-            } else if (fruit.x > gameArea.right - fruitInfo[fruit.type].size / 2) {
-            fruit.x = gameArea.right - fruitInfo[fruit.type].size / 2;
-            }
-
-            // 画面上部に到達した場合にゲームオーバー
-            if (fruit.y < gameArea.top + roofHeight + fruitInfo[fruit.type].size / 2) {
-                gameover = true;
-                alert('Game Over! Score: ' + score);
-                // ゲームオーバー後の初期化などの処理を追加することができます
-                resetGame();
-            }
+        // 落下後の床や壁を通り抜けないように修正
+        if (fruit.y > gameArea.bottom - fruitInfo[fruit.type].size / 2) {
+          fruit.y = gameArea.bottom - fruitInfo[fruit.type].size / 2;
+          fruit.vy = 0; // 床に着地したら速度をリセット
         }
+
+        // 壁を通り抜けないように修正
+        if (fruit.x < gameArea.left + fruitInfo[fruit.type].size / 2) {
+          fruit.x = gameArea.left + fruitInfo[fruit.type].size / 2;
+        } else if (fruit.x > gameArea.right - fruitInfo[fruit.type].size / 2) {
+          fruit.x = gameArea.right - fruitInfo[fruit.type].size / 2;
+        }
+
+        // 画面上部に到達した場合にゲームオーバー
+        if (!gameover && fruit.y < gameArea.top + roofHeight + fruitInfo[fruit.type].size / 2) {
+          gameover = true;
+          alert('Game Over! Score: ' + score);
+        }
+      }
     }
 
     function resetGame() {
-        fruits = [];
-        score = 0;
-        drawFruits();
-        location.reload();
+      fruits = [];
+      score = 0;
+      drawFruits();
+      location.reload();
     }
-
 
     function checkCollision() {
       for (let i = 0; i < fruits.length; i++) {
@@ -125,7 +143,7 @@
           const overlap = (fruitInfo[currentFruit.type].size + fruitInfo[nextFruit.type].size) / 2 - distance;
 
           // 統合判定
-          const canMerge = currentFruit.type < 9 && currentFruit.type === nextFruit.type;
+          const canMerge = currentFruit.type < 10 && currentFruit.type === nextFruit.type;
 
           // 通り抜け防止の判定
           if (overlap > 0) {
@@ -137,6 +155,7 @@
                 x: (currentFruit.x + nextFruit.x) / 2,
                 y: (currentFruit.y + nextFruit.y) / 2,
                 type: currentFruit.type + 1,
+                vy: 0,
               });
               score += 10;
               // 衝突があった場合、iおよびjの値をデクリメントして、次の組み合わせを検証する
@@ -149,42 +168,49 @@
             currentFruit.y -= overlap / 2 * Math.sin(angle);
             nextFruit.x += overlap / 2 * Math.cos(angle);
             nextFruit.y += overlap / 2 * Math.sin(angle);
+            currentFruit.vy *= friction;
+            nextFruit.vy *= friction;
           }
         }
       }
     }
 
     function spawnFruit() {
-        // ランダムなサイズで果物を生成
-        const randomSize = getRandomSize();
-        
-        // 果物の x 座標を計算
-        const x = Math.random() * (canvas.width - 2 * wallWidth - fruitInfo[randomSize].size) + wallWidth + fruitInfo[randomSize].size / 2;
-        
-        // 果物の y 座標を計算
-        const y = gameArea.top + roofHeight + fruitInfo[randomSize].size / 2;
+      if (gameover) return;
+      // ランダムなサイズで果物を生成
+      const randomSize = getRandomSize();
 
-        // 果物のプロパティを設定
-        const fruit = {
-            x: x,
-            y: y,
-            type: randomSize,
-        };
+      // 果物の x 座標を計算
+      const x =
+        Math.random() * (canvas.width - 2 * wallWidth - fruitInfo[randomSize].size) +
+        wallWidth +
+        fruitInfo[randomSize].size / 2;
 
-        // 果物を配列に追加
-        fruits.push(fruit);
+      // 果物の y 座標を計算
+      const y = gameArea.top + roofHeight + fruitInfo[randomSize].size / 2;
+
+      // 果物のプロパティを設定
+      const fruit = {
+        x: x,
+        y: y,
+        type: randomSize,
+        vy: 0,
+      };
+
+      // 果物を配列に追加
+      fruits.push(fruit);
     }
 
     function gameLoop() {
       updateFruits();
       checkCollision();
       drawFruits();
-      if(!gameover) requestAnimationFrame(gameLoop);
+      if (!gameover) requestAnimationFrame(gameLoop);
     }
 
     // ゲームループを開始
     gameLoop();
-    
+
     // スポーンは1秒に1回
     setInterval(() => {
       spawnFruit();
