@@ -35,10 +35,12 @@
 
     const wallWidth = 10; // 左右の壁の幅
     const floorHeight = 10; // 床の高さ
-    const roofHeight = 100; // 天井の高さ
-    const friction = 0.98; // 摩擦係数
+    const roofHeight = 200; // 天井の高さ
+    const gravity = 0.98; // 重力加速度
+    const friction = 0.8; // 摩擦係数
 
     let fruits = [];
+    let nextFruit = null; // 次に落ちる果物
     let score = 0;
     let gameover = false;
     const gameArea = {
@@ -87,10 +89,22 @@
       ctx.fillRect(0, 0, wallWidth, canvas.height);
       ctx.fillRect(canvas.width - wallWidth, 0, wallWidth, canvas.height);
 
+      // nextの描画
+      ctx.strokeRect(canvas.width - fruitInfo[4].size - wallWidth, 0, fruitInfo[4].size, fruitInfo[4].size);
+
       for (const fruit of fruits) {
         ctx.beginPath();
         ctx.arc(fruit.x, fruit.y, fruitInfo[fruit.type].size / 2, 0, Math.PI * 2);
         ctx.fillStyle = fruitInfo[fruit.type].color;
+        ctx.fill();
+        ctx.closePath();
+    }
+    
+    // 次に落ちる果物を描画
+    if (nextFruit) {
+        ctx.beginPath();
+        ctx.arc(canvas.width - fruitInfo[4].size / 2 - wallWidth, fruitInfo[4].size / 2, fruitInfo[nextFruit.type].size / 2, 0, Math.PI * 2);
+        ctx.fillStyle = fruitInfo[nextFruit.type].color;
         ctx.fill();
         ctx.closePath();
       }
@@ -98,7 +112,7 @@
 
     function updateFruits() {
       for (const fruit of fruits) {
-        fruit.vy += 0.1; // 重力を速度に加える
+        fruit.vy += gravity; // 重力を速度に加える
         fruit.vy *= friction; // 摩擦を適用
         fruit.y += fruit.vy; // 速度を位置に加える
 
@@ -127,6 +141,7 @@
 
     function resetGame() {
       fruits = [];
+      nextFruit = null;
       score = 0;
       drawFruits();
       location.reload();
@@ -157,7 +172,7 @@
                 x: (currentFruit.x + nextFruit.x) / 2,
                 y: (currentFruit.y + nextFruit.y) / 2,
                 type: currentFruit.type + 1,
-                vy: friction,
+                vy: gravity,
               });
               score += 10;
               // 衝突があった場合、iおよびjの値をデクリメントして、次の組み合わせを検証する
@@ -178,29 +193,36 @@
     }
 
     function spawnFruit() {
-      if (gameover) return;
-      // ランダムなサイズで果物を生成
-      const randomSize = getRandomSize();
+        if (gameover) return;
 
-      // 果物の x 座標を計算
-      const x =
-        Math.random() * (canvas.width - 2 * wallWidth - fruitInfo[randomSize].size) +
-        wallWidth +
-        fruitInfo[randomSize].size / 2;
+        // 果物を配列に追加
+        if(!nextFruit) nextFruit = generateFruit();
+        fruits.push(nextFruit);
 
-      // 果物の y 座標を計算
-      const y = gameArea.top + roofHeight + fruitInfo[randomSize].size / 2;
+        nextFruit = generateFruit();
+    }
 
-      // 果物のプロパティを設定
-      const fruit = {
-        x: x,
-        y: y,
-        type: randomSize,
-        vy: friction,
-      };
+    function generateFruit(){
+        // ランダムなサイズで果物を生成
+        const randomSize = getRandomSize();
 
-      // 果物を配列に追加
-      fruits.push(fruit);
+        // 果物の x 座標を計算
+        const x =
+            Math.random() * (canvas.width - 2 * wallWidth - fruitInfo[randomSize].size) +
+            wallWidth +
+            fruitInfo[randomSize].size / 2;
+
+        // 果物の y 座標を計算
+        const y = gameArea.top + roofHeight + fruitInfo[randomSize].size / 2;
+
+        // 次に落ちる果物のプロパティを設定
+        fruit = {
+            x: x,
+            y: y,
+            type: randomSize,
+            vy: gravity,
+        };
+        return fruit;
     }
 
     function gameLoop() {
