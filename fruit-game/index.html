@@ -105,14 +105,16 @@
         // 落下後の床や壁を通り抜けないように修正
         if (fruit.y > gameArea.bottom - fruitInfo[fruit.type].size / 2) {
           fruit.y = gameArea.bottom - fruitInfo[fruit.type].size / 2;
-          fruit.vy = 0; // 床に着地したら速度をリセット
+          fruit.vy *= friction; // 床に接触したら摩擦を適用
         }
-
+        
         // 壁を通り抜けないように修正
         if (fruit.x < gameArea.left + fruitInfo[fruit.type].size / 2) {
-          fruit.x = gameArea.left + fruitInfo[fruit.type].size / 2;
+            fruit.x = gameArea.left + fruitInfo[fruit.type].size / 2;
+            fruit.vy *= friction; // 壁に接触したら摩擦を適用
         } else if (fruit.x > gameArea.right - fruitInfo[fruit.type].size / 2) {
-          fruit.x = gameArea.right - fruitInfo[fruit.type].size / 2;
+            fruit.x = gameArea.right - fruitInfo[fruit.type].size / 2;
+            fruit.vy *= friction; // 壁に接触したら摩擦を適用
         }
 
         // 画面上部に到達した場合にゲームオーバー
@@ -155,7 +157,7 @@
                 x: (currentFruit.x + nextFruit.x) / 2,
                 y: (currentFruit.y + nextFruit.y) / 2,
                 type: currentFruit.type + 1,
-                vy: 0,
+                vy: friction,
               });
               score += 10;
               // 衝突があった場合、iおよびjの値をデクリメントして、次の組み合わせを検証する
@@ -194,7 +196,7 @@
         x: x,
         y: y,
         type: randomSize,
-        vy: 0,
+        vy: friction,
       };
 
       // 果物を配列に追加
