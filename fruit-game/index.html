@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スイカゲーム</title>
+  <style>
+    canvas {
+      border: 1px solid #000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const wallWidth = 10; // 左右の壁の幅
+    const floorHeight = 10; // 床の高さ
+    const roofHeight = 100; // 天井の高さ
+    let fruits = [];
+    let score = 0;
+    let gameover = false;
+    const gameArea = {
+      top: wallWidth,
+      bottom: canvas.height - floorHeight,
+      left: wallWidth,
+      right: canvas.width - wallWidth,
+    };
+
+    // サイズと色の情報を持つ配列
+    const fruitInfo = [
+      { size: 20, color: '#FF0000' },    // 赤
+      { size: 40, color: '#FF8C00' },    // ダークオレンジ (20 + 20)
+      { size: 60, color: '#FFD700' },    // 金色 (40 + 20)
+      { size: 80, color: '#00FF00' },    // 緑 (60 + 20)
+      { size: 100, color: '#32CD32' },   // ライムグリーン (80 + 20)
+      { size: 120, color: '#0000FF' },   // 青 (100 + 20)
+      { size: 140, color: '#4B0082' },   // インディゴ (120 + 20)
+      { size: 160, color: '#8A2BE2' },   // ブルー・バイオレット (140 + 20)
+      { size: 180, color: '#800000' },   // マルーン (160 + 20)
+      { size: 200, color: '#FF1493' },   // ディープピンク (180 + 20)
+      { size: 220, color: '#8B4513' },   // シエナ (200 + 20)
+    ];
+
+    function getRandomSize() {
+      // 小さい方から5つのサイズをランダムに選ぶ
+      const sizes = [0, 1, 2, 3, 4];
+      return sizes[Math.floor(Math.random() * sizes.length)];
+    }
+
+    function drawFruits() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.beginPath();
+      ctx.moveTo(0, roofHeight);
+      ctx.lineTo(canvas.width, roofHeight);
+      ctx.strokeStyle = 'red';
+      ctx.stroke();
+      ctx.closePath();
+      
+      // 床の描画
+      ctx.fillStyle = 'brown';
+      ctx.fillRect(0, canvas.height - floorHeight, canvas.width, floorHeight);
+
+      // 壁の描画
+      ctx.fillRect(0, 0, wallWidth, canvas.height);
+      ctx.fillRect(canvas.width - wallWidth, 0, wallWidth, canvas.height);
+
+      for (const fruit of fruits) {
+        ctx.beginPath();
+        ctx.arc(fruit.x, fruit.y, fruitInfo[fruit.type].size / 2, 0, Math.PI * 2);
+        ctx.fillStyle = fruitInfo[fruit.type].color;
+        ctx.fill();
+        ctx.closePath();
+      }
+    }
+
+    function updateFruits() {
+        for (const fruit of fruits) {
+            fruit.y += 2; // 落下速度
+
+            // 落下後の床や壁を通り抜けないように修正
+            if (fruit.y > gameArea.bottom - fruitInfo[fruit.type].size / 2) {
+            fruit.y = gameArea.bottom - fruitInfo[fruit.type].size / 2;
+            }
+
+            // 壁を通り抜けないように修正
+            if (fruit.x < gameArea.left + fruitInfo[fruit.type].size / 2) {
+            fruit.x = gameArea.left + fruitInfo[fruit.type].size / 2;
+            } else if (fruit.x > gameArea.right - fruitInfo[fruit.type].size / 2) {
+            fruit.x = gameArea.right - fruitInfo[fruit.type].size / 2;
+            }
+
+            // 画面上部に到達した場合にゲームオーバー
+            if (fruit.y < gameArea.top + roofHeight + fruitInfo[fruit.type].size / 2) {
+                gameover = true;
+                alert('Game Over! Score: ' + score);
+                // ゲームオーバー後の初期化などの処理を追加することができます
+                resetGame();
+            }
+        }
+    }
+
+    function resetGame() {
+        fruits = [];
+        score = 0;
+        drawFruits();
+        location.reload();
+    }
+
+
+    function checkCollision() {
+      for (let i = 0; i < fruits.length; i++) {
+        for (let j = i + 1; j < fruits.length; j++) {
+          const currentFruit = fruits[i];
+          const nextFruit = fruits[j];
+
+          const distance = Math.sqrt(
+            Math.pow(currentFruit.x - nextFruit.x, 2) + Math.pow(currentFruit.y - nextFruit.y, 2)
+          );
+
+          const overlap = (fruitInfo[currentFruit.type].size + fruitInfo[nextFruit.type].size) / 2 - distance;
+
+          // 統合判定
+          const canMerge = currentFruit.type < 9 && currentFruit.type === nextFruit.type;
+
+          // 通り抜け防止の判定
+          if (overlap > 0) {
+            if (canMerge) {
+              fruits.splice(i, 1);
+              fruits.splice(j - 1, 1);
+              // 大きな果物を生成
+              fruits.push({
+                x: (currentFruit.x + nextFruit.x) / 2,
+                y: (currentFruit.y + nextFruit.y) / 2,
+                type: currentFruit.type + 1,
+              });
+              score += 10;
+              // 衝突があった場合、iおよびjの値をデクリメントして、次の組み合わせを検証する
+              i--;
+              break;
+            }
+            // 通り抜けを防ぐ処理
+            const angle = Math.atan2(nextFruit.y - currentFruit.y, nextFruit.x - currentFruit.x);
+            currentFruit.x -= overlap / 2 * Math.cos(angle);
+            currentFruit.y -= overlap / 2 * Math.sin(angle);
+            nextFruit.x += overlap / 2 * Math.cos(angle);
+            nextFruit.y += overlap / 2 * Math.sin(angle);
+          }
+        }
+      }
+    }
+
+    function spawnFruit() {
+        // ランダムなサイズで果物を生成
+        const randomSize = getRandomSize();
+        
+        // 果物の x 座標を計算
+        const x = Math.random() * (canvas.width - 2 * wallWidth - fruitInfo[randomSize].size) + wallWidth + fruitInfo[randomSize].size / 2;
+        
+        // 果物の y 座標を計算
+        const y = gameArea.top + roofHeight + fruitInfo[randomSize].size / 2;
+
+        // 果物のプロパティを設定
+        const fruit = {
+            x: x,
+            y: y,
+            type: randomSize,
+        };
+
+        // 果物を配列に追加
+        fruits.push(fruit);
+    }
+
+    function gameLoop() {
+      updateFruits();
+      checkCollision();
+      drawFruits();
+      if(!gameover) requestAnimationFrame(gameLoop);
+    }
+
+    // ゲームループを開始
+    gameLoop();
+    
+    // スポーンは1秒に1回
+    setInterval(() => {
+      spawnFruit();
+    }, 1000);
+  </script>
+</body>
+</html>
