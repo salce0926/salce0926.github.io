@@ -200,7 +200,11 @@ const pieces = [
     [[1, 1],
      [1, 1]],
     [[1, 1, 1],
-     [0, 1, 0]]
+     [0, 1, 0]],
+    [[1, 1, 1],
+     [1, 0, 1]],
+    [[1, 0, 1],
+     [1, 0, 1]]
 ];
 
 let currentPiece = new Piece(pieces[Math.floor(Math.random() * pieces.length)]);
