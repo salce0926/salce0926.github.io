@@ -15,22 +15,22 @@ body {
 
 #game-board {
     display: grid;
-    grid-template-columns: repeat(10, 30px);
+    grid-template-columns: repeat(10, 20px);
     grid-gap: 1px;
     border: 1px solid #333;
 }
 
 #next-piece {
     display: grid;
-    grid-template-columns: repeat(4, 30px);
+    grid-template-columns: repeat(4, 20px);
     grid-gap: 1px;
     border: 1px solid #333;
     margin-bottom: 20px; /* ネクストピースとスコアの間隔を調整 */
 }
 
 .cell {
-    width: 30px;
-    height: 30px;
+    width: 20px;
+    height: 20px;
     border: 1px solid #ddd;
     box-sizing: border-box;
 }
@@ -41,25 +41,25 @@ body {
     align-items: center;
     justify-content: space-between;
     position: relative;
-    height: 75%;
+    height: 57%;
     margin-left: 20px; /* ゲームコンテナとの間隔を調整 */
 }
 
 #score {
     text-align: center;
-    width: 120px; /* スコアコンテナの幅を調整 */
-    height: 60px; /* スコアコンテナの高さを調整 */
+    width: 80px; /* スコアコンテナの幅を調整 */
+    height: 40px; /* スコアコンテナの高さを調整 */
     border: 1px solid #333;
-    font-size: 18px;
+    font-size: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 #reloadButton {
-    width: 120px;
-    height: 60px;
-    font-size: 16px;
+    width: 80px;
+    height: 40px;
+    font-size: 12px;
     cursor: pointer;
 }
 
