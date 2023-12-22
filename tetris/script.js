@@ -22,6 +22,8 @@ function drawBoard() {
             gameBoard.appendChild(cell);
         }
     }
+    document.getElementById('score').innerText = `Score: ${score}`;
+    // document.getElementById('interval').innerText = `Interval: ${dropInterval/1000}s`;
 }
 
 function drawNextPiece(piece) {
@@ -221,6 +223,8 @@ document.addEventListener('keydown', (event) => {
             movePieceRight(currentPiece);
         } else if (event.key === 'ArrowUp') {
             rotatePiece(currentPiece);
+        } else if (event.key === 's' || event.key === 'S') {
+            score += 100;
         }
     }
 });
@@ -254,6 +258,19 @@ gameContainer.addEventListener('touchstart', (e) => {
     }
 });
 
+function changeDifficulty(){
+    for (let row = 0; row < (rows / 2); row++) {
+        if (board[row].some(cell => cell === 2)) {
+            if(dropInterval == 1000) return;
+            score -= 1000;
+            dropInterval = 1000;
+            if(score < 0) score = 0;
+            return;
+        }
+    }
+    dropInterval = 1000 - score / 10;
+}
+
 function gameLoop(timestamp) {
     if (!gameOver) {
         const deltaTime = timestamp - lastTime;
@@ -264,6 +281,7 @@ function gameLoop(timestamp) {
         }
 
         drawBoard();
+        changeDifficulty();
         requestAnimationFrame(gameLoop);
     }
 }

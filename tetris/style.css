@@ -56,6 +56,17 @@ body {
     justify-content: center;
 }
 
+#interval {
+    text-align: center;
+    width: 80px; /* スコアコンテナの幅を調整 */
+    height: 40px; /* スコアコンテナの高さを調整 */
+    border: 1px solid #333;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 #reloadButton {
     width: 80px;
     height: 40px;
