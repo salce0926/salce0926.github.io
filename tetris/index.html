@@ -14,46 +14,62 @@
       height: 100vh;
       margin: 0;
     }
-
+  
     #game-container {
       display: flex;
       align-items: flex-start;
     }
-
+  
     #game-board {
       display: grid;
       grid-template-columns: repeat(10, 30px);
       grid-gap: 1px;
       border: 1px solid #333;
     }
-
+  
     #next-piece {
       display: grid;
       grid-template-columns: repeat(4, 30px);
       grid-gap: 1px;
       border: 1px solid #333;
-      margin-left: 20px;
+      margin-bottom: 20px; /* ネクストピースとスコアの間隔を調整 */
     }
-
+  
     .cell {
       width: 30px;
       height: 30px;
       border: 1px solid #ddd;
       box-sizing: border-box;
     }
-    
+  
+    #info-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      height: 75%;
+      margin-left: 20px; /* ゲームコンテナとの間隔を調整 */
+    }
+  
     #score {
-      margin: 0 20px;
       text-align: center;
       width: 120px; /* スコアコンテナの幅を調整 */
       height: 60px; /* スコアコンテナの高さを調整 */
       border: 1px solid #333;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       font-size: 18px;
+      display: flex;
+    align-items: center;
+    justify-content: center;
     }
-
+  
+    #reloadButton {
+      width: 120px;
+      height: 60px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  
     #game-over {
       display: none;
       font-size: 24px;
@@ -68,34 +84,27 @@
       padding: 20px;
       border-radius: 10px;
     }
-
-    #reloadButton {
-      width: 120px;
-      height: 60px;
-      font-size: 16px;
-      margin: 10px;
-      cursor: pointer;
-      position: absolute;
-      bottom: calc(100vh / 9);
-      right: calc(20%);
-    }
-
+  
     a {
-        position: absolute;
-        bottom: 5%;
+      position: absolute;
+      bottom: 5%;
     }
   </style>
-</head>
-<body>
-
-<div id="score">Score: 0</div>
-<div id="game-container">
-  <div id="game-board"></div>
-  <div id="next-piece"></div>
-</div>
-<button id="reloadButton" onclick="location.reload()">Play</button>
-<div id="game-over">Game Over</div>
-<a href="../index.html">Return to main page</a>
+  </head>
+  <body>
+  
+    <div id="game-container">
+      <div id="game-board"></div>
+      <div id="game-over">Game Over</div>
+    </div>
+  
+    <div id="info-container">
+      <div id="next-piece"></div>
+      <div id="score">Score: 0</div>
+      <button id="reloadButton" onclick="location.reload()">Play</button>
+    </div>
+    <a href="../index.html">Return to main page</a>
+    
 
 <script>
   const rows = 20;
@@ -322,36 +331,32 @@
       }
     }
   });
-  let touchStartX = 0;
-  let touchStartY = 0;
 
-  document.addEventListener('touchstart', (event) => {
-    touchStartX = event.touches[0].clientX;
-    touchStartY = event.touches[0].clientY;
-  });
+  const gameContainer = document.getElementById('game-container');
 
-  document.addEventListener('touchend', (event) => {
-    const touchEndX = event.changedTouches[0].clientX;
-    const touchEndY = event.changedTouches[0].clientY;
-
-    const deltaX = touchEndX - touchStartX;
-    const deltaY = touchEndY - touchStartY;
-
-    if (!gameOver) {
-      if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        // Horizontal swipe
-        if (deltaX > 0) {
-          movePieceRight(currentPiece);
-        } else {
-          movePieceLeft(currentPiece);
-        }
+  gameContainer.addEventListener('touchstart', (e) => {
+    const touchX = e.changedTouches[0].clientX - gameContainer.getBoundingClientRect().left;
+    const touchY = e.changedTouches[0].clientY - gameContainer.getBoundingClientRect().top;
+    
+    const containerWidth = gameContainer.clientWidth;
+    const containerHeight = gameContainer.clientHeight;
+    
+    const rotationArea = containerHeight / 3; // 上部 1/3 が回転
+    const moveDownArea = containerHeight * 2 / 3; // 下部 1/3 が下移動
+    
+    if (touchY < rotationArea) {
+      // 上部 (回転エリア) をタップした場合
+      rotatePiece(currentPiece);
+    }else if(touchY > moveDownArea){
+        movePieceDown(currentPiece);
+    } else {
+      // 下部 (移動エリア) をタップした場合
+      if (touchX > containerWidth / 2) {
+        // 右半分をタップした場合
+        movePieceRight(currentPiece);
       } else {
-        // Vertical swipe
-        if (deltaY > 0) {
-          movePieceDown(currentPiece);
-        } else {
-          rotatePiece(currentPiece);
-        }
+        // 左半分をタップした場合
+        movePieceLeft(currentPiece);
       }
     }
   });
