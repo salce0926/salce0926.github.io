@@ -1,3 +1,9 @@
+@font-face {
+    font-family: 'cinecaption'; /* 任意のフォント名 */
+    src: url('../fonts/cinecaption226.ttf') format('truetype'); /* フォントのパスと形式 */
+    /* 追加の書式やスタイルを指定することもできます */
+}
+
 body {
     display: flex;
     align-items: center;
@@ -5,7 +11,7 @@ body {
     height: 100vh;
     margin: 0;
     background-color: #f8f8f8;
-    font-family: 'Arial', sans-serif;
+    font-family: 'cinecaption','Arial', sans-serif;
     text-align: center;
 }
 
