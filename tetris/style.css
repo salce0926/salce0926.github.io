@@ -1,0 +1,84 @@
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+}
+
+#game-container {
+    display: flex;
+    align-items: flex-start;
+}
+
+#game-board {
+    display: grid;
+    grid-template-columns: repeat(10, 30px);
+    grid-gap: 1px;
+    border: 1px solid #333;
+}
+
+#next-piece {
+    display: grid;
+    grid-template-columns: repeat(4, 30px);
+    grid-gap: 1px;
+    border: 1px solid #333;
+    margin-bottom: 20px; /* ネクストピースとスコアの間隔を調整 */
+}
+
+.cell {
+    width: 30px;
+    height: 30px;
+    border: 1px solid #ddd;
+    box-sizing: border-box;
+}
+
+#info-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    height: 75%;
+    margin-left: 20px; /* ゲームコンテナとの間隔を調整 */
+}
+
+#score {
+    text-align: center;
+    width: 120px; /* スコアコンテナの幅を調整 */
+    height: 60px; /* スコアコンテナの高さを調整 */
+    border: 1px solid #333;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#reloadButton {
+    width: 120px;
+    height: 60px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+#game-over {
+    display: none;
+    font-size: 24px;
+    font-weight: bold;
+    color: #333; /* ゲームオーバー時の文字色を変更 */
+    text-align: center;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(255, 255, 255, 0.95); /* ゲームオーバー時の背景色を透明に変更 */
+    padding: 20px;
+    border-radius: 10px;
+}
+
+a {
+    position: absolute;
+    bottom: 5%;
+}
