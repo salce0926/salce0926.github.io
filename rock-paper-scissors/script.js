@@ -1,4 +1,4 @@
-const ws = new WebSocket('ws://nodepractice-e56g.onrender.com/');
+const ws = new WebSocket('wss://nodepractice-e56g.onrender.com/');
 
     ws.addEventListener('open', (event) => {
       console.log('WebSocket connection opened');
