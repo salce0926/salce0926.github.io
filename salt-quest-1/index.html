@@ -5,29 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ソルトクエスト1</title>
     <style>
+        @font-face {
+            font-family: 'cinecaption';
+            src: url('../fonts/cinecaption226.ttf') format('truetype');
+        }
         body {
             margin: 0;
             overflow: hidden;
+            font-family: 'cinecaption','Arial', sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
         }
         canvas {
             display: block;
+            border: 2px solid #555;
+            margin: 10px 0; /* 上下に余白を追加 */
+        }
+        #game-info {
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 5px;
+            text-align: center;
+            margin: 10px;
+            height: 15%;
+            width: 350px;
+        }
+        #main-page-link {
+            padding: 10px;
+            background-color: #3498db;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 10px; /* 上に余白を追加 */
         }
     </style>
 </head>
 <body>
-    <a href="../index.html">Return to main page</a>
+    <canvas id="canvas"></canvas>
+    <div id="game-info">
+        <div id="point">x: 0, y: 0</div>
+        <div id="message">SaltQuestⅠ</div>
+    </div>
+    <a href="../index.html" id="main-page-link">Return to main page</a>
     <script src="mapdata.js"></script>
     <script>
         // マップデータ（数字はタイルの種類）
 
         // 画像のURL
-        var tilesetURL = 'https://www.spriters-resource.com/resources/sheets/10/10199.png?updated=1460953984';
-        var mapURL = 'https://www.spriters-resource.com/resources/sheets/106/109509.png?updated=1538670330';
-        var characterURL = 'https://www.spriters-resource.com/resources/sheets/39/41381.png?updated=1586742791';
+        var tilesetURL = 'https://www.spriters-resource.com/resources/sheets/10/10199.png';
+        var mapURL = 'https://www.spriters-resource.com/resources/sheets/106/109509.png';
+        var characterURL = 'https://www.spriters-resource.com/resources/sheets/39/41381.png';
 
         // タイルのサイズ
         var tileSize = 16;
-        var rate = 2;
+        var rate = 1.5;
 
         // マップサイズ
         var mapWidth = mapData[0].length;
@@ -37,15 +72,39 @@
         var screenWidth = 16;
         var screenHeight = 16;
 
+        // フラグとクリア条件を管理するオブジェクト
+        // var flags = {
+        //     delivery: { flag: false, location: { x: 9, y: 9 } },
+        //     castle: { flag: false, location: { x: 51, y: 51 } }
+        //     // 他にも必要なフラグやクリア条件を追加する
+        // };
+
+        var flags = {
+            fairyFlute: { flag: false, location: { x: 112, y: 18 } },
+            magicKey: { flag: false, location: { x: 110, y: 80 } },
+            roraRescued: { flag: false, location: { x: 0, y: 0 } },
+            roraLove: { flag: false, location: { x: 0, y: 0 } },
+            sunStone: { flag: false, location: { x: 0, y: 0 } },
+            silverHerp: { flag: false, location: { x: 0, y: 0 } },
+            rainCloudStuff: { flag: false, location: { x: 0, y: 0 } },
+            rotoArmor: { flag: false, location: { x: 0, y: 0 } },
+            golemKilled: { flag: false, location: { x: 0, y: 0 } },
+            rotoEmblem: { flag: false, location: { x: 0, y: 0 } },
+            rainbowDrop: { flag: false, location: { x: 0, y: 0 } },
+            rainbowBridge: { flag: false, location: { x: 0, y: 0 } },
+            lightBall: { flag: false, location: { x: 0, y: 0 } }
+        };
+
         // プレイヤーの初期位置
-        var playerPosition = { x: 16, y: 16 };
+        var playerPosition = { x: 51, y: 51 };
 
         // Canvasの設定
-        var canvas = document.createElement('canvas');
+        var canvas = document.getElementById('canvas');
         var ctx = canvas.getContext('2d');
-        canvas.width = mapWidth * tileSize;
-        canvas.height = mapHeight * tileSize;
-        document.body.appendChild(canvas);
+        canvas.width = screenWidth * tileSize * rate;
+        canvas.height = screenHeight * tileSize * rate;
+
+        var message = '';
 
         // イメージのロード
         var characterImage = new Image();
@@ -54,7 +113,6 @@
         tilesetImage.src = tilesetURL;
         tilesetImage.onload = function () {
             drawScreen();
-            // updateCanvas();
         };
 
         function drawTile(x, y, index){
@@ -74,16 +132,74 @@
             ctx.drawImage(src, offsetX+(index % tileRowLength) * (tileSize+offsetTile), offsetY+Math.floor(index / tileRowLength) * (tileSize+offsetTile), tileSize, tileSize, x * tileSize*rate, y * tileSize*rate, tileSize*rate, tileSize*rate);
         }
 
-        // function drawMap() {
-        //     for (var y = 0; y < mapHeight; y++) {
-        //         for (var x = 0; x < mapWidth; x++) {
-        //             // ここでマップデータを元にタイルを描画
-        //             var tileIndex = mapData[y][x];
-        //             if(tileIndex >= 350) tileIndex -= 12*25;
-        //             drawTile(x, y, tileIndex);
-        //         }
-        //     }
-        // }
+        function isVisitMaira(position){
+            return position.x === flags.fairyFlute.location.x && position.y === flags.fairyFlute.location.y;
+        }
+        function isVisitCaveNorth(position){
+            return position.x === 112 && position.y === 52;
+        }
+        function isVisitCaveSouth(position){
+            return position.x === 112 && position.y === 57;
+        }
+        function isVisitCave(position){
+            return isVisitCaveNorth(position) || isVisitCaveSouth(position);
+        }
+        function isVisitRimurudaru(position){
+            return position.x === flags.magicKey.location.x && position.y === flags.magicKey.location.y;
+        }
+
+        function isVisitCastle(position){
+            return position.x === 51 && position.y === 51;
+        }
+
+        function checkConditions() {
+            message = '';
+            if(isVisitMaira(playerPosition)){
+                if(!flags.fairyFlute.flag){
+                    flags.fairyFlute.flag = true;
+                    message += '妖精の笛を手に入れた！';
+                }else{
+                    message += 'ここはマイラの村だ';
+                }
+            }
+            if(isVisitCave(playerPosition)){
+                if(!flags.roraRescued.flag){
+                    if(!flags.magicKey.flag){
+                        message += '洞窟の中に扉があったが、鍵が無いので開けられなかった...';
+                    }else{
+                        flags.roraRescued.flag = true;
+                        message += '魔法の鍵で扉を開けた！\n';
+                        message += 'ドラゴンを倒してローラ姫を救出した！';
+                    }
+                }else{
+                    message += '倒したドラゴンのことは今度片付けよう';
+                }
+                if(isVisitCaveNorth(playerPosition)){
+                    playerPosition.y = 57;
+                }else if(isVisitCaveSouth(playerPosition)){
+                    playerPosition.y = 52;
+                }
+            }
+            if(isVisitRimurudaru(playerPosition)){
+                if(!flags.magicKey.flag){
+                    flags.magicKey.flag = true;
+                    message += '魔法の鍵を手に入れた！';
+                }else{
+                    message += 'ここはリムルダールの町だ';
+                }
+            }
+            if(isVisitCastle(playerPosition)){
+                if(!flags.roraRescued.flag){
+                    message += 'ここはラダトームの城だ\n';
+                    message += '王「ローラ姫はどこへ...」';
+                }else{
+                    message += '王「ローラ姫！」\n';
+                    message += '王「勇者よ！よくぞローラ姫を救い出してくれた！」\n';
+                    message += 'GAME CLEAR!';
+                }
+            }
+            document.getElementById('message').innerText = message;
+        }
 
         function screenXToWorldX(screenX){
             return ((playerPosition.x - screenWidth/2 + screenX) + mapWidth) % mapWidth;
@@ -95,6 +211,9 @@
 
         var index = 4;
         function drawScreen() {
+            // 条件の確認
+            checkConditions();
+
             for (var y = 0; y <= screenHeight; y++) {
                 for (var x = 0; x <= screenWidth; x++) {
                     var tileIndex = mapData[screenYToWorldY(y)][screenXToWorldX(x)];
@@ -108,21 +227,17 @@
                     }
                 }
             }
+
+            document.getElementById('point').innerText = `x: ${playerPosition.x}, y: ${playerPosition.y}`;
         }
 
-        // function updateCanvas() {
-        //     // プレイヤーの位置にプレイヤーを描画
-        //     drawCharacter(playerPosition.x, playerPosition.y, (index++)%27);
-        // }
-
-        // キーボードイベントのリスナーを追加
         window.addEventListener('keydown', function (e) {
             switch (e.key) {
                 case 'ArrowUp':
                     playerPosition.y--;
                     playerPosition.y = (playerPosition.y + mapHeight) % mapHeight;
                     break;
-                    case 'ArrowDown':
+                case 'ArrowDown':
                     playerPosition.y++;
                     playerPosition.y = (playerPosition.y + mapHeight) % mapHeight;
                     break;
@@ -138,8 +253,11 @@
                     break;
             }
             drawScreen();
-            // updateCanvas();
         });
+
+        window.onload = function () {
+            drawScreen();
+        };
     </script>
 </body>
 </html>
