@@ -23,7 +23,11 @@
         canvas {
             display: block;
             border: 2px solid #555;
-            margin: 10px 0; /* 上下に余白を追加 */
+        }
+        #buttonContainer {
+            display: flex;
+            justify-content: space-between;
+            width: 400px;
         }
         #game-info {
             padding: 10px;
@@ -31,26 +35,29 @@
             border-radius: 5px;
             text-align: center;
             margin: 10px;
-            height: 15%;
-            width: 350px;
+            height: 10%;
+            width: 370px;
         }
-        #main-page-link {
+        .link {
             padding: 10px;
             background-color: #3498db;
             color: #fff;
             text-decoration: none;
             border-radius: 5px;
-            margin-top: 10px; /* 上に余白を追加 */
+            margin: 10px;
         }
     </style>
 </head>
 <body>
+    <div id="buttonContainer">
+        <a href="../index.html" class="link">Return to main page</a>
+        <a onclick="location.reload()" class="link">Play Again</a>
+    </div>
     <canvas id="canvas"></canvas>
     <div id="game-info">
         <div id="point">x: 0, y: 0</div>
         <div id="message">SaltQuestⅠ</div>
     </div>
-    <a href="../index.html" id="main-page-link">Return to main page</a>
     <script src="mapdata.js"></script>
     <script>
         // マップデータ（数字はタイルの種類）
