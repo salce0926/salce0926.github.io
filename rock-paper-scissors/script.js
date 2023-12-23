@@ -1,6 +1,9 @@
 let ws = new WebSocket('wss://nodepractice-e56g.onrender.com/');
 let username = null;
 
+const userListElement = document.getElementById('userList');
+const choicesListElement = document.getElementById('choicesList');
+
 ws.addEventListener('open', (event) => {
   console.log('WebSocket connection opened');
   
@@ -45,25 +48,37 @@ async function playGame() {
 }
 
 function displayUserList(usernames) {
-  const userListElement = document.getElementById('userList');
   userListElement.innerHTML = '';
 
   usernames.forEach((name) => {
     const listItem = document.createElement('li');
     listItem.textContent = name;
+
+    // 各ユーザーが手を選んでいるかどうかを確認
+    const user = players.get(name);
+    if (user.choice) {
+      // 手を選んでいる場合
+      listItem.textContent += `chose`;
+    } else {
+      listItem.textContent += `connected`;
+    }
+
     userListElement.appendChild(listItem);
+    userListElement.style.display = 'block';
+    // choicesListElement.style.display = 'none';
   });
 }
 
 function displayChoicesList(userChoices) {
-  const choicesListElement = document.getElementById('choicesList');
   choicesListElement.innerHTML = '';
-
+  
   userChoices.forEach(([name, choice]) => {
     const listItem = document.createElement('li');
     listItem.textContent = `${name}: ${choice}`;
     choicesListElement.appendChild(listItem);
   });
+  userListElement.style.display = 'none';
+  choicesListElement.style.display = 'block';
 }
 
 function displayResult(result) {
