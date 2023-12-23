@@ -1,32 +1,69 @@
-const ws = new WebSocket('wss://nodepractice-e56g.onrender.com/');
+let ws = new WebSocket('wss://nodepractice-e56g.onrender.com/');
+let username = null;
 
 ws.addEventListener('open', (event) => {
   console.log('WebSocket connection opened');
+  
+  // ユーザーが参加したことをサーバーに通知
+  username = prompt('Enter your username:');
+    ws.send(JSON.stringify({ type: 'join', username }));
+  });
 
-  // クライアントが接続した際にユーザー名をサーバーに送信
-  const username = prompt('Enter your username:');
-  ws.send(JSON.stringify({ type: 'join', username }));
-});
+  ws.addEventListener('message', (event) => {
+    const data = JSON.parse(event.data);
 
-ws.addEventListener('message', (event) => {
-  const data = JSON.parse(event.data);
+    if (data.type === 'userList') {
+      // ユーザーリストを表示
+      displayUserList(data.usernames);
+    } else if (data.type === 'choicesList') {
+      // ユーザーのじゃんけんの手を表示
+      displayChoicesList(data.userChoices);
+    } else if (data.result) {
+      // じゃんけんの結果を表示
+      displayResult(data.result);
+    }
+  });
 
-  if (data.type === 'userList') {
-    // サーバーからのユーザーリストを受信したときの処理
-    const usernames = data.usernames;
-    console.log('User list:', usernames);
-  } else {
-    // じゃんけんの結果などの他のメッセージの処理
-    const { result } = data;
-    displayResult(result);
-  }
-});
+  ws.addEventListener('close', (event) => {
+    console.log('WebSocket connection closed');
+
+    // クリーンアップ
+    ws = null;
+    username = null;
+    displayUserList([]);
+  });
 
 async function playGame() {
   const playerChoice = document.getElementById('choice').value;
 
-  // じゃんけんの手をサーバーに送信
-  ws.send(JSON.stringify({ type: 'game', playerChoice }));
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    alert('WebSocket connection is not open.');
+    return;
+  }
+
+  ws.send(JSON.stringify({ type: 'game', username, playerChoice }));
+}
+
+function displayUserList(usernames) {
+  const userListElement = document.getElementById('userList');
+  userListElement.innerHTML = '';
+
+  usernames.forEach((name) => {
+    const listItem = document.createElement('li');
+    listItem.textContent = name;
+    userListElement.appendChild(listItem);
+  });
+}
+
+function displayChoicesList(userChoices) {
+  const choicesListElement = document.getElementById('choicesList');
+  choicesListElement.innerHTML = '';
+
+  userChoices.forEach(([name, choice]) => {
+    const listItem = document.createElement('li');
+    listItem.textContent = `${name}: ${choice}`;
+    choicesListElement.appendChild(listItem);
+  });
 }
 
 function displayResult(result) {
