@@ -17,9 +17,7 @@ ws.addEventListener('open', (event) => {
 
     if (data.type === 'userList') {
       // ユーザーリストを表示
-      displayUserList(data.usernames);
-    } else if (data.type === 'choicesList') {
-      // ユーザーのじゃんけんの手を表示
+      displayUserList(data.userChoices);
       displayChoicesList(data.userChoices);
     } else if (data.result) {
       // じゃんけんの結果を表示
@@ -47,26 +45,25 @@ async function playGame() {
   ws.send(JSON.stringify({ type: 'game', username, playerChoice }));
 }
 
-function displayUserList(usernames) {
+function displayUserList(userChoices) {
   userListElement.innerHTML = '';
 
-  usernames.forEach((name) => {
+  userChoices.forEach(([name, choice]) => {
     const listItem = document.createElement('li');
     listItem.textContent = name;
 
     // 各ユーザーが手を選んでいるかどうかを確認
-    const user = players.get(name);
-    if (user.choice) {
+    if (choice) {
       // 手を選んでいる場合
-      listItem.textContent += `chose`;
+      listItem.textContent += `: chose`;
     } else {
-      listItem.textContent += `connected`;
+      listItem.textContent += `: connected`;
     }
 
     userListElement.appendChild(listItem);
-    userListElement.style.display = 'block';
-    // choicesListElement.style.display = 'none';
   });
+  userListElement.style.display = 'block';
+  // choicesListElement.style.display = 'none';
 }
 
 function displayChoicesList(userChoices) {
