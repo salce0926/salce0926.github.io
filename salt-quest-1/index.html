@@ -255,6 +255,41 @@
             drawScreen();
         });
 
+        // タッチデバイスの場合にはデフォルトのスクロールを防ぐ
+        if ('ontouchstart' in window) {
+            document.body.style.touchAction = 'none';
+        }
+
+        window.addEventListener('touchstart', function (e) {
+            // タッチ位置を取得
+            var touchX = e.touches[0].clientX;
+            var touchY = e.touches[0].clientY;
+
+            // 画面の中央を起点にしてタッチ位置を計算
+            var centerX = window.innerWidth / 2;
+            var centerY = window.innerHeight / 2;
+
+            // タッチ位置と中央位置の差を計算
+            var deltaX = touchX - centerX;
+            var deltaY = touchY - centerY;
+
+            // 差の絶対値が大きい方に動く方向を設定
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                // 左右移動
+                playerPosition.x += deltaX > 0 ? 1 : -1;
+                playerPosition.x = (playerPosition.x + mapWidth) % mapWidth;
+            } else {
+                // 上下移動
+                playerPosition.y += deltaY > 0 ? 1 : -1;
+                playerPosition.y = (playerPosition.y + mapHeight) % mapHeight;
+            }
+
+            drawScreen();
+
+            // デフォルトのスクロールを防ぐ
+            e.preventDefault();
+        });
+
         window.onload = function () {
             drawScreen();
         };
