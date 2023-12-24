@@ -49,6 +49,15 @@ var isWaitingInput = false;
 var isStillTalking = false;
 var isDebug = false;
 
+// プレイヤーの見た目
+var playerStyleNormal = 0;
+var playerStyleSword = 2;
+var playerStyleShield = 4;
+var playerStyleFull = 6;
+var playerStyleWithRora = 8;
+var playerIndex = playerStyleNormal;
+var playerStyle = playerStyleNormal;
+
 // イメージのロード
 var characterImage = new Image();
 characterImage.src = characterURL;
@@ -177,6 +186,7 @@ async function checkConditions() {
                 message += '魔法の鍵で扉を開けた！\n';
                 message += 'ドラゴンを倒してローラ姫を救出した！';
                 await waitForInput(false);
+                playerStyle = playerStyleWithRora;
             }
         }else{
             message += '倒したドラゴンのことは今度片付けよう';
@@ -201,8 +211,8 @@ async function checkConditions() {
         message += 'ここはラダトームの城だ\n';
         await waitForInput(true);
         if(flags.lightBall.flag){
-            message += '王様「勇者よ！よくぞりゅうおうを倒してくれた！」\n';
-            message += '王様「わしに代わってこの国を治めてくれい！」\n';
+            message += '王様「勇者よ！よくぞりゅうおうを倒してくれた！\n';
+            message += '　　　わしに代わってこの国を治めてくれい！　　」\n';
             await waitForInput(true);
             message += 'しかし あなたは いいました（←！？）\n';
             await waitForInput(true);
@@ -216,10 +226,11 @@ async function checkConditions() {
         }else{
             if(!flags.roraLove.flag && flags.roraRescued.flag){
                 flags.roraLove.flag = true;
+                playerStyle = playerStyleFull;
                 message += '王様「ローラ姫！」\n';
                 await waitForInput(true);
-                message += '王様「なんと！ドラゴンに囚われておったのか」\n';
-                message += '王様「勇者よ！よくぞローラ姫を救い出してくれた！」\n';
+                message += '王様「なんと！ドラゴンに囚われておったのか\n';
+                message += '　　　勇者よ！よくぞローラ姫を救い出してくれた！」\n';
                 await waitForInput(true);
                 message += 'ローラ姫「ありがとうございます...//」\n'
                 message += 'おうじょのあいを手に入れた！';
@@ -229,8 +240,8 @@ async function checkConditions() {
             }else{
                 if(!flags.start.flag){
                     flags.start.flag = true;
-                    message += '王様「勇者よ！りゅうおうを倒すのだ！」\n';
-                    message += '王様「光の玉を取り返し 世界の闇を振り払え！」';
+                    message += '王様「勇者よ！りゅうおうを倒すのだ！\n';
+                    message += '　　　光の玉を取り返し 世界の闇を振り払え！」';
                     await waitForInput(true);
                 }
                 if(!flags.sunStone.flag){
@@ -243,13 +254,23 @@ async function checkConditions() {
                         await waitForInput(false);
                     }
                 }else{
-                    message += '王様「もし敵にやられてしまったら」\n';
-                    message += '王様「ここまで運び込まれるのじゃ」\n';
-                    await waitForInput(true);
-                    message += '王様「所持金の概念が無くて良かったのう」\n';
-                    message += '王様「我が城の兵士を動かすのも」\n';
-                    message += '王様「タダというわけではないんじゃが...」\n';
-                    await waitForInput(false);
+                    if(playerStyle === playerStyleNormal){
+                        message += '王様「もし敵にやられてしまったら\n';
+                        message += '　　　ここまで運び込まれるのじゃ」\n';
+                        await waitForInput(true);
+                        message += '王様「所持金の概念が無くて良かったのう\n';
+                        message += '　　　我が城の兵士を動かすのも\n';
+                        message += '　　　タダというわけではないんじゃが… 」\n';
+                        await waitForInput(false);
+                    }else{
+                        message += '王様「ローラ姫を助けるくだりが\n';
+                        message += '　　　正直ほとんど無かったじゃろう」\n';
+                        await waitForInput(true);
+                        message += '王様「装備の概念も少なすぎるから\n';
+                        message += '　　　一応見た目だけ 剣と盾を与えてあるぞ\n';
+                        message += '　　　せめてもの計らいに 感謝してくれ　　」\n';
+                        await waitForInput(false);
+                    }
                 }
             }
         }
@@ -281,8 +302,8 @@ async function checkConditions() {
                 await waitForInput(false);
             }else{
                 flags.rainCloudStuff.flag = true;
-                message += '老人「おお！それは銀の竪琴ではないか！」\n';
-                message += '老人「そなたに雨雲の杖を授けよう！」\n';
+                message += '老人「おお！それは銀の竪琴ではないか！\n';
+                message += '　　　そなたに雨雲の杖を授けよう！　　」\n';
                 message += '雨雲の杖を手に入れた！';
                 await waitForInput(false);
             }
@@ -346,27 +367,27 @@ async function checkConditions() {
                 flags.rainbowDrop.flag = true;
                 message += '老人「よくぞ太陽と雨雲を揃えた！」\n';
                 await waitForInput(true);
-                message += '老人「ここに虹のしずくが完成した！」\n';
-                message += '老人「これでりゅうおうへの道が開かれるであろう！」';
+                message += '老人「ここに虹のしずくが完成した！\n';
+                message += '　　　これでりゅうおうへの道が開かれるであろう！」';
                 await waitForInput(false);
             }else if(!flags.rotoEmblem.flag){
                 message += '老人「勇者だと？嘘をつくな！」\n';
                 await waitForInput(true);
-                message += '老人「もし本物の勇者なら」\n';
-                message += '老人「どこかにしるしがあるはずじゃ！」';
+                message += '老人「もし本物の勇者なら\n';
+                message += '　　　どこかにしるしがあるはずじゃ！」';
                 await waitForInput(false);
             }else{
                 message += '老人「しるしを持っているな！本物の勇者じゃ」\n';
                 await waitForInput(true);
-                message += '老人「太陽と雨雲が揃ったとき」\n';
-                message += '老人「虹の橋が架かるとの言い伝えじゃ！」';
+                message += '老人「太陽と雨雲が揃ったとき\n';
+                message += '　　　虹の橋が架かるとの言い伝えじゃ！」';
                 await waitForInput(false);
             }
         }else{
             message += '老人「前から 思ってたけど...」\n';
             await waitForInput(true);
-            message += '老人「虹のしずくを 経由しなくても」\n';
-            message += '老人「全部揃ってたら 橋が架かるって勘違いしない？」';
+            message += '老人「虹のしずくを 経由しなくても\n';
+            message += '　　　全部揃ってたら 橋が架かるって勘違いしない？」';
             await waitForInput(false);
         }
     }else if(isVisitRainbowBridge(playerPosition)){
@@ -406,15 +427,14 @@ function screenYToWorldY(screenY){
     return ((playerPosition.y - screenHeight/2 + screenY) + mapHeight) % mapHeight;
 }
 
-var index = 4;
 function drawScreen() {
     for (var y = 0; y <= screenHeight; y++) {
         for (var x = 0; x <= screenWidth; x++) {
             var tileIndex = mapData[screenYToWorldY(y)][screenXToWorldX(x)];
             if(tileIndex >= 350) tileIndex -= 12*25;
             if(x === screenWidth/2 && y === screenHeight/2){
-                drawCharacter(x, y, index);
-                index = (index + 2) % 2 + 4;
+                drawCharacter(x, y, playerIndex);
+                playerIndex = (playerIndex + 2) % 2 + playerStyle;
             }else{
                 drawTile(x, y, tileIndex);
             }
@@ -431,47 +451,58 @@ function drawScreen() {
     else if(isDebug) document.getElementById('point').innerText = `x: ${playerPosition.x}, y: ${playerPosition.y}, tile: ${mapData[playerPosition.y][playerPosition.x]}`;
 }
 
+function isMoveAllowed(x, y) {
+    if(isDebug) return true;
+    switch (mapData[y][x]){
+        case 25://城
+        case 26://町
+        case 27://平原
+        case 28://森
+        case 29://山
+        case 31://洞窟
+        case 32://外階段
+        case 33://砂漠
+        case 34://毒沼
+        case 35://橋
+            return true;
+    }
+    return false;
+}
+
 let lastTime = 0;
 async function gameLoop(timestamp){
     const deltaTime = timestamp - lastTime;
     if(!isWaitingInput){
         if(deltaTime > interval){
-            index++;
+            playerIndex = (playerIndex + 1) % 2 + playerStyle;
             lastTime = timestamp;
+        }else if(isDebug){
+            let x = playerPosition.x + moveX;
+            let y = playerPosition.y + moveY;
+            
+            // マップ外に移動しないように修正
+            x = (x + mapWidth) % mapWidth;
+            y = (y + mapHeight) % mapHeight;
+            
+            playerPosition.x = x;
+            playerPosition.y = y;
         }
-    }
-
-    if (moveX !== 0 || moveY !== 0) {
-        let x = playerPosition.x + moveX;
-        let y = playerPosition.y + moveY;
-
-        // マップ外に移動しないように修正
-        x = (x + mapWidth) % mapWidth;
-        y = (y + mapHeight) % mapHeight;
-
-        switch (mapData[y][x]){
-            case 25://城
-            case 26://町
-            case 27://平原
-            case 28://森
-            case 29://山
-            case 31://洞窟
-            case 32://外階段
-            case 33://砂漠
-            case 34://毒沼
-            case 35://橋
+        if (moveX !== 0 || moveY !== 0) {
+            let x = playerPosition.x + moveX;
+            let y = playerPosition.y + moveY;
+            
+            // マップ外に移動しないように修正
+            x = (x + mapWidth) % mapWidth;
+            y = (y + mapHeight) % mapHeight;
+            
+            if(isMoveAllowed(x, y)){
                 playerPosition.x = x;
                 playerPosition.y = y;
-                break;
-            default:
-                if(isDebug){
-                    playerPosition.x = x;
-                    playerPosition.y = y;
-                }
-                break;
+            }
         }
+        
+            
     }
-    
     drawScreen();
     await checkConditions();
     drawScreen();
@@ -571,26 +602,9 @@ window.addEventListener('touchstart', function (e) {
         y = (y + mapHeight) % mapHeight;
     }
 
-    switch (mapData[y][x]){
-        case 25://城
-        case 26://町
-        case 27://平原
-        case 28://森
-        case 29://山
-        case 31://洞窟
-        case 32://外階段
-        case 33://砂漠
-        case 34://毒沼
-        case 35://橋
-            playerPosition.x = x;
-            playerPosition.y = y;
-            break;
-        default:
-            if(isDebug){
-                playerPosition.x = x;
-                playerPosition.y = y;
-            }
-            break;
+    if(isMoveAllowed(x, y)){
+        playerPosition.x = x;
+        playerPosition.y = y;
     }
     drawScreen();
 
