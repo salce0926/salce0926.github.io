@@ -46,6 +46,7 @@ canvas.height = screenHeight * tileSize * rate;
 var message = '';
 var interval = 500;
 var isWaitingInput = false;
+var isAfterMessage = false;
 var isStillTalking = false;
 var isDebug = false;
 
@@ -97,11 +98,13 @@ function waitForInput(isTalking){
     return new Promise(resolve => {
         window.addEventListener('keydown', function keydownListener(e) {
             isWaitingInput = false;
+            isAfterMessage = true;
             window.removeEventListener('keydown', keydownListener);
             resolve();
         });
         window.addEventListener('touchstart', function keydownListener(e) {
             isWaitingInput = false;
+            isAfterMessage = true;
             window.removeEventListener('touchstart', keydownListener);
             resolve();
         });
@@ -470,6 +473,7 @@ function isMoveAllowed(x, y) {
 }
 
 let lastTime = 0;
+let count = 0;
 async function gameLoop(timestamp){
     const deltaTime = timestamp - lastTime;
     if(!isWaitingInput){
@@ -495,7 +499,11 @@ async function gameLoop(timestamp){
             x = (x + mapWidth) % mapWidth;
             y = (y + mapHeight) % mapHeight;
             
-            if(isMoveAllowed(x, y)){
+            if(count++ % 6 === 0 && isMoveAllowed(x, y)){
+                playerPosition.x = x;
+                playerPosition.y = y;
+            }else if(isAfterMessage && isMoveAllowed(x, y)){
+                isAfterMessage = false;
                 playerPosition.x = x;
                 playerPosition.y = y;
             }
@@ -518,6 +526,7 @@ window.addEventListener('keydown', function (e) {
         return;
     }
     isWaitingInput = false;
+    isAfterMessage = true;
 
     // キーが押されている状態を記録
     keyDownMap[e.key] = true;
@@ -577,6 +586,7 @@ window.addEventListener('touchstart', function (e) {
         return;
     }
     isWaitingInput = false;
+    isAfterMessage = true;
     let x = playerPosition.x;
     let y = playerPosition.y;
     // タッチ位置を取得
