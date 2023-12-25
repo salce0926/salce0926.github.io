@@ -48,6 +48,7 @@ var interval = 500;
 var isWaitingInput = false;
 var isAfterMessage = false;
 var isStillTalking = false;
+var isCommandMenuOpen = false;
 var isDebug = false;
 
 // プレイヤーの見た目
@@ -67,23 +68,6 @@ tilesetImage.src = tilesetURL;
 tilesetImage.onload = function () {
     drawScreen();
 };
-
-function drawTile(x, y, index){
-    var offsetX = 3;
-    var offsetY = 2;
-    var offsetTile = 1;
-    var tileRowLength = 25;
-    var src = tilesetImage;
-    ctx.drawImage(src, offsetX+(index % tileRowLength) * (tileSize+offsetTile), offsetY+Math.floor(index / tileRowLength) * (tileSize+offsetTile), tileSize, tileSize, x * tileSize*rate, y * tileSize*rate, tileSize*rate, tileSize*rate);
-}
-function drawCharacter(x, y, index){
-    var offsetX = 8;
-    var offsetY = 8;
-    var offsetTile = 8;
-    var tileRowLength = 14;
-    var src = characterImage;
-    ctx.drawImage(src, offsetX+(index % tileRowLength) * (tileSize+offsetTile), offsetY+Math.floor(index / tileRowLength) * (tileSize+offsetTile), tileSize, tileSize, x * tileSize*rate, y * tileSize*rate, tileSize*rate, tileSize*rate);
-}
 
 function displayMessage(mes){
     document.getElementById('message').innerText = mes;
@@ -115,6 +99,435 @@ function playerKilled(){
     playerPosition.x = 51;
     playerPosition.y = 51;
 }
+
+function screenXToWorldX(screenX){
+    return ((playerPosition.x - screenWidth/2 + screenX) + mapWidth) % mapWidth;
+}
+
+function screenYToWorldY(screenY){
+    return ((playerPosition.y - screenHeight/2 + screenY) + mapHeight) % mapHeight;
+}
+
+function drawTile(x, y, index){
+    var offsetX = 3;
+    var offsetY = 2;
+    var offsetTile = 1;
+    var tileRowLength = 25;
+    var src = tilesetImage;
+    ctx.drawImage(src, offsetX+(index % tileRowLength) * (tileSize+offsetTile), offsetY+Math.floor(index / tileRowLength) * (tileSize+offsetTile), tileSize, tileSize, x * tileSize*rate, y * tileSize*rate, tileSize*rate, tileSize*rate);
+}
+function drawCharacter(x, y, index){
+    var offsetX = 8;
+    var offsetY = 8;
+    var offsetTile = 8;
+    var tileRowLength = 14;
+    var src = characterImage;
+    ctx.drawImage(src, offsetX+(index % tileRowLength) * (tileSize+offsetTile), offsetY+Math.floor(index / tileRowLength) * (tileSize+offsetTile), tileSize, tileSize, x * tileSize*rate, y * tileSize*rate, tileSize*rate, tileSize*rate);
+}
+function drawMap(){
+    for (var y = 0; y <= screenHeight; y++) {
+        for (var x = 0; x <= screenWidth; x++) {
+            var tileIndex = mapData[screenYToWorldY(y)][screenXToWorldX(x)];
+            if(tileIndex >= 350) tileIndex -= 12*25;
+            if(x === screenWidth/2 && y === screenHeight/2){
+                drawCharacter(x, y, playerIndex);
+                playerIndex = (playerIndex + 2) % 2 + playerStyle;
+            }else{
+                drawTile(x, y, tileIndex);
+            }
+        }
+    }
+}
+function drawPoint(){
+    let dx = flags.sunStone.location.x - playerPosition.x;
+    let dy = flags.sunStone.location.y - playerPosition.y;
+    let ns = (dx > 0 ? '東' : '西');
+    let ew = (dy > 0 ? '南' : '北');
+    dx = (dx > 0 ? dx : -dx);
+    dy = (dy > 0 ? dy : -dy);
+    let x = playerPosition.x;
+    let y = playerPosition.y;
+    let tile = mapData[playerPosition.y][playerPosition.x];
+    if(flags.roraLove.flag) document.getElementById('point').innerText = `ローラ「ラダトーム城まで${ns}へ${dx} ${ew}へ${dy}ですわ」`;
+    else if(isDebug) document.getElementById('point').innerText = `x: ${x}, y: ${y}, tile: ${tile}`;
+}
+function drawWindow(x, y, width, height, textArray) {
+    // 背景
+    ctx.fillStyle = 'black';
+    ctx.fillRect(x, y, width, height);
+
+    // 枠
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 5; // 枠の太さ
+    ctx.lineJoin = 'round'; // 角を丸くする
+    ctx.strokeRect(x, y, width, height);
+
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2; // 枠の太さ
+    ctx.lineJoin = 'round'; // 角を丸くする
+    ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
+
+    // テキスト
+    ctx.fillStyle = 'white';
+    ctx.font = '16px cinecaption';
+    // ctx.font = '16px Arial';
+
+    let textX = x + rate * tileSize / 2;
+    let textY = y + rate * tileSize;
+
+    for (let i = 0; i < textArray.length; i++) {
+        ctx.fillText(textArray[i], textX, textY);
+        textY += rate * tileSize;
+    }
+}
+
+function drawWindowPlayerInfo(){
+    const playerInfoX = rate * tileSize / 2;
+    const playerInfoY = rate * tileSize / 2;
+    const playerInfoWidth = rate * tileSize * 5;
+    const playerInfoHeight = rate * tileSize * 4.5;
+
+    const playerInfoText = [
+        'ソルト',
+        'レベル　1',
+        'HP　　15/15',
+        'MP　　 0/0'
+    ];
+
+    drawWindow(playerInfoX, playerInfoY, playerInfoWidth, playerInfoHeight, playerInfoText);
+}
+const textSelectStrengthCommand = [
+    '▶つよさ',
+    '　じゅもん',
+    '　どうぐ',
+    '　きろく'
+];
+const textSelectSpellCommand = [
+    '　つよさ',
+    '▶じゅもん',
+    '　どうぐ',
+    '　きろく'
+];
+const textSelectItemCommand = [
+    '　つよさ',
+    '　じゅもん',
+    '▶どうぐ',
+    '　きろく'
+];
+const textSelectSaveCommand = [
+    '　つよさ',
+    '　じゅもん',
+    '　どうぐ',
+    '▶きろく'
+];
+function getTextSelect(){
+    switch (textExplainIndex){
+        case 0:
+            return textSelectStrengthCommand;
+        case 1:
+            return textSelectSpellCommand;
+        case 2:
+            return textSelectItemCommand;
+        case 3:
+            return textSelectSaveCommand;
+        default:
+            return 'getSelectExplain() has error.';
+    }
+}
+function drawWindowPlayerCommand(text){
+    const playerCommandWidth = rate * tileSize * 4.5;
+    const playerCommandHeight = rate * tileSize * 4.5;
+    const playerCommandX = rate * tileSize * screenWidth - playerCommandWidth - rate * tileSize / 2;
+    const playerCommandY = rate * tileSize / 2;
+
+    const playerCommandText = text;
+
+    drawWindow(playerCommandX, playerCommandY, playerCommandWidth, playerCommandHeight, playerCommandText);
+}
+let textExplainIndex = 0;
+const textExplainStrengthCommand = [
+    'つよさ：',
+    '　あなたの つよさは あなたがきめよう',
+    '　でも きゃっかんてきには こうみえてます'
+];
+const textExplainSpellCommand = [
+    'じゅもん：',
+    '　あなたの つかえる じゅもんりすと',
+    '　MPの ごりようは けいかくてきに'
+];
+const textExplainItemCommand = [
+    'どうぐ：',
+    '　あなたの もっている どうぐたち',
+    '　でもほぼ ふらぐの りすとです'
+];
+const textExplainSaveCommand = [
+    'きろく：',
+    '　あなたの ぼうけんを きろくしよう',
+    '　がめんを とじちゃうと だいさんじ'
+];
+function getTextExplain(){
+    switch (textExplainIndex){
+        case 0:
+            return textExplainStrengthCommand;
+        case 1:
+            return textExplainSpellCommand;
+        case 2:
+            return textExplainItemCommand;
+        case 3:
+            return textExplainSaveCommand;
+        default:
+            return 'getTextExplain() has error.';
+    }
+}
+function drawWindowCommon(text){
+    const commonWidth = rate * screenWidth * (tileSize - 1);
+    const commonHeight = rate * tileSize * 4;
+    const commonX = rate * tileSize / 2;
+    const commonY = rate * tileSize * screenHeight - commonHeight - rate * tileSize / 2;
+
+    const commonText = text;
+
+    drawWindow(commonX, commonY, commonWidth, commonHeight, commonText);
+}
+function drawCommandMenu() {
+    drawWindowPlayerInfo();
+    drawWindowPlayerCommand(getTextSelect());
+    drawWindowCommon(getTextExplain());
+
+    // 他のテキストやボタンを描画するロジックもここに追加
+}
+function drawTapArea(){
+    if(!isTouch) return;
+    var centerLeftX = rate * tileSize * screenWidth / 3;
+    var centerRightX = rate * tileSize * screenWidth * 2 / 3;
+    var centerTopY = rate * tileSize * screenHeight / 3;
+    var centerBottomY = rate * tileSize * screenHeight * 2 / 3;
+    ctx.beginPath();
+    ctx.moveTo(centerLeftX, centerTopY);
+    ctx.lineTo(centerRightX, centerTopY);
+    ctx.lineTo(centerRightX, centerBottomY);
+    ctx.lineTo(centerLeftX, centerBottomY);
+    ctx.lineTo(centerLeftX, centerTopY);
+    ctx.strokeStyle = 'red';
+    ctx.stroke();
+    ctx.closePath();
+}
+
+function drawScreen() {
+    drawMap();
+    drawPoint();
+    drawTapArea();
+    if (isCommandMenuOpen) {
+        drawCommandMenu();
+    }
+}
+
+function isMoveAllowed(x, y) {
+    if(isDebug) return true;
+    switch (mapData[y][x]){
+        case 25://城
+        case 26://町
+        case 27://平原
+        case 28://森
+        case 29://山
+        case 31://洞窟
+        case 32://外階段
+        case 33://砂漠
+        case 34://毒沼
+        case 35://橋
+            return true;
+    }
+    return false;
+}
+
+let lastTime = 0;
+let count = 0;
+async function gameLoop(timestamp){
+    const deltaTime = timestamp - lastTime;
+    if(!isWaitingInput){
+        if(deltaTime > interval){
+            playerIndex = (playerIndex + 1) % 2 + playerStyle;
+            lastTime = timestamp;
+        }else if(isDebug){
+            let x = playerPosition.x + moveX;
+            let y = playerPosition.y + moveY;
+            
+            // マップ外に移動しないように修正
+            x = (x + mapWidth) % mapWidth;
+            y = (y + mapHeight) % mapHeight;
+            
+            playerPosition.x = x;
+            playerPosition.y = y;
+        }
+        if (!isCommandMenuOpen && (moveX !== 0 || moveY !== 0)) {
+            let x = playerPosition.x + moveX;
+            let y = playerPosition.y + moveY;
+            
+            // マップ外に移動しないように修正
+            x = (x + mapWidth) % mapWidth;
+            y = (y + mapHeight) % mapHeight;
+            
+            if(count++ % 6 === 0 && isMoveAllowed(x, y)){
+                playerPosition.x = x;
+                playerPosition.y = y;
+            }else if(isAfterMessage && isMoveAllowed(x, y)){
+                isAfterMessage = false;
+                playerPosition.x = x;
+                playerPosition.y = y;
+            }
+        }
+        
+            
+    }
+    drawScreen();
+    await checkConditions();
+    drawScreen();
+    requestAnimationFrame(gameLoop);
+}
+
+let moveX = 0;
+let moveY = 0;
+let keyDownMap = {}; // キーが押されているかどうかを管理するオブジェクト
+
+window.addEventListener('keydown', function (e) {
+    if(isStillTalking){
+        return;
+    }
+    isWaitingInput = false;
+    isAfterMessage = true;
+
+    // キーが押されている状態を記録
+    keyDownMap[e.key] = true;
+
+    switch (e.key) {
+        case 'ArrowUp':
+            moveY = -1;
+            if(isCommandMenuOpen){
+                textExplainIndex += moveY;
+                textExplainIndex += 4;
+                textExplainIndex %= 4;
+            }
+            break;
+        case 'ArrowDown':
+            moveY = 1;
+            if(isCommandMenuOpen){
+                textExplainIndex += moveY;
+                textExplainIndex += 4;
+                textExplainIndex %= 4;
+            }
+            break;
+        case 'ArrowLeft':
+            moveX = -1;
+            break;
+        case 'ArrowRight':
+            moveX = 1;
+            break;
+        case 'c':
+            isCommandMenuOpen ^= true;
+            break;
+        case 'd':
+            isDebug ^= true;
+            break;
+        default:
+            break;
+    }
+});
+
+window.addEventListener('keyup', function (e) {
+    // キーが離されたら、そのキーの状態をリセット
+    keyDownMap[e.key] = false;
+
+    switch (e.key) {
+        case 'ArrowUp':
+        case 'ArrowDown':
+            moveY = 0;
+            break;
+        case 'ArrowLeft':
+        case 'ArrowRight':
+            moveX = 0;
+            break;
+        default:
+            break;
+    }
+
+    // 全ての方向のキーが離された場合、移動を停止
+    if (!Object.values(keyDownMap).includes(true)) {
+        moveX = 0;
+        moveY = 0;
+    }
+});
+
+// タッチデバイスの場合にはデフォルトのスクロールを防ぐ
+if ('ontouchstart' in window) {
+    document.body.style.touchAction = 'none';
+}
+
+let isTouch = false;
+window.addEventListener('touchstart', function (e) {
+    isTouch = true;
+    if(isStillTalking){
+        return;
+    }
+    isWaitingInput = false;
+    isAfterMessage = true;
+    let x = playerPosition.x;
+    let y = playerPosition.y;
+    // タッチ位置を取得
+    var touchX = e.touches[0].clientX;
+    var touchY = e.touches[0].clientY;
+
+    // 画面の中央を起点にしてタッチ位置を計算
+    var centerX = window.innerWidth / 2;
+    var centerY = window.innerHeight / 2;
+    var centerLeftX = rate * tileSize * screenWidth / 3;
+    var centerRightX = rate * tileSize * screenWidth * 2 / 3;
+    var centerTopY = rate * tileSize * screenHeight / 3;
+    var centerBottomY = rate * tileSize * screenHeight * 2 / 3;
+
+    // タッチ位置と中央位置の差を計算
+    var deltaX = touchX - centerX;
+    var deltaY = touchY - centerY;
+
+    // 差の絶対値が大きい方に動く方向を設定
+    if(centerLeftX < touchX - canvas.getBoundingClientRect().left 
+    && touchX - canvas.getBoundingClientRect().left < centerRightX 
+    && centerTopY < touchY - canvas.getBoundingClientRect().top 
+    && touchY - canvas.getBoundingClientRect().top < centerBottomY){
+        isCommandMenuOpen ^= true;
+    }else if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        // 左右移動
+        x += deltaX > 0 ? 1 : -1;
+        x = (x + mapWidth) % mapWidth;
+    } else {
+        // 上下移動
+        y += deltaY > 0 ? 1 : -1;
+        y = (y + mapHeight) % mapHeight;
+    }
+    if(isCommandMenuOpen){
+        if(Math.abs(deltaX) < Math.abs(deltaY)){
+            textExplainIndex += (deltaY > 0 ? 1 : -1);
+        }
+        textExplainIndex += 4;
+        textExplainIndex %= 4;
+    }else if(isMoveAllowed(x, y)){
+        playerPosition.x = x;
+        playerPosition.y = y;
+    }
+    drawScreen();
+
+    // デフォルトのスクロールを防ぐ
+    e.preventDefault();
+});
+
+window.onload = function () {
+    gameLoop();
+};
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------------------
 
 function isVisitMaira(position){
     return position.x === flags.fairyFlute.location.x && position.y === flags.fairyFlute.location.y;
@@ -421,207 +834,3 @@ async function checkConditions() {
     }
     if(flags.roraLove.flag) document.getElementById('point').style.display = 'block';
 }
-
-function screenXToWorldX(screenX){
-    return ((playerPosition.x - screenWidth/2 + screenX) + mapWidth) % mapWidth;
-}
-
-function screenYToWorldY(screenY){
-    return ((playerPosition.y - screenHeight/2 + screenY) + mapHeight) % mapHeight;
-}
-
-function drawScreen() {
-    for (var y = 0; y <= screenHeight; y++) {
-        for (var x = 0; x <= screenWidth; x++) {
-            var tileIndex = mapData[screenYToWorldY(y)][screenXToWorldX(x)];
-            if(tileIndex >= 350) tileIndex -= 12*25;
-            if(x === screenWidth/2 && y === screenHeight/2){
-                drawCharacter(x, y, playerIndex);
-                playerIndex = (playerIndex + 2) % 2 + playerStyle;
-            }else{
-                drawTile(x, y, tileIndex);
-            }
-        }
-    }
-
-    let dx = flags.sunStone.location.x - playerPosition.x;
-    let dy = flags.sunStone.location.y - playerPosition.y;
-    let ns = (dx > 0 ? '東' : '西');
-    let ew = (dy > 0 ? '南' : '北');
-    dx = (dx > 0 ? dx : -dx);
-    dy = (dy > 0 ? dy : -dy);
-    if(flags.roraLove.flag) document.getElementById('point').innerText = `ローラ「ラダトーム城まで${ns}へ${dx} ${ew}へ${dy}ですわ」`;
-    else if(isDebug) document.getElementById('point').innerText = `x: ${playerPosition.x}, y: ${playerPosition.y}, tile: ${mapData[playerPosition.y][playerPosition.x]}`;
-}
-
-function isMoveAllowed(x, y) {
-    if(isDebug) return true;
-    switch (mapData[y][x]){
-        case 25://城
-        case 26://町
-        case 27://平原
-        case 28://森
-        case 29://山
-        case 31://洞窟
-        case 32://外階段
-        case 33://砂漠
-        case 34://毒沼
-        case 35://橋
-            return true;
-    }
-    return false;
-}
-
-let lastTime = 0;
-let count = 0;
-async function gameLoop(timestamp){
-    const deltaTime = timestamp - lastTime;
-    if(!isWaitingInput){
-        if(deltaTime > interval){
-            playerIndex = (playerIndex + 1) % 2 + playerStyle;
-            lastTime = timestamp;
-        }else if(isDebug){
-            let x = playerPosition.x + moveX;
-            let y = playerPosition.y + moveY;
-            
-            // マップ外に移動しないように修正
-            x = (x + mapWidth) % mapWidth;
-            y = (y + mapHeight) % mapHeight;
-            
-            playerPosition.x = x;
-            playerPosition.y = y;
-        }
-        if (moveX !== 0 || moveY !== 0) {
-            let x = playerPosition.x + moveX;
-            let y = playerPosition.y + moveY;
-            
-            // マップ外に移動しないように修正
-            x = (x + mapWidth) % mapWidth;
-            y = (y + mapHeight) % mapHeight;
-            
-            if(count++ % 6 === 0 && isMoveAllowed(x, y)){
-                playerPosition.x = x;
-                playerPosition.y = y;
-            }else if(isAfterMessage && isMoveAllowed(x, y)){
-                isAfterMessage = false;
-                playerPosition.x = x;
-                playerPosition.y = y;
-            }
-        }
-        
-            
-    }
-    drawScreen();
-    await checkConditions();
-    drawScreen();
-    requestAnimationFrame(gameLoop);
-}
-
-let moveX = 0;
-let moveY = 0;
-let keyDownMap = {}; // キーが押されているかどうかを管理するオブジェクト
-
-window.addEventListener('keydown', function (e) {
-    if(isStillTalking){
-        return;
-    }
-    isWaitingInput = false;
-    isAfterMessage = true;
-
-    // キーが押されている状態を記録
-    keyDownMap[e.key] = true;
-
-    switch (e.key) {
-        case 'ArrowUp':
-            moveY = -1;
-            break;
-        case 'ArrowDown':
-            moveY = 1;
-            break;
-        case 'ArrowLeft':
-            moveX = -1;
-            break;
-        case 'ArrowRight':
-            moveX = 1;
-            break;
-        case 'd':
-            isDebug ^= true;
-            break;
-        default:
-            break;
-    }
-});
-
-window.addEventListener('keyup', function (e) {
-    // キーが離されたら、そのキーの状態をリセット
-    keyDownMap[e.key] = false;
-
-    switch (e.key) {
-        case 'ArrowUp':
-        case 'ArrowDown':
-            moveY = 0;
-            break;
-        case 'ArrowLeft':
-        case 'ArrowRight':
-            moveX = 0;
-            break;
-        default:
-            break;
-    }
-
-    // 全ての方向のキーが離された場合、移動を停止
-    if (!Object.values(keyDownMap).includes(true)) {
-        moveX = 0;
-        moveY = 0;
-    }
-});
-
-// タッチデバイスの場合にはデフォルトのスクロールを防ぐ
-if ('ontouchstart' in window) {
-    document.body.style.touchAction = 'none';
-}
-
-window.addEventListener('touchstart', function (e) {
-    if(isStillTalking){
-        return;
-    }
-    isWaitingInput = false;
-    isAfterMessage = true;
-    let x = playerPosition.x;
-    let y = playerPosition.y;
-    // タッチ位置を取得
-    var touchX = e.touches[0].clientX;
-    var touchY = e.touches[0].clientY;
-
-    // 画面の中央を起点にしてタッチ位置を計算
-    var centerX = window.innerWidth / 2;
-    var centerY = window.innerHeight / 2;
-
-    // タッチ位置と中央位置の差を計算
-    var deltaX = touchX - centerX;
-    var deltaY = touchY - centerY;
-
-    // 差の絶対値が大きい方に動く方向を設定
-    if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        // 左右移動
-        x += deltaX > 0 ? 1 : -1;
-        x = (x + mapWidth) % mapWidth;
-    } else {
-        // 上下移動
-        y += deltaY > 0 ? 1 : -1;
-        y = (y + mapHeight) % mapHeight;
-    }
-
-    if(isMoveAllowed(x, y)){
-        playerPosition.x = x;
-        playerPosition.y = y;
-    }
-    drawScreen();
-
-    // デフォルトのスクロールを防ぐ
-    e.preventDefault();
-});
-
-window.onload = function () {
-    gameLoop();
-};
