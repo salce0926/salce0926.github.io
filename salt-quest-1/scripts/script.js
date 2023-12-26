@@ -48,7 +48,8 @@ var interval = 500;
 var isWaitingInput = false;
 var isAfterMessage = false;
 var isStillTalking = false;
-var isCommandMenuOpen = false;
+var isCommandMenuLevel = 0;
+var maxLevel = 3;
 var isDebug = false;
 
 // プレイヤーの見た目
@@ -289,10 +290,53 @@ function drawWindowCommon(text){
 
     drawWindow(commonX, commonY, commonWidth, commonHeight, commonText);
 }
+function drawWindowPlayerGoldExp(){
+    const playerGoldExpX = rate * tileSize;
+    const playerGoldExpY = rate * tileSize * 5.5;
+    const playerGoldExpWidth = rate * tileSize * 4;
+    const playerGoldExpHeight = rate * tileSize * 2.5;
+
+    const playerGoldExpText = [
+        'G　　　 0',
+        'E　　　 0'
+    ];
+
+    drawWindow(playerGoldExpX, playerGoldExpY, playerGoldExpWidth, playerGoldExpHeight, playerGoldExpText);
+}
+function drawWindowPlayerStrength(){
+    const width = rate * tileSize * 9;
+    const height = rate * tileSize * 9.5;
+    const x = rate * tileSize * screenWidth - width - rate * tileSize / 2;
+    const y = rate * tileSize / 2;
+
+    const text = [
+        '　せいかく：　ごうけつ',
+        '　　ちから：　　10',
+        '　すばやさ：　　 4',
+        'こうげき力：　　10',
+        '　しゅび力：　　 4',
+        '　　　ぶき：　',
+        '　　よろい：　ぬののふく',
+        '　　　たて：　',
+        'そうしょく：　'
+    ];
+
+    drawWindow(x, y, width, height, text);
+}
+const textExplainPlayerSpellList = [
+    'おぼえたじゅもん：'
+];
 function drawCommandMenu() {
-    drawWindowPlayerInfo();
-    drawWindowPlayerCommand(getTextSelect());
-    drawWindowCommon(getTextExplain());
+    if(isCommandMenuLevel > 0){
+        drawWindowPlayerInfo();
+        drawWindowPlayerCommand(getTextSelect());
+        drawWindowCommon(getTextExplain());
+    }
+    if(isCommandMenuLevel > 1){
+        drawWindowPlayerGoldExp();
+        drawWindowPlayerStrength();
+        drawWindowCommon(textExplainPlayerSpellList);
+    }
 
     // 他のテキストやボタンを描画するロジックもここに追加
 }
@@ -317,9 +361,7 @@ function drawScreen() {
     drawMap();
     drawPoint();
     drawTapArea();
-    if (isCommandMenuOpen) {
-        drawCommandMenu();
-    }
+    drawCommandMenu();
 }
 
 function isMoveAllowed(x, y) {
@@ -359,7 +401,7 @@ async function gameLoop(timestamp){
             playerPosition.x = x;
             playerPosition.y = y;
         }
-        if (!isCommandMenuOpen && (moveX !== 0 || moveY !== 0)) {
+        if (!isCommandMenuLevel && (moveX !== 0 || moveY !== 0)) {
             let x = playerPosition.x + moveX;
             let y = playerPosition.y + moveY;
             
@@ -402,7 +444,7 @@ window.addEventListener('keydown', function (e) {
     switch (e.key) {
         case 'ArrowUp':
             moveY = -1;
-            if(isCommandMenuOpen){
+            if(isCommandMenuLevel > 0){
                 textExplainIndex += moveY;
                 textExplainIndex += 4;
                 textExplainIndex %= 4;
@@ -410,7 +452,7 @@ window.addEventListener('keydown', function (e) {
             break;
         case 'ArrowDown':
             moveY = 1;
-            if(isCommandMenuOpen){
+            if(isCommandMenuLevel > 0){
                 textExplainIndex += moveY;
                 textExplainIndex += 4;
                 textExplainIndex %= 4;
@@ -423,7 +465,9 @@ window.addEventListener('keydown', function (e) {
             moveX = 1;
             break;
         case 'c':
-            isCommandMenuOpen ^= true;
+            isCommandMenuLevel++;
+            isCommandMenuLevel += maxLevel;
+            isCommandMenuLevel %= maxLevel;
             break;
         case 'd':
             isDebug ^= true;
@@ -493,7 +537,9 @@ window.addEventListener('touchstart', function (e) {
     && touchX - canvas.getBoundingClientRect().left < centerRightX 
     && centerTopY < touchY - canvas.getBoundingClientRect().top 
     && touchY - canvas.getBoundingClientRect().top < centerBottomY){
-        isCommandMenuOpen ^= true;
+        isCommandMenuLevel++;
+        isCommandMenuLevel += maxLevel;
+        isCommandMenuLevel %= maxLevel;
     }else if (Math.abs(deltaX) > Math.abs(deltaY)) {
         // 左右移動
         x += deltaX > 0 ? 1 : -1;
@@ -503,7 +549,7 @@ window.addEventListener('touchstart', function (e) {
         y += deltaY > 0 ? 1 : -1;
         y = (y + mapHeight) % mapHeight;
     }
-    if(isCommandMenuOpen){
+    if(isCommandMenuLevel > 0){
         if(Math.abs(deltaX) < Math.abs(deltaY)){
             textExplainIndex += (deltaY > 0 ? 1 : -1);
         }
@@ -529,56 +575,63 @@ window.onload = function () {
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 
-function isVisitMaira(position){
-    return position.x === flags.fairyFlute.location.x && position.y === flags.fairyFlute.location.y;
+function isVisit(location){
+    return playerPosition.x === location.x && playerPosition.y === location.y;
 }
-function isVisitCaveNorth(position){
-    return position.x === 112 && position.y === 52;
+function isVisitMaira(){
+    return isVisit(flags.fairyFlute.location);
 }
-function isVisitCaveSouth(position){
-    return position.x === 112 && position.y === 57;
+function isVisitCaveNorth(){
+    const location = { x: 112, y: 52 };
+    return isVisit(location);
 }
-function isVisitCave(position){
-    return isVisitCaveNorth(position) || isVisitCaveSouth(position);
+function isVisitCaveSouth(){
+    const location = { x: 112, y: 57 };
+    return isVisit(location);
 }
-function isVisitRimurudaru(position){
-    return position.x === flags.magicKey.location.x && position.y === flags.magicKey.location.y;
+function isVisitCave(){
+    return isVisitCaveNorth() || isVisitCaveSouth();
 }
-function isVisitCastle(position){
-    return position.x === flags.sunStone.location.x && position.y === flags.sunStone.location.y;
+function isVisitRimurudaru(){
+    return isVisit(flags.magicKey.location);
 }
-function isVisitGarai(position){
-    return position.x === flags.silverHerp.location.x && position.y === flags.silverHerp.location.y;
+function isVisitCastle(){
+    return isVisit(flags.sunStone.location);
 }
-function isVisitMairaShrine(position){
-    return position.x === flags.rainCloudStuff.location.x && position.y === flags.rainCloudStuff.location.y;
+function isVisitGarai(){
+    return isVisit(flags.silverHerp.location);
 }
-function isVisitMerukidoGate(position){
-    return position.x === flags.golemKilled.location.x && position.y === flags.golemKilled.location.y;
+function isVisitMairaShrine(){
+    return isVisit(flags.rainCloudStuff.location);
 }
-function isVisitMerukido(position){
-    return position.x === flags.golemKilled.location.x && position.y === flags.golemKilled.location.y+2;
+function isVisitMerukidoGate(){
+    return isVisit(flags.golemKilled.location);
 }
-function isVisitRotoEmblem(position){
-    return position.x === flags.rotoEmblem.location.x && position.y === flags.rotoEmblem.location.y;
+function isVisitMerukido(){
+    const location = flags.golemKilled.location;
+    location.y += 2;
+    return isVisit(location);
 }
-function isVisitDomudora(position){
-    return position.x === flags.rotoArmor.location.x && position.y === flags.rotoArmor.location.y;
+function isVisitRotoEmblem(){
+    return isVisit(flags.rotoEmblem.location);
 }
-function isVisitRimurudaruShrine(position){
-    return position.x === flags.rainbowDrop.location.x && position.y === flags.rainbowDrop.location.y;
+function isVisitDomudora(){
+    return isVisit(flags.rotoArmor.location);
 }
-function isVisitRainbowBridge(position){
-    return position.x === flags.rainbowBridge.location.x && position.y === flags.rainbowBridge.location.y;
+function isVisitRimurudaruShrine(){
+    return isVisit(flags.rainbowDrop.location);
 }
-function isVisitDragonCastle(position){
-    return position.x === flags.lightBall.location.x && position.y === flags.lightBall.location.y;
+function isVisitRainbowBridge(){
+    return isVisit(flags.rainbowBridge.location);
+}
+function isVisitDragonCastle(){
+    return isVisit(flags.lightBall.location);
 }
 
 async function checkConditions() {
     document.getElementById('point').style.display = 'none';
     message = '';
-    if(isVisitMaira(playerPosition)){
+    if(isVisitMaira()){
         if(!flags.fairyFlute.flag){
             flags.fairyFlute.flag = true;
             message += 'ここはマイラの村だ\n';
@@ -592,7 +645,7 @@ async function checkConditions() {
             message += '温泉で有名らしい';
             await waitForInput(false);
         }
-    }else if(isVisitCave(playerPosition)){
+    }else if(isVisitCave()){
         if(!flags.roraRescued.flag){
             if(!flags.magicKey.flag){
                 message += '洞窟の中に扉があったが、鍵が無いので開けられなかった...';
@@ -608,12 +661,12 @@ async function checkConditions() {
             message += '倒したドラゴンのことは今度片付けよう';
             await waitForInput(false);
         }
-        if(isVisitCaveNorth(playerPosition)){
+        if(isVisitCaveNorth()){
             playerPosition.y = 57;
-        }else if(isVisitCaveSouth(playerPosition)){
+        }else if(isVisitCaveSouth()){
             playerPosition.y = 52;
         }
-    }else if(isVisitRimurudaru(playerPosition)){
+    }else if(isVisitRimurudaru()){
         if(!flags.magicKey.flag){
             flags.magicKey.flag = true;
             message += 'ここはリムルダールの町だ\n';
@@ -623,7 +676,7 @@ async function checkConditions() {
             message += 'ここはリムルダールの町だ';
             await waitForInput(false);
         }
-    }else if(isVisitCastle(playerPosition)){
+    }else if(isVisitCastle()){
         message += 'ここはラダトームの城だ\n';
         await waitForInput(true);
         if(flags.lightBall.flag){
@@ -690,7 +743,7 @@ async function checkConditions() {
                 }
             }
         }
-    }else if(isVisitGarai(playerPosition)){
+    }else if(isVisitGarai()){
         if(!flags.silverHerp.flag){
             if(flags.magicKey.flag){
                 flags.silverHerp.flag = true;
@@ -711,7 +764,7 @@ async function checkConditions() {
             message += '吟遊詩人ガライの墓があるらしい';
             await waitForInput(false);
         }
-    }else if(isVisitMairaShrine(playerPosition)){
+    }else if(isVisitMairaShrine()){
         if(!flags.rainCloudStuff.flag){
             if(!flags.silverHerp.flag){
                 message += '老人「銀の竪琴の音色を聞きたいなあ...」';
@@ -727,7 +780,7 @@ async function checkConditions() {
             message += '老人「もう思い残すことはないわいﾋﾟﾛﾋﾟﾛ」';
             await waitForInput(false);
         }
-    }else if(isVisitMerukidoGate(playerPosition)){
+    }else if(isVisitMerukidoGate()){
         if(!flags.golemKilled.flag){
             if(!flags.fairyFlute.flag){
                 message += 'ゴーレムが現れた！\n';
@@ -742,7 +795,7 @@ async function checkConditions() {
                 await waitForInput(false);
             }
         }
-    }else if(isVisitMerukido(playerPosition)){
+    }else if(isVisitMerukido()){
         if(!flags.rotoEmblem.flag){
             const dx = flags.rotoEmblem.location.x - flags.sunStone.location.x;
             const dy = flags.rotoEmblem.location.y - flags.sunStone.location.y;
@@ -754,13 +807,13 @@ async function checkConditions() {
             message += '老人「もちろん 物理的な 話なんだけど」';
             await waitForInput(false);
         }
-    }else if(isVisitRotoEmblem(playerPosition)){
+    }else if(isVisitRotoEmblem()){
         if(!flags.rotoEmblem.flag){
             flags.rotoEmblem.flag = true;
             message += 'ロトのしるしを手に入れた！';
             await waitForInput(false);
         }
-    }else if(isVisitDomudora(playerPosition)){
+    }else if(isVisitDomudora()){
         if(!flags.rotoArmor.flag){
             flags.rotoArmor.flag = true;
             message += 'ここはドムドーラの町だった\n';
@@ -777,7 +830,7 @@ async function checkConditions() {
             message += 'その真相は製品版をお買い求めください';
             await waitForInput(false);
         }
-    }else if(isVisitRimurudaruShrine(playerPosition)){
+    }else if(isVisitRimurudaruShrine()){
         if(!flags.rainbowDrop.flag){
             if(flags.sunStone.flag && flags.rainCloudStuff.flag && flags.rotoEmblem.flag){
                 flags.rainbowDrop.flag = true;
@@ -806,7 +859,7 @@ async function checkConditions() {
             message += '　　　全部揃ってたら 橋が架かるって勘違いしない？」';
             await waitForInput(false);
         }
-    }else if(isVisitRainbowBridge(playerPosition)){
+    }else if(isVisitRainbowBridge()){
         if(!flags.rainbowBridge.flag && flags.rainbowDrop.flag){
             flags.rainbowBridge.flag = true;
             mapData[flags.rainbowBridge.location.y][flags.rainbowBridge.location.x-1] = 35;
@@ -815,7 +868,7 @@ async function checkConditions() {
             message += '虹の橋が架かった！';
             await waitForInput(false);
         }
-    }else if(isVisitDragonCastle(playerPosition)){
+    }else if(isVisitDragonCastle()){
         if(!flags.rotoArmor.flag){
             message += 'りゅうおうが 現れた！\n';
             await waitForInput(true);
