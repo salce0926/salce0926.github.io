@@ -4,8 +4,9 @@ var mapURL = 'https://www.spriters-resource.com/resources/sheets/106/109509.png'
 var characterURL = 'https://www.spriters-resource.com/resources/sheets/39/41381.png';
 
 // タイルのサイズ
-var tileSize = 16;
-var rate = 1.5;
+const tileSize = 16;
+const rate = 1.5;
+const displayTileSize = tileSize * rate;
 
 // マップサイズ
 var mapWidth = mapData[0].length;
@@ -86,17 +87,17 @@ var playerPosition = { x: 51, y: 51 };
 // Canvasの設定
 var canvas = document.getElementById('canvas');
 var ctx = canvas.getContext('2d');
-canvas.width = screenWidth * tileSize * rate;
-canvas.height = screenHeight * tileSize * rate;
+canvas.width = screenWidth * displayTileSize;
+canvas.height = screenHeight * displayTileSize;
 
 // 画面の中央を起点にしてタッチ位置を計算
 var centerX = window.innerWidth / 2;
 var centerY = window.innerHeight / 2;
 
-var centerLeftX = rate * tileSize * screenWidth / 3;
-var centerRightX = rate * tileSize * screenWidth * 2 / 3;
-var centerTopY = rate * tileSize * screenHeight / 3;
-var centerBottomY = rate * tileSize * screenHeight * 2 / 3;
+var centerLeftX = displayTileSize * screenWidth / 3;
+var centerRightX = displayTileSize * screenWidth * 2 / 3;
+var centerTopY = displayTileSize * screenHeight / 3;
+var centerBottomY = displayTileSize * screenHeight * 2 / 3;
 
 var message = '';
 var interval = 500;
@@ -104,6 +105,12 @@ var interval = 500;
 var textExplainSave = [
     `きろく：${code}`
 ];
+function updateTextExplainSave(){
+    textExplainSave = [
+        'きろく を へんこうできます',
+        `きろく：${code}`
+    ];
+}
 
 // プレイヤーの見た目
 var playerStyleNormal = 0;
@@ -135,7 +142,7 @@ function waitForInput(isTalking){
     }else{
         clearGameState('stillTalking');
     }
-    displayMessage(message);
+    drawWindowCommon(message);
 
     return new Promise(resolve => {
         window.addEventListener('keydown', function keydownListener(e) {
@@ -162,16 +169,12 @@ function changeCode(){
             switch (e.key) {
                 case 'ArrowUp':
                     code = modAdd(code, -1, codeMax);
-                    textExplainSave = [
-                        `きろく：${code}`
-                    ];
+                    updateTextExplainSave();
                     drawWindowCommon(textExplainSave);
                     break;
                 case 'ArrowDown':
                     code = modAdd(code, 1, codeMax);
-                    textExplainSave = [
-                        `きろく：${code}`
-                    ];
+                    updateTextExplainSave();
                     drawWindowCommon(textExplainSave);
                     break;
                 default:
@@ -214,7 +217,6 @@ function changeCode(){
                 const dy = deltaY > 0 ? 1 : -1;
                 code = modAdd(code, dy, codeMax);
                 textExplainSave = [
-                    'きろく を へんこうできます',
                     `きろく：${code}`
                 ];
                 drawWindowCommon(textExplainSave);
@@ -223,9 +225,13 @@ function changeCode(){
     });
 }
 
+function movePlayer(x, y){
+    playerPosition.x = x;
+    playerPosition.y = y;
+}
+
 function playerKilled(){
-    playerPosition.x = 51;
-    playerPosition.y = 51;
+    movePlayer(51, 51);
 }
 
 function screenXToWorldX(screenX){
@@ -242,7 +248,7 @@ function drawTile(x, y, index){
     var offsetTile = 1;
     var tileRowLength = 25;
     var src = tilesetImage;
-    ctx.drawImage(src, offsetX+(index % tileRowLength) * (tileSize+offsetTile), offsetY+Math.floor(index / tileRowLength) * (tileSize+offsetTile), tileSize, tileSize, x * tileSize*rate, y * tileSize*rate, tileSize*rate, tileSize*rate);
+    ctx.drawImage(src, offsetX+(index % tileRowLength) * (tileSize+offsetTile), offsetY+Math.floor(index / tileRowLength) * (tileSize+offsetTile), tileSize, tileSize, x * displayTileSize, y * displayTileSize, displayTileSize, displayTileSize);
 }
 function drawCharacter(x, y, index){
     var offsetX = 8;
@@ -250,7 +256,7 @@ function drawCharacter(x, y, index){
     var offsetTile = 8;
     var tileRowLength = 14;
     var src = characterImage;
-    ctx.drawImage(src, offsetX+(index % tileRowLength) * (tileSize+offsetTile), offsetY+Math.floor(index / tileRowLength) * (tileSize+offsetTile), tileSize, tileSize, x * tileSize*rate, y * tileSize*rate, tileSize*rate, tileSize*rate);
+    ctx.drawImage(src, offsetX+(index % tileRowLength) * (tileSize+offsetTile), offsetY+Math.floor(index / tileRowLength) * (tileSize+offsetTile), tileSize, tileSize, x * displayTileSize, y * displayTileSize, displayTileSize, displayTileSize);
 }
 function drawMap(){
     for (var y = 0; y <= screenHeight; y++) {
@@ -300,12 +306,12 @@ function drawWindow(x, y, width, height, textArray) {
     ctx.font = '16px cinecaption';
     // ctx.font = '16px Arial';
 
-    let textX = x + rate * tileSize / 2;
-    let textY = y + rate * tileSize;
+    let textX = x + displayTileSize / 2;
+    let textY = y + displayTileSize;
 
     for (let i = 0; i < textArray.length; i++) {
         ctx.fillText(textArray[i], textX, textY);
-        textY += rate * tileSize;
+        textY += displayTileSize;
     }
 }
 
@@ -319,10 +325,10 @@ function drawWindowPlayerInfo(){
         'E 　　 0'
     ];
 
-    const x = rate * tileSize / 2;
-    const y = rate * tileSize / 2;
-    const width = rate * tileSize * 4;
-    const height = rate * tileSize * (text.length + 0.5);
+    const x = displayTileSize / 2;
+    const y = displayTileSize / 2;
+    const width = displayTileSize * 4;
+    const height = displayTileSize * (text.length + 0.5);
 
     drawWindow(x, y, width, height, text);
 }
@@ -365,10 +371,10 @@ function getTextSelect(){
     }
 }
 function drawWindowPlayerCommand(text){
-    const playerCommandWidth = rate * tileSize * 4.5;
-    const playerCommandHeight = rate * tileSize * 4.5;
-    const playerCommandX = rate * tileSize * screenWidth - playerCommandWidth - rate * tileSize / 2;
-    const playerCommandY = rate * tileSize / 2;
+    const playerCommandWidth = displayTileSize * 4.5;
+    const playerCommandHeight = displayTileSize * 4.5;
+    const playerCommandX = displayTileSize * screenWidth - playerCommandWidth - displayTileSize / 2;
+    const playerCommandY = displayTileSize / 2;
 
     const playerCommandText = text;
 
@@ -410,14 +416,15 @@ function getTextExplain(){
     }
 }
 function drawWindowCommon(text){
-    const commonWidth = rate * screenWidth * (tileSize - 1);
-    const commonHeight = rate * tileSize * 4;
-    const commonX = rate * tileSize / 2;
-    const commonY = rate * tileSize * screenHeight - commonHeight - rate * tileSize / 2;
+    const commonWidth = displayTileSize * (screenWidth - 1);
+    const commonHeight = displayTileSize * 4;
+    const commonX = displayTileSize / 2;
+    const commonY = displayTileSize * screenHeight - commonHeight - displayTileSize / 2;
 
     const commonText = text;
 
     drawWindow(commonX, commonY, commonWidth, commonHeight, commonText);
+    message = '';
 }
 function drawWindowPlayerStrength(){
     const text = [
@@ -430,10 +437,10 @@ function drawWindowPlayerStrength(){
         '　たて：　　　　なし'
     ];
 
-    const width = rate * tileSize * 8;
-    const height = rate * tileSize * (text.length + 0.5);
-    const x = rate * tileSize * screenWidth - width - rate * tileSize / 2;
-    const y = rate * tileSize / 2;
+    const width = displayTileSize * 8;
+    const height = displayTileSize * (text.length + 0.5);
+    const x = displayTileSize * screenWidth - width - displayTileSize / 2;
+    const y = displayTileSize / 2;
 
     drawWindow(x, y, width, height, text);
 }
@@ -454,10 +461,10 @@ function drawWindowPlayerSpell(){
         ' ベギラマ'
     ];
 
-    const width = rate * tileSize * 5;
-    const height = rate * tileSize * (text.length + 0.5);
-    const x = rate * tileSize * screenWidth - width - rate * tileSize;
-    const y = rate * tileSize;
+    const width = displayTileSize * 5;
+    const height = displayTileSize * (text.length + 0.5);
+    const x = displayTileSize * screenWidth - width - displayTileSize;
+    const y = displayTileSize;
 
     drawWindow(x, y, width, height, text);
 }
@@ -475,10 +482,10 @@ function drawWindowPlayerItem(){
         ' せいすい'
     ];
 
-    const width = rate * tileSize * 6;
-    const height = rate * tileSize * (text.length + 0.5);
-    const x = rate * tileSize * screenWidth - width - rate * tileSize;
-    const y = rate * tileSize;
+    const width = displayTileSize * 6;
+    const height = displayTileSize * (text.length + 0.5);
+    const x = displayTileSize * screenWidth - width - displayTileSize;
+    const y = displayTileSize;
 
     drawWindow(x, y, width, height, text);
 }
@@ -494,6 +501,7 @@ function calcCodeToFlags(){
     for (const flagName in gameFlags) {
         gameFlags[flagName].flag = code >> gameFlags[flagName].bit;
     }
+    // console.log(code);
 }
 function drawCommandMenu() {
     if(isCommandMenuLevel > 0){
@@ -579,20 +587,17 @@ async function gameLoop(timestamp){
             let x = modAdd(playerPosition.x, moveX, mapWidth);
             let y = modAdd(playerPosition.y, moveY, mapHeight);
             
-            playerPosition.x = x;
-            playerPosition.y = y;
+            movePlayer(x, y);
         }
         if (!isCommandMenuLevel && (moveX !== 0 || moveY !== 0)) {
             let x = modAdd(playerPosition.x, moveX, mapWidth);
             let y = modAdd(playerPosition.y, moveY, mapHeight);
             
             if(count++ % 6 === 0 && isMoveAllowed(x, y)){
-                playerPosition.x = x;
-                playerPosition.y = y;
+                movePlayer(x, y);
             }else if(getGameState('afterMessage') && isMoveAllowed(x, y)){
                 clearGameState('afterMessage');
-                playerPosition.x = x;
-                playerPosition.y = y;
+                movePlayer(x, y);
             }
         }
         
@@ -720,8 +725,7 @@ window.addEventListener('touchstart', function (e) {
             textExplainIndex = modAdd(textExplainIndex, dy, 4);
         }
     }else if(isMoveAllowed(x, y)){
-        playerPosition.x = x;
-        playerPosition.y = y;
+        movePlayer(x, y);
     }
     drawScreen();
 
@@ -802,31 +806,43 @@ async function checkConditions() {
     if(isVisitMaira()){
         if(!getGameFlag('fairyFlute')){
             setGameFlag('fairyFlute');
-            message += 'ここはマイラの村だ\n';
-            message += '温泉で有名らしい\n';
-            message += '温泉の近くに何か落ちている...\n';
+            message = [
+                'ここはマイラの村だ',
+                '温泉で有名らしい',
+                '温泉の近くに何か落ちている...'
+            ];
             await waitForInput(true);
-            message += '妖精の笛を手に入れた！';
+            message = ['妖精の笛を手に入れた！'];
             await waitForInput(false);
         }else{
-            message += 'ここはマイラの村だ\n';
-            message += '温泉で有名らしい';
+            message = [
+                'ここはマイラの村だ',
+                '温泉で有名らしい'
+            ];
             await waitForInput(false);
         }
     }else if(isVisitCave()){
         if(!getGameFlag('roraRescued')){
             if(!getGameFlag('magicKey')){
-                message += '洞窟の中に扉があったが、鍵が無いので開けられなかった...';
+                message = [
+                    '洞窟の中に扉があったが',
+                    '鍵が無いので開けられなかった...'
+                ];
                 await waitForInput(false);
             }else{
                 setGameFlag('roraRescued');
-                message += '魔法の鍵で扉を開けた！\n';
-                message += 'ドラゴンを倒してローラ姫を救出した！';
+                message = [
+                    '魔法の鍵で扉を開けた！',
+                    'ドラゴンを倒してローラ姫を救出した！'
+                ];
                 await waitForInput(false);
                 playerStyle = playerStyleWithRora;
             }
         }else{
-            message += '倒したドラゴンのことは今度片付けよう';
+            message = [
+                '倒したドラゴンのことは',
+                '今度片付けよう'
+            ];
             await waitForInput(false);
         }
         if(isVisitCaveNorth()){
@@ -837,75 +853,97 @@ async function checkConditions() {
     }else if(isVisitRimurudaru()){
         if(!getGameFlag('magicKey')){
             setGameFlag('magicKey');
-            message += 'ここはリムルダールの町だ\n';
-            message += '店で魔法の鍵を手に入れた！';
+            message = [
+                'ここはリムルダールの町だ',
+                '店で魔法の鍵を手に入れた！'
+            ];
             await waitForInput(false);
         }else{
-            message += 'ここはリムルダールの町だ';
+            message = ['ここはリムルダールの町だ'];
             await waitForInput(false);
         }
     }else if(isVisitCastle()){
-        message += 'ここはラダトームの城だ\n';
+        message = ['ここはラダトームの城だ'];
         await waitForInput(true);
         if(getGameFlag('lightBall')){
-            message += '王様「勇者よ！よくぞりゅうおうを倒してくれた！\n';
-            message += '　　　わしに代わってこの国を治めてくれい！　　」\n';
+            message = [
+                '王様「勇者よ！よくぞりゅうおうを倒してくれた！',
+                '　　　わしに代わってこの国を治めてくれい！　　」'
+            ];
             await waitForInput(true);
-            message += 'しかし あなたは いいました（←！？）\n';
+            message = ['しかし あなたは いいました（←！？）'];
             await waitForInput(true);
-            message += '勇者「自分の治める国があるなら、それは自分で探したいのです」\n';
+            message = [
+                '勇者「自分の治める国があるなら',
+                '　　　それは自分で探したいのです」'
+            ];
             await waitForInput(true);
-            message += 'ローラ姫「私も連れて行ってください！」\n';
-            message += 'ローラ姫は 返事も聞かずに隣に立った！\n';
+            message = [
+                'ローラ姫「私も連れて行ってください！」',
+                'ローラ姫は 返事も聞かずに隣に立った！'
+            ];
             await waitForInput(true);
-            message += '～THE END～';
+            message = ['～THE END～'];
             await waitForInput(false);
         }else{
             if(!getGameFlag('roraLove') && getGameFlag('roraRescued')){
                 setGameFlag('roraLove');
                 playerStyle = playerStyleFull;
-                message += '王様「ローラ姫！」\n';
+                message = ['王様「ローラ姫！」'];
                 await waitForInput(true);
-                message += '王様「なんと！ドラゴンに囚われておったのか\n';
-                message += '　　　勇者よ！よくぞローラ姫を救い出してくれた！」\n';
+                message = [
+                    '王様「なんと！ドラゴンに囚われておったのか',
+                    '　　　よくぞローラ姫を救い出してくれた！」'
+                ];
                 await waitForInput(true);
-                message += 'ローラ姫「ありがとうございます...//」\n'
-                message += 'おうじょのあいを手に入れた！';
-                await waitForInput(true);
-                message += 'ローラ姫「こころは ずっといっしょですわ...//」\n'
+                message = [
+                    'ローラ姫「ありがとうございます...//」',
+                    'おうじょのあいを手に入れた！'
+                ];
                 await waitForInput(false);
             }else{
                 if(!getGameFlag('start')){
                     setGameFlag('start');
-                    message += '王様「勇者よ！りゅうおうを倒すのだ！\n';
-                    message += '　　　光の玉を取り返し 世界の闇を振り払え！」';
+                    message = [
+                        '王様「勇者よ！りゅうおうを倒すのだ！',
+                        '　　　光の玉を取り返し',
+                        '　　　世界の闇を振り払え！」'
+                    ];
                     await waitForInput(true);
                 }
                 if(!getGameFlag('sunStone')){
                     if(getGameFlag('magicKey')){
                         setGameFlag('sunStone');
-                        message += '城の裏で鍵を使い太陽の石を手に入れた！';
+                        message = ['城の裏で鍵を使い太陽の石を手に入れた！'];
                         await waitForInput(false);
                     }else{
-                        message += '王様「こんな時にローラ姫はどこへ...」';
+                        message = ['王様「こんな時にローラ姫はどこへ...」'];
                         await waitForInput(false);
                     }
                 }else{
                     if(playerStyle === playerStyleNormal){
-                        message += '王様「もし敵にやられてしまったら\n';
-                        message += '　　　ここまで運び込まれるのじゃ」\n';
+                        message = [
+                            '王様「もし敵にやられてしまったら',
+                            '　　　ここまで運び込まれるのじゃ」'
+                        ];
                         await waitForInput(true);
-                        message += '王様「所持金の概念が無くて良かったのう\n';
-                        message += '　　　我が城の兵士を動かすのも\n';
-                        message += '　　　タダというわけではないんじゃが… 」\n';
+                        message = [
+                            '王様「所持金の概念が無くて良かったのう',
+                            '　　　我が城の兵士を動かすのも',
+                            '　　　タダというわけではないんじゃが… 」'
+                        ];
                         await waitForInput(false);
                     }else{
-                        message += '王様「ローラ姫を助けるくだりが\n';
-                        message += '　　　正直ほとんど無かったじゃろう」\n';
+                        message = [
+                            '王様「ローラ姫を助けるくだりが',
+                            '　　　正直ほとんど無かったじゃろう」'
+                        ];
                         await waitForInput(true);
-                        message += '王様「装備の概念も少なすぎるから\n';
-                        message += '　　　一応見た目だけ 剣と盾を与えてあるぞ\n';
-                        message += '　　　せめてもの計らいに 感謝してくれ　　」\n';
+                        message = [
+                            '王様「装備の概念も少なすぎるから',
+                            '　　　一応見た目だけ 剣と盾を与えてあるぞ',
+                            '　　　せめてもの計らいに 感謝してくれ　　」'
+                        ];
                         await waitForInput(false);
                     }
                 }
@@ -915,51 +953,63 @@ async function checkConditions() {
         if(!getGameFlag('silverHerp')){
             if(getGameFlag('magicKey')){
                 setGameFlag('silverHerp');
-                message += 'ここはガライの町だ\n';
-                message += '吟遊詩人ガライの墓があるらしい\n';
-                message += '隠し通路の鍵を開けてダンジョンに挑んだ！\n';
+                message = [
+                    'ここはガライの町だ',
+                    '吟遊詩人ガライの墓があるらしい',
+                    '隠し通路の鍵を開けてダンジョンに挑んだ！'
+                ];
                 await waitForInput(true);
-                message += 'ガライの墓で銀の竪琴を手に入れた！';
+                message = ['ガライの墓で銀の竪琴を手に入れた！'];
                 await waitForInput(false);
             }else{
-                message += 'ここはガライの町だ\n';
-                message += '吟遊詩人ガライの墓があるらしい\n';
-                message += '隠し通路を見つけたが鍵がかかっている...';
+                message = [
+                    'ここはガライの町だ',
+                    '吟遊詩人ガライの墓があるらしい',
+                    '隠し通路を見つけたが鍵がかかっている...'
+                ];
                 await waitForInput(false);
             }
         }else{
-            message += 'ここはガライの町だ\n';
-            message += '吟遊詩人ガライの墓があるらしい';
+            message = [
+                'ここはガライの町だ',
+                '吟遊詩人ガライの墓があるらしい'
+            ];
             await waitForInput(false);
         }
     }else if(isVisitMairaShrine()){
         if(!getGameFlag('rainCloudStuff')){
             if(!getGameFlag('silverHerp')){
-                message += '老人「銀の竪琴の音色を聞きたいなあ...」';
+                message = ['老人「銀の竪琴の音色を聞きたいなあ...」'];
                 await waitForInput(false);
             }else{
                 setGameFlag('rainCloudStuff');
-                message += '老人「おお！それは銀の竪琴ではないか！\n';
-                message += '　　　そなたに雨雲の杖を授けよう！　　」\n';
-                message += '雨雲の杖を手に入れた！';
+                message = [
+                    '老人「おお！それは銀の竪琴ではないか！',
+                    '　　　そなたに雨雲の杖を授けよう！　　」',
+                    '雨雲の杖を手に入れた！'
+                ];
                 await waitForInput(false);
             }
         }else{
-            message += '老人「もう思い残すことはないわいﾋﾟﾛﾋﾟﾛ」';
+            message = ['老人「もう思い残すことはないわいﾋﾟﾛﾋﾟﾛ」'];
             await waitForInput(false);
         }
     }else if(isVisitMerukidoGate()){
         if(!getGameFlag('golemKilled')){
             if(!getGameFlag('fairyFlute')){
-                message += 'ゴーレムが現れた！\n';
-                message += '動きを止めないと勝ち目がない...！\n';
-                message += 'しんでしまった...';
+                message = [
+                    'ゴーレムが現れた！',
+                    '動きを止めないと勝ち目がない...！',
+                    'しんでしまった...'
+                ];
                 await waitForInput(false);
                 playerKilled();
             }else{
                 setGameFlag('golemKilled');
-                message += '妖精の笛でゴーレムを眠らせた！\n';
-                message += 'ゴーレムを倒した！';
+                message = [
+                    '妖精の笛でゴーレムを眠らせた！',
+                    'ゴーレムを倒した！'
+                ];
                 await waitForInput(false);
             }
         }
@@ -967,12 +1017,16 @@ async function checkConditions() {
         if(!getGameFlag('rotoEmblem')){
             const dx = gameFlags.rotoEmblem.location.x - gameFlags.sunStone.location.x;
             const dy = gameFlags.rotoEmblem.location.y - gameFlags.sunStone.location.y;
-            message += `老人「ラダトーム城まで西に${dx} 北に${dy}の場所を調べなされ！」`;
+            message = [
+                '老人「ラダトーム城まで',
+                `西に${dx} 北に${dy}`,
+                'の場所を調べなされ！」'
+            ];
             await waitForInput(false);
         }else{
-            message += '老人「てか おうじょのあい 重くない？」\n';
+            message = ['老人「てか おうじょのあい 重くない？」'];
             await waitForInput(true);
-            message += '老人「もちろん 物理的な 話なんだけど」';
+            message = ['老人「もちろん 物理的な 話なんだけど」'];
             await waitForInput(false);
         }
     }else if(isVisitRotoEmblem()){
@@ -984,70 +1038,89 @@ async function checkConditions() {
     }else if(isVisitDomudora()){
         if(!getGameFlag('rotoArmor')){
             setGameFlag('rotoArmor');
-            message += 'ここはドムドーラの町だった\n';
-            message += '今は廃墟となってしまっている...\n';
-            message += '突然 あくまのきし が現れた！';
+            message = [
+                'ここはドムドーラの町だった',
+                '今は廃墟となってしまっている...',
+                '突然 あくまのきし が現れた！'
+            ];
             await waitForInput(true);
-            message += 'あくまのきし を倒してロトの鎧を手に入れた！';
+            message = [
+                'あくまのきし を倒して',
+                'ロトのよろいを 手に入れた！'
+            ];
             await waitForInput(false);
         }else{
-            message += 'ここはドムドーラの町だった\n';
-            message += '今は廃墟となってしまっている...';
+            message = [
+                'ここはドムドーラの町だった',
+                '今は廃墟となってしまっている...'
+            ];
             await waitForInput(true);
-            message += '何故ここにロトの鎧があったのか\n';
-            message += 'その真相は製品版をお買い求めください';
+            message = [
+                '何故ここにロトのよろいがあったのか',
+                'その真相は製品版をお買い求めください'
+            ];
             await waitForInput(false);
         }
     }else if(isVisitRimurudaruShrine()){
         if(!getGameFlag('rainbowDrop')){
             if(getGameFlag('sunStone') && getGameFlag('rainCloudStuff') && getGameFlag('rotoEmblem')){
                 setGameFlag('rainbowDrop');
-                message += '老人「よくぞ太陽と雨雲を揃えた！」\n';
+                message = ['老人「よくぞ太陽と雨雲を揃えた！」'];
                 await waitForInput(true);
-                message += '老人「ここに虹のしずくが完成した！\n';
-                message += '　　　これでりゅうおうへの道が開かれるであろう！」';
+                message = [
+                    '老人「ここに虹のしずくが完成した！',
+                    '　　　これでりゅうおうへの',
+                    '　　　道が開かれるであろう！」'
+                ];
                 await waitForInput(false);
             }else if(!getGameFlag('rotoEmblem')){
-                message += '老人「勇者だと？嘘をつくな！」\n';
+                message = ['老人「勇者だと？嘘をつくな！」'];
                 await waitForInput(true);
-                message += '老人「もし本物の勇者なら\n';
-                message += '　　　どこかにしるしがあるはずじゃ！」';
+                message = [
+                    '老人「もし本物の勇者なら',
+                    '　　　どこかにしるしがあるはずじゃ！」'
+                ];
                 await waitForInput(false);
             }else{
-                message += '老人「しるしを持っているな！本物の勇者じゃ」\n';
+                message = ['老人「しるしを持っているな！本物の勇者じゃ」'];
                 await waitForInput(true);
-                message += '老人「太陽と雨雲が揃ったとき\n';
-                message += '　　　虹の橋が架かるとの言い伝えじゃ！」';
+                message = [
+                    '老人「太陽と雨雲が揃ったとき',
+                    '　　　虹の橋が架かるとの言い伝えじゃ！」'
+                ];
                 await waitForInput(false);
             }
         }else{
-            message += '老人「前から 思ってたけど...」\n';
+            message = ['老人「前から 思ってたけど...」'];
             await waitForInput(true);
-            message += '老人「虹のしずくを 経由しなくても\n';
-            message += '　　　全部揃ってたら 橋が架かるって勘違いしない？」';
+            message = [
+                '老人「虹のしずくを 経由しなくても',
+                '　　　全部揃ってたら 橋が架かる',
+                '　　　って勘違いしない？」'
+            ];
             await waitForInput(false);
         }
     }else if(isVisitRainbowBridge()){
         if(!getGameFlag('rainbowBridge') && getGameFlag('rainbowDrop')){
             setGameFlag('rainbowBridge');
             mapData[gameFlags.rainbowBridge.location.y][gameFlags.rainbowBridge.location.x-1] = 35;
-            message += '虹のしずくを使った！\n';
+            message = ['虹のしずくを使った！'];
             await waitForInput(true);
-            message += '虹の橋が架かった！';
+            message = ['虹の橋が架かった！'];
             await waitForInput(false);
         }
     }else if(isVisitDragonCastle()){
         if(!getGameFlag('rotoArmor')){
-            message += 'りゅうおうが 現れた！\n';
+            message = ['りゅうおうが 現れた！'];
             await waitForInput(true);
-            message += '防御が紙なので 普通にやられてしまった！';
+            message = ['防御が紙なので 普通にやられてしまった！'];
             await waitForInput(true);
-            message += 'どうしてこんな装備で 挑んでしまったんだ！';
+            message = ['どうしてこんな装備で 挑んでしまったんだ！'];
             await waitForInput(false);
             playerKilled();
         }else{
             setGameFlag('lightBall');
-            message += 'りゅうおうを倒し、光の玉を手に入れた！\n';
+            message = ['りゅうおうを倒し、光の玉を手に入れた！'];
             await waitForInput(false);
         }
     }else if(isVisitTown()){
