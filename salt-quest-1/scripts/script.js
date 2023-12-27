@@ -70,6 +70,86 @@ function getGameState(stateName){
     return gameStates[stateName].state;
 }
 
+// プレイヤーオブジェクト
+let player = {
+    name: 'ソルト',
+    level: 1,
+    hp: 15,
+    mp: 0,
+    gold: 0,
+    exp: 0,
+    herb: 6,
+    key: 0,
+    items: []  // アイテムを管理するための空の配列
+};
+
+// アイテムの情報をオブジェクトで定義(説明は嘘)
+const items = [
+    { name: 'なし', description: '何もない' },
+    { name: 'たいまつ', description: '暗闇を照らすことができる' },
+    { name: 'せいすい', description: '生命の水。HPを回復する' },
+    { name: 'キメラのつばさ', description: 'キメラの翼。高い場所に飛ぶことができる' },
+    { name: 'りゅうのうろこ', description: '竜の鱗。防御力が上がる' },
+    { name: 'ようせいのふえ', description: '妖精の笛。特定の場所で妖精と話すことができる' },
+    { name: 'せんしのゆびわ', description: '戦士の指輪。攻撃力が上がる' },
+    { name: 'ロトのしるし', description: '勇者の証。特別な場所で使用できる' },
+    { name: 'おうじょのあい', description: '王女の証。特定のイベントで必要' },
+    { name: 'のろいのベルト', description: '呪いのベルト。一定期間、敵からの攻撃が当たりやすくなる' },
+    { name: 'ぎんのたてごと', description: '銀の盾。高い防御力を提供' },
+    { name: 'しのくびかざり', description: '死の首飾り。一度だけ死んだときに蘇生する' },
+    { name: 'たいようのいし', description: '太陽の石。特定のパズル解決に必要' },
+    { name: 'あまぐものつえ', description: '雨雲の杖。特定の場所で雨を呼ぶことができる' },
+    { name: 'にじのしずく', description: '虹のしずく。特定のイベントで使用' }
+];
+
+// アイテムをプレイヤーに追加する関数
+function addItemToPlayer(itemName) {
+    const itemIndex = items.findIndex(item => item.name === itemName);
+
+    if (itemIndex !== -1) {
+        if (player.items.length < 8) {
+            const newItem = { ...items[itemIndex]};  // アイテムのコピーを作成
+            player.items.push(newItem);
+            console.log(`${newItem.name}を手に入れた！`);
+        } else {
+            console.log('これ以上アイテムを持てません。');
+        }
+    } else {
+        console.log('指定されたアイテムが見つかりません。');
+    }
+}
+// アイテムをプレイヤーから削除する関数
+function deleteItemFromPlayer(itemName) {
+    const itemIndex = player.items.findIndex(item => item.name === itemName);
+
+    if (itemIndex !== -1) {
+        const usedItem = player.items[itemIndex];
+        console.log(`${usedItem.name}を削除しました。`);
+
+        // プレイヤーのアイテムリストから削除
+        player.items.splice(itemIndex, 1);
+    } else {
+        console.log('指定されたアイテムが見つかりません。');
+    }
+}
+
+// アイテムを使用する関数（仮の例）
+function useItem(itemName) {
+    const itemIndex = player.items.findIndex(item => item.name === itemName);
+
+    if (itemIndex !== -1) {
+        const usedItem = player.items[itemIndex];
+        console.log(`${usedItem.name}を使用しました。`);
+
+        // アイテムの効果や使用後の処理をここに追加
+
+        // 使用したアイテムをプレイヤーのアイテムリストから削除
+        player.items.splice(itemIndex, 1);
+    } else {
+        console.log('指定されたアイテムが見つかりません。');
+    }
+}
+
 let code = 0;
 const codeMax = 16384;
 
@@ -280,8 +360,12 @@ function drawPoint(){
     let x = playerPosition.x;
     let y = playerPosition.y;
     let tile = mapData[playerPosition.y][playerPosition.x];
-    if(getGameFlag('roraLove')) document.getElementById('point').innerText = `ローラ「ラダトーム城まで${ns}へ${dx} ${ew}へ${dy}ですわ」`;
-    else if(getGameState('debug')) document.getElementById('point').innerText = `x: ${x}, y: ${y}, tile: ${tile}`;
+    if(getGameFlag('roraLove')) {
+        document.getElementById('point').innerText = `ローラ「ラダトーム城まで${ns}へ${dx} ${ew}へ${dy}ですわ」`;
+    }
+    if(getGameState('debug')) {
+        document.getElementById('point').innerText = `x: ${x}, y: ${y}, tile: ${tile}`;
+    }
 }
 function drawWindow(x, y, width, height, textArray) {
     // 背景
@@ -315,12 +399,12 @@ function drawWindow(x, y, width, height, textArray) {
 
 function drawWindowPlayerInfo(){
     const text = [
-        'ソルト',
-        'レベル　1',
-        'HP　　15',
-        'MP　　 0',
-        'G 　　 0',
-        'E 　　 0'
+        player.name,
+        `レベル　${player.level}`,
+        `HP　　${player.hp}`,
+        `MP　　${player.mp}`,
+        `G 　　${player.gold}`,
+        `E 　　${player.exp}`
     ];
 
     const x = displayTileSize / 2;
@@ -443,19 +527,20 @@ function drawWindowPlayerSpell(){
 
     drawWindow(x, y, width, height, text);
 }
+function getPlayerItemNames() {
+    return player.items.map(item => item.name);
+}
 function drawWindowPlayerItem(){
-    const text = [
-        ' やくそう　　 6',
-        ' かぎ　　　　 4',
-        ' たいようのいし',
-        ' たいまつ',
-        ' せいすい',
-        ' せいすい',
-        ' せいすい',
-        ' せいすい',
-        ' せいすい',
-        ' せいすい'
-    ];
+    const textHerb = `やくそう　　　${player.herb}`;
+    const textKey  = `かぎ　　　　　${player.key}`;
+    let text = [];
+    if(player.herb > 0){
+        text = [...text, textHerb];
+    }
+    if(player.key > 0){
+        text = [...text, textKey];
+    }
+    text = [...text, ...getPlayerItemNames()];
 
     const width = displayTileSize * 6;
     const height = displayTileSize * (text.length + 0.5);
@@ -631,6 +716,7 @@ window.addEventListener('keydown', function (e) {
                 clearGameState('debug');
             }else{
                 setGameState('debug');
+                document.getElementById('point').style.display = 'block';
             }
             break;
         default:
@@ -760,8 +846,10 @@ function isVisitMerukidoGate(){
     return isVisit(gameFlags.golemKilled.location);
 }
 function isVisitMerukido(){
-    const location = gameFlags.golemKilled.location;
-    location.y += 2;
+    const location = { 
+        x: gameFlags.golemKilled.location.x, 
+        y: gameFlags.golemKilled.location.y + 2 
+    };
     return isVisit(location);
 }
 function isVisitRotoEmblem(){
@@ -781,11 +869,12 @@ function isVisitDragonCastle(){
 }
 
 async function checkConditions() {
-    document.getElementById('point').style.display = 'none';
+    if(!getGameState('debug')) document.getElementById('point').style.display = 'none';
     message = '';
     if(isVisitMaira()){
         if(!getGameFlag('fairyFlute')){
             setGameFlag('fairyFlute');
+            addItemToPlayer('ようせいのふえ');
             message = [
                 'ここはマイラの村だ',
                 '温泉で有名らしい',
@@ -833,6 +922,7 @@ async function checkConditions() {
     }else if(isVisitRimurudaru()){
         if(!getGameFlag('magicKey')){
             setGameFlag('magicKey');
+            player.key = 1;
             message = [
                 'ここはリムルダールの町だ',
                 '店で魔法の鍵を手に入れた！'
@@ -868,6 +958,7 @@ async function checkConditions() {
         }else{
             if(!getGameFlag('roraLove') && getGameFlag('roraRescued')){
                 setGameFlag('roraLove');
+                addItemToPlayer('おうじょのあい');
                 playerStyle = playerStyleFull;
                 message = ['王様「ローラ姫！」'];
                 await waitForInput(true);
@@ -894,6 +985,7 @@ async function checkConditions() {
                 if(!getGameFlag('sunStone')){
                     if(getGameFlag('magicKey')){
                         setGameFlag('sunStone');
+                        addItemToPlayer('たいようのいし');
                         message = ['城の裏で鍵を使い太陽の石を手に入れた！'];
                         await waitForInput(false);
                     }else{
@@ -933,6 +1025,7 @@ async function checkConditions() {
         if(!getGameFlag('silverHerp')){
             if(getGameFlag('magicKey')){
                 setGameFlag('silverHerp');
+                addItemToPlayer('ぎんのたてごと');
                 message = [
                     'ここはガライの町だ',
                     '吟遊詩人ガライの墓があるらしい',
@@ -963,9 +1056,13 @@ async function checkConditions() {
                 await waitForInput(false);
             }else{
                 setGameFlag('rainCloudStuff');
+                addItemToPlayer('あまぐものつえ');
                 message = [
                     '老人「おお！それは銀の竪琴ではないか！',
-                    '　　　そなたに雨雲の杖を授けよう！　　」',
+                    '　　　そなたに雨雲の杖を授けよう！　　」'
+                ];
+                await waitForInput(true);
+                message = [
                     '雨雲の杖を手に入れた！'
                 ];
                 await waitForInput(false);
@@ -1012,7 +1109,8 @@ async function checkConditions() {
     }else if(isVisitRotoEmblem()){
         if(!getGameFlag('rotoEmblem')){
             setGameFlag('rotoEmblem');
-            message += 'ロトのしるしを手に入れた！';
+            addItemToPlayer('ロトのしるし');
+            message = ['ロトのしるしを手に入れた！'];
             await waitForInput(false);
         }
     }else if(isVisitDomudora()){
@@ -1045,6 +1143,9 @@ async function checkConditions() {
         if(!getGameFlag('rainbowDrop')){
             if(getGameFlag('sunStone') && getGameFlag('rainCloudStuff') && getGameFlag('rotoEmblem')){
                 setGameFlag('rainbowDrop');
+                deleteItemFromPlayer('たいようのいし');
+                deleteItemFromPlayer('あまぐものつえ');
+                addItemToPlayer('にじのしずく');
                 message = ['老人「よくぞ太陽と雨雲を揃えた！」'];
                 await waitForInput(true);
                 message = [
@@ -1086,6 +1187,7 @@ async function checkConditions() {
             mapData[gameFlags.rainbowBridge.location.y][gameFlags.rainbowBridge.location.x-1] = 35;
             message = ['虹のしずくを使った！'];
             await waitForInput(true);
+            deleteItemFromPlayer('にじのしずく');
             message = ['虹の橋が架かった！'];
             await waitForInput(false);
         }
