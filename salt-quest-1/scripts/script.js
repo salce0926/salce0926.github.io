@@ -73,14 +73,19 @@ function getGameState(stateName){
 // プレイヤーオブジェクト
 let player = {
     name: 'ソルト',
-    level: 1,
+    level: 0,
     hp: 15,
+    maxHp: 15,
     mp: 0,
+    maxMp: 0,
     gold: 0,
     exp: 0,
+    strength: 0,
+    agility: 0,
     herb: 6,
     key: 0,
-    items: []  // アイテムを管理するための空の配列
+    items: [],  // アイテムを管理するための空の配列
+    spells: []
 };
 
 // アイテムの情報をオブジェクトで定義(説明は嘘)
@@ -147,6 +152,61 @@ function useItem(itemName) {
         player.items.splice(itemIndex, 1);
     } else {
         console.log('指定されたアイテムが見つかりません。');
+    }
+}
+
+const playerStatus = [
+    { level: 1, strength: 4, agility: 4, hp: 15, mp: 0, requiredExp: 0, spell: '-' },
+    { level: 2, strength: 5, agility: 4, hp: 22, mp: 0, requiredExp: 7, spell: '-' },
+    { level: 3, strength: 7, agility: 6, hp: 24, mp: 5, requiredExp: 23, spell: 'ホイミ' },
+    { level: 4, strength: 7, agility: 8, hp: 31, mp: 16, requiredExp: 47, spell: 'ギラ' },
+    { level: 5, strength: 12, agility: 10, hp: 35, mp: 20, requiredExp: 110, spell: '-' },
+    { level: 6, strength: 16, agility: 10, hp: 38, mp: 24, requiredExp: 220, spell: '-' },
+    { level: 7, strength: 18, agility: 17, hp: 40, mp: 26, requiredExp: 450, spell: 'ラリホー' },
+    { level: 8, strength: 22, agility: 20, hp: 46, mp: 29, requiredExp: 800, spell: '-' },
+    { level: 9, strength: 30, agility: 22, hp: 50, mp: 36, requiredExp: 1300, spell: 'レミーラ' },
+    { level: 10, strength: 35, agility: 31, hp: 54, mp: 40, requiredExp: 2000, spell: 'マホトーン' },
+    { level: 11, strength: 40, agility: 35, hp: 62, mp: 50, requiredExp: 2900, spell: '-' },
+    { level: 12, strength: 48, agility: 40, hp: 63, mp: 58, requiredExp: 4000, spell: 'リレミト' },
+    { level: 13, strength: 52, agility: 48, hp: 70, mp: 64, requiredExp: 5500, spell: 'ルーラ' },
+    { level: 14, strength: 60, agility: 55, hp: 78, mp: 70, requiredExp: 7500, spell: '-' },
+    { level: 15, strength: 68, agility: 64, hp: 86, mp: 72, requiredExp: 10000, spell: 'トヘロス' },
+    { level: 16, strength: 72, agility: 70, hp: 92, mp: 95, requiredExp: 13000, spell: '-' },
+    { level: 17, strength: 72, agility: 78, hp: 100, mp: 100, requiredExp: 17000, spell: 'ベホイミ' },
+    { level: 18, strength: 85, agility: 84, hp: 115, mp: 108, requiredExp: 21000, spell: '-' },
+    { level: 19, strength: 87, agility: 86, hp: 130, mp: 115, requiredExp: 25000, spell: 'ベギラマ' },
+    { level: 20, strength: 92, agility: 88, hp: 138, mp: 128, requiredExp: 29000, spell: '-' },
+    { level: 21, strength: 95, agility: 90, hp: 149, mp: 135, requiredExp: 33000, spell: '-' },
+    { level: 22, strength: 97, agility: 90, hp: 158, mp: 146, requiredExp: 37000, spell: '-' },
+    { level: 23, strength: 99, agility: 94, hp: 165, mp: 153, requiredExp: 41000, spell: '-' },
+    { level: 24, strength: 103, agility: 98, hp: 170, mp: 161, requiredExp: 45000, spell: '-' },
+    { level: 25, strength: 113, agility: 100, hp: 174, mp: 161, requiredExp: 49000, spell: '-' },
+    { level: 26, strength: 117, agility: 105, hp: 180, mp: 168, requiredExp: 53000, spell: '-' },
+    { level: 27, strength: 125, agility: 107, hp: 189, mp: 175, requiredExp: 57000, spell: '-' },
+    { level: 28, strength: 130, agility: 115, hp: 195, mp: 180, requiredExp: 61000, spell: '-' },
+    { level: 29, strength: 135, agility: 120, hp: 200, mp: 190, requiredExp: 65000, spell: '-' },
+    { level: 30, strength: 140, agility: 130, hp: 210, mp: 200, requiredExp: 65535, spell: '-' },
+];
+
+function getPlayerStatus(level) {
+    return playerStatus.find((status) => status.level === level);
+}
+
+function updatePlayerLevel(){
+    if(player.level >= 30){
+        return;
+    }
+    const newStatus = getPlayerStatus(player.level + 1);
+    if(player.exp < newStatus.requiredExp){
+        return;
+    }
+    player.level = newStatus.level;
+    player.strength = newStatus.strength;
+    player.agility = newStatus.agility;
+    player.maxHp = newStatus.hp;
+    player.maxMp = newStatus.mp;
+    if(newStatus.spell !== '-'){
+        player.spells.push(newStatus.spell);
     }
 }
 
@@ -486,13 +546,13 @@ function drawWindowCommon(text){
 }
 function drawWindowPlayerStrength(){
     const text = [
-        '　　ちから：　　　10',
-        '　すばやさ：　　　 4',
-        'こうげき力：　　　10',
-        '　しゅび力：　　　 4',
-        '　ぶき：　　　　なし',
-        'よろい：　ぬののふく',
-        '　たて：　　　　なし'
+        `　　ちから：　　　${player.strength}`,
+        `　すばやさ：　　　${player.agility}`,
+        `こうげき力：　　　${player.strength}`,
+        `　しゅび力：　　　${Math.floor(player.agility/2)}`,
+        `　ぶき：　　　　なし`,
+        `よろい：　ぬののふく`,
+        `　たて：　　　　なし`
     ];
 
     const width = displayTileSize * 8;
@@ -506,18 +566,19 @@ const textExplainPlayerSpellList = [
     'おぼえたじゅもん：'
 ];
 function drawWindowPlayerSpell(){
-    const text = [
-        ' ホイミ',
-        ' ギラ',
-        ' ラリホー',
-        ' レミーラ',
-        ' マホトーン',
-        ' リレミト',
-        ' ルーラ',
-        ' トヘロス',
-        ' ベホイミ',
-        ' ベギラマ'
-    ];
+    // const text = [
+    //     ' ホイミ',
+    //     ' ギラ',
+    //     ' ラリホー',
+    //     ' レミーラ',
+    //     ' マホトーン',
+    //     ' リレミト',
+    //     ' ルーラ',
+    //     ' トヘロス',
+    //     ' ベホイミ',
+    //     ' ベギラマ'
+    // ];
+    const text = player.spells.length === 0 ? ['なし'] : player.spells;
 
     const width = displayTileSize * 5;
     const height = displayTileSize * (text.length + 0.5);
@@ -720,6 +781,11 @@ window.addEventListener('keydown', function (e) {
                 document.getElementById('point').style.display = 'block';
             }
             break;
+        case 'l':
+            player.exp += 1;
+            console.log(`lv:${player.level}, exp:${player.exp}`);
+            updatePlayerLevel();
+            break;
         default:
             break;
     }
@@ -801,6 +867,7 @@ window.addEventListener('touchend', function (e) {
 });
 
 window.onload = function () {
+    updatePlayerLevel();
     gameLoop();
 };
 
