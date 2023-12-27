@@ -16,22 +16,60 @@ var screenWidth = 16;
 var screenHeight = 16;
 
 // フラグとクリア条件を管理するオブジェクト
-var flags = {
-    start: { flag: false, location: { x: 0, y: 0 } },
-    fairyFlute: { flag: false, location: { x: 112, y: 18 } },
-    magicKey: { flag: false, location: { x: 110, y: 80 } },
-    roraRescued: { flag: false, location: { x: 0, y: 0 } },
-    roraLove: { flag: false, location: { x: 0, y: 0 } },
-    sunStone: { flag: false, location: { x: 51, y: 51 } },
-    silverHerp: { flag: false, location: { x: 10, y: 10 } },
-    rainCloudStuff: { flag: false, location: { x: 89, y: 9 } },
-    golemKilled: { flag: false, location: { x: 81, y: 108 } },
-    rotoEmblem: { flag: false, location: { x: 91, y: 121 } },
-    rotoArmor: { flag: false, location: { x: 33, y: 97 } },
-    rainbowDrop: { flag: false, location: { x: 116, y: 117 } },
-    rainbowBridge: { flag: false, location: { x: 73, y: 57 } },
-    lightBall: { flag: false, location: { x: 56, y: 56 } }
+var gameFlags = {
+    start:          { bit: 0, flag: false, location: { x: 0, y: 0 } },
+    fairyFlute:     { bit: 1, flag: false, location: { x: 112, y: 18 } },
+    magicKey:       { bit: 2, flag: false, location: { x: 110, y: 80 } },
+    roraRescued:    { bit: 3, flag: false, location: { x: 0, y: 0 } },
+    roraLove:       { bit: 4, flag: false, location: { x: 0, y: 0 } },
+    sunStone:       { bit: 5, flag: false, location: { x: 51, y: 51 } },
+    silverHerp:     { bit: 6, flag: false, location: { x: 10, y: 10 } },
+    rainCloudStuff: { bit: 7, flag: false, location: { x: 89, y: 9 } },
+    golemKilled:    { bit: 8, flag: false, location: { x: 81, y: 108 } },
+    rotoEmblem:     { bit: 9, flag: false, location: { x: 91, y: 121 } },
+    rotoArmor:      { bit: 10, flag: false, location: { x: 33, y: 97 } },
+    rainbowDrop:    { bit: 11, flag: false, location: { x: 116, y: 117 } },
+    rainbowBridge:  { bit: 12, flag: false, location: { x: 73, y: 57 } },
+    lightBall:      { bit: 13, flag: false, location: { x: 56, y: 56 } }
 };
+
+function setGameFlag(flagName){
+    gameFlags[flagName].flag = true;
+}
+function clearGameFlag(flagName){
+    gameFlags[flagName].flag = false;
+}
+function getGameFlag(flagName){
+    return gameFlags[flagName].flag;
+}
+
+var maxLevel = 3;
+var commandMenuStrength = 0;
+var commandMenuSpell = 1;
+var commandMenuItem = 2;
+var commandMenuSave = 3;
+
+let gameStates = {
+    waitingInput:     { bit: 0, state: false },
+    afterMessage:     { bit: 1, state: false },
+    stillTalking:     { bit: 2, state: false },
+    debug:            { bit: 3, state: false },
+    commandMenuLevel: { bit: 4, state: 0 }
+};
+var isCommandMenuLevel = 0;
+
+function setGameState(stateName){
+    gameStates[stateName].state = true;
+}
+function clearGameState(stateName){
+    gameStates[stateName].state = false;
+}
+function getGameState(stateName){
+    return gameStates[stateName].state;
+}
+
+let code = 0;
+const codeMax = 16384;
 
 // プレイヤーの初期位置
 var playerPosition = { x: 51, y: 51 };
@@ -45,12 +83,10 @@ canvas.height = screenHeight * tileSize * rate;
 
 var message = '';
 var interval = 500;
-var isWaitingInput = false;
-var isAfterMessage = false;
-var isStillTalking = false;
-var isCommandMenuLevel = 0;
-var maxLevel = 3;
-var isDebug = false;
+
+var textExplainSave = [
+    `きろく：${code}`
+];
 
 // プレイヤーの見た目
 var playerStyleNormal = 0;
@@ -76,22 +112,109 @@ function displayMessage(mes){
 }
 
 function waitForInput(isTalking){
-    isWaitingInput = true;
-    isStillTalking = isTalking;
+    setGameState('waitingInput');
+    if(isTalking){
+        setGameState('stillTalking');
+    }else{
+        clearGameState('stillTalking');
+    }
     displayMessage(message);
 
     return new Promise(resolve => {
         window.addEventListener('keydown', function keydownListener(e) {
-            isWaitingInput = false;
-            isAfterMessage = true;
+            clearGameState('waitingInput');
+            setGameState('afterMessage');
             window.removeEventListener('keydown', keydownListener);
             resolve();
         });
         window.addEventListener('touchstart', function keydownListener(e) {
-            isWaitingInput = false;
-            isAfterMessage = true;
+            clearGameState('waitingInput');
+            setGameState('afterMessage');
             window.removeEventListener('touchstart', keydownListener);
             resolve();
+        });
+    });
+}
+
+function changeCode(){
+    setGameState('waitingInput');
+    drawWindowCommon(message);
+
+    return new Promise(resolve => {
+        window.addEventListener('keydown', function keydownListener(e) {
+            switch (e.key) {
+                case 'ArrowUp':
+                    code--;
+                    code += codeMax;
+                    code %= codeMax;
+                    textExplainSave = [
+                        `きろく：${code}`
+                    ];
+                    drawWindowCommon(textExplainSave);
+                    break;
+                case 'ArrowDown':
+                    code++;
+                    code += codeMax;
+                    code %= codeMax;
+                    textExplainSave = [
+                        `きろく：${code}`
+                    ];
+                    drawWindowCommon(textExplainSave);
+                    break;
+                default:
+                    calcCodeToFlags();
+                    clearGameState('waitingInput');
+                    setGameState('afterMessage');
+                    window.removeEventListener('keydown', keydownListener);
+                    resolve();
+                    break;
+            }
+        });
+        window.addEventListener('touchstart', function keydownListener(e) {
+            // タッチ位置を取得
+            var touchX = e.touches[0].clientX;
+            var touchY = e.touches[0].clientY;
+
+            // 画面の中央を起点にしてタッチ位置を計算
+            var centerX = window.innerWidth / 2;
+            var centerY = window.innerHeight / 2;
+            var centerLeftX = rate * tileSize * screenWidth / 3;
+            var centerRightX = rate * tileSize * screenWidth * 2 / 3;
+            var centerTopY = rate * tileSize * screenHeight / 3;
+            var centerBottomY = rate * tileSize * screenHeight * 2 / 3;
+
+            // タッチ位置と中央位置の差を計算
+            var deltaX = touchX - centerX;
+            var deltaY = touchY - centerY;
+
+            // 差の絶対値が大きい方に動く方向を設定
+            if(centerLeftX < touchX - canvas.getBoundingClientRect().left 
+            && touchX - canvas.getBoundingClientRect().left < centerRightX 
+            && centerTopY < touchY - canvas.getBoundingClientRect().top 
+            && touchY - canvas.getBoundingClientRect().top < centerBottomY){
+                calcCodeToFlags();
+                clearGameState('waitingInput');
+                setGameState('afterMessage');
+                window.removeEventListener('touchstart', keydownListener);
+                resolve();
+            }else if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                // 左右移動
+                calcCodeToFlags();
+                clearGameState('waitingInput');
+                setGameState('afterMessage');
+                window.removeEventListener('touchstart', keydownListener);
+                resolve();
+            } else {
+                // 上下移動
+                code += deltaY > 0 ? 1 : -1;
+                code += codeMax;
+                code %= codeMax;
+                textExplainSave = [
+                    'きろく を へんこうできます',
+                    `きろく：${code}`
+                ];
+                drawWindowCommon(textExplainSave);
+            }
         });
     });
 }
@@ -140,8 +263,8 @@ function drawMap(){
     }
 }
 function drawPoint(){
-    let dx = flags.sunStone.location.x - playerPosition.x;
-    let dy = flags.sunStone.location.y - playerPosition.y;
+    let dx = gameFlags.sunStone.location.x - playerPosition.x;
+    let dy = gameFlags.sunStone.location.y - playerPosition.y;
     let ns = (dx > 0 ? '東' : '西');
     let ew = (dy > 0 ? '南' : '北');
     dx = (dx > 0 ? dx : -dx);
@@ -149,8 +272,8 @@ function drawPoint(){
     let x = playerPosition.x;
     let y = playerPosition.y;
     let tile = mapData[playerPosition.y][playerPosition.x];
-    if(flags.roraLove.flag) document.getElementById('point').innerText = `ローラ「ラダトーム城まで${ns}へ${dx} ${ew}へ${dy}ですわ」`;
-    else if(isDebug) document.getElementById('point').innerText = `x: ${x}, y: ${y}, tile: ${tile}`;
+    if(getGameFlag('roraLove')) document.getElementById('point').innerText = `ローラ「ラダトーム城まで${ns}へ${dx} ${ew}へ${dy}ですわ」`;
+    else if(getGameState('debug')) document.getElementById('point').innerText = `x: ${x}, y: ${y}, tile: ${tile}`;
 }
 function drawWindow(x, y, width, height, textArray) {
     // 背景
@@ -183,19 +306,21 @@ function drawWindow(x, y, width, height, textArray) {
 }
 
 function drawWindowPlayerInfo(){
-    const playerInfoX = rate * tileSize / 2;
-    const playerInfoY = rate * tileSize / 2;
-    const playerInfoWidth = rate * tileSize * 5;
-    const playerInfoHeight = rate * tileSize * 4.5;
-
-    const playerInfoText = [
+    const text = [
         'ソルト',
         'レベル　1',
-        'HP　　15/15',
-        'MP　　 0/0'
+        'HP　　15',
+        'MP　　 0',
+        'G 　　 0',
+        'E 　　 0'
     ];
 
-    drawWindow(playerInfoX, playerInfoY, playerInfoWidth, playerInfoHeight, playerInfoText);
+    const x = rate * tileSize / 2;
+    const y = rate * tileSize / 2;
+    const width = rate * tileSize * 4;
+    const height = rate * tileSize * (text.length + 0.5);
+
+    drawWindow(x, y, width, height, text);
 }
 const textSelectStrengthCommand = [
     '▶つよさ',
@@ -223,13 +348,13 @@ const textSelectSaveCommand = [
 ];
 function getTextSelect(){
     switch (textExplainIndex){
-        case 0:
+        case commandMenuStrength:
             return textSelectStrengthCommand;
-        case 1:
+        case commandMenuSpell:
             return textSelectSpellCommand;
-        case 2:
+        case commandMenuItem:
             return textSelectItemCommand;
-        case 3:
+        case commandMenuSave:
             return textSelectSaveCommand;
         default:
             return 'getSelectExplain() has error.';
@@ -268,13 +393,13 @@ const textExplainSaveCommand = [
 ];
 function getTextExplain(){
     switch (textExplainIndex){
-        case 0:
+        case commandMenuStrength:
             return textExplainStrengthCommand;
-        case 1:
+        case commandMenuSpell:
             return textExplainSpellCommand;
-        case 2:
+        case commandMenuItem:
             return textExplainItemCommand;
-        case 3:
+        case commandMenuSave:
             return textExplainSaveCommand;
         default:
             return 'getTextExplain() has error.';
@@ -290,52 +415,112 @@ function drawWindowCommon(text){
 
     drawWindow(commonX, commonY, commonWidth, commonHeight, commonText);
 }
-function drawWindowPlayerGoldExp(){
-    const playerGoldExpX = rate * tileSize;
-    const playerGoldExpY = rate * tileSize * 5.5;
-    const playerGoldExpWidth = rate * tileSize * 4;
-    const playerGoldExpHeight = rate * tileSize * 2.5;
-
-    const playerGoldExpText = [
-        'G　　　 0',
-        'E　　　 0'
+function drawWindowPlayerStrength(){
+    const text = [
+        '　　ちから：　　　10',
+        '　すばやさ：　　　 4',
+        'こうげき力：　　　10',
+        '　しゅび力：　　　 4',
+        '　ぶき：　　　　なし',
+        'よろい：　ぬののふく',
+        '　たて：　　　　なし'
     ];
 
-    drawWindow(playerGoldExpX, playerGoldExpY, playerGoldExpWidth, playerGoldExpHeight, playerGoldExpText);
-}
-function drawWindowPlayerStrength(){
-    const width = rate * tileSize * 9;
-    const height = rate * tileSize * 9.5;
+    const width = rate * tileSize * 8;
+    const height = rate * tileSize * (text.length + 0.5);
     const x = rate * tileSize * screenWidth - width - rate * tileSize / 2;
     const y = rate * tileSize / 2;
-
-    const text = [
-        '　せいかく：　ごうけつ',
-        '　　ちから：　　10',
-        '　すばやさ：　　 4',
-        'こうげき力：　　10',
-        '　しゅび力：　　 4',
-        '　　　ぶき：　',
-        '　　よろい：　ぬののふく',
-        '　　　たて：　',
-        'そうしょく：　'
-    ];
 
     drawWindow(x, y, width, height, text);
 }
 const textExplainPlayerSpellList = [
     'おぼえたじゅもん：'
 ];
+function drawWindowPlayerSpell(){
+    const text = [
+        ' ホイミ',
+        ' ギラ',
+        ' ラリホー',
+        ' レミーラ',
+        ' マホトーン',
+        ' リレミト',
+        ' ルーラ',
+        ' トヘロス',
+        ' ベホイミ',
+        ' ベギラマ'
+    ];
+
+    const width = rate * tileSize * 5;
+    const height = rate * tileSize * (text.length + 0.5);
+    const x = rate * tileSize * screenWidth - width - rate * tileSize;
+    const y = rate * tileSize;
+
+    drawWindow(x, y, width, height, text);
+}
+function drawWindowPlayerItem(){
+    const text = [
+        ' やくそう　　 6',
+        ' かぎ　　　　 4',
+        ' たいようのいし',
+        ' たいまつ',
+        ' せいすい',
+        ' せいすい',
+        ' せいすい',
+        ' せいすい',
+        ' せいすい',
+        ' せいすい'
+    ];
+
+    const width = rate * tileSize * 6;
+    const height = rate * tileSize * (text.length + 0.5);
+    const x = rate * tileSize * screenWidth - width - rate * tileSize;
+    const y = rate * tileSize;
+
+    drawWindow(x, y, width, height, text);
+}
+function calcFlagsToCode(){
+    code = 0;
+    for (const flagName in gameFlags) {
+        if (getGameFlag(flagName)) {
+            code |= gameFlags[flagName].flag << gameFlags[flagName].bit;
+        }
+    }
+}
+function calcCodeToFlags(){
+    for (const flagName in gameFlags) {
+        gameFlags[flagName].flag = code >> gameFlags[flagName].bit;
+    }
+}
 function drawCommandMenu() {
     if(isCommandMenuLevel > 0){
         drawWindowPlayerInfo();
         drawWindowPlayerCommand(getTextSelect());
-        drawWindowCommon(getTextExplain());
+        if(isCommandMenuLevel === 1){
+            drawWindowCommon(getTextExplain());
+        }
     }
     if(isCommandMenuLevel > 1){
-        drawWindowPlayerGoldExp();
-        drawWindowPlayerStrength();
-        drawWindowCommon(textExplainPlayerSpellList);
+        switch (textExplainIndex){
+            case commandMenuStrength:
+                drawWindowPlayerStrength();
+                drawWindowCommon(textExplainPlayerSpellList);
+                break;
+            case commandMenuSpell:
+                drawWindowPlayerSpell();
+                break;
+            case commandMenuItem:
+                drawWindowPlayerItem();
+                break;
+            case commandMenuSave:
+                calcFlagsToCode();
+                textExplainSave = [
+                    `きろく：${code}`
+                ];
+                drawWindowCommon(textExplainSave);
+                break;
+            default:
+                break;
+        }
     }
 
     // 他のテキストやボタンを描画するロジックもここに追加
@@ -365,7 +550,7 @@ function drawScreen() {
 }
 
 function isMoveAllowed(x, y) {
-    if(isDebug) return true;
+    if(getGameState('debug')) return true;
     switch (mapData[y][x]){
         case 25://城
         case 26://町
@@ -386,11 +571,11 @@ let lastTime = 0;
 let count = 0;
 async function gameLoop(timestamp){
     const deltaTime = timestamp - lastTime;
-    if(!isWaitingInput){
+    if(!getGameState('waitingInput')){
         if(deltaTime > interval){
             playerIndex = (playerIndex + 1) % 2 + playerStyle;
             lastTime = timestamp;
-        }else if(isDebug){
+        }else if(getGameState('debug')){
             let x = playerPosition.x + moveX;
             let y = playerPosition.y + moveY;
             
@@ -412,8 +597,8 @@ async function gameLoop(timestamp){
             if(count++ % 6 === 0 && isMoveAllowed(x, y)){
                 playerPosition.x = x;
                 playerPosition.y = y;
-            }else if(isAfterMessage && isMoveAllowed(x, y)){
-                isAfterMessage = false;
+            }else if(getGameState('afterMessage') && isMoveAllowed(x, y)){
+                clearGameState('afterMessage');
                 playerPosition.x = x;
                 playerPosition.y = y;
             }
@@ -432,11 +617,11 @@ let moveY = 0;
 let keyDownMap = {}; // キーが押されているかどうかを管理するオブジェクト
 
 window.addEventListener('keydown', function (e) {
-    if(isStillTalking){
+    if(getGameState('stillTalking')){
         return;
     }
-    isWaitingInput = false;
-    isAfterMessage = true;
+    clearGameState('waitingInput');
+    setGameState('afterMessage');
 
     // キーが押されている状態を記録
     keyDownMap[e.key] = true;
@@ -470,7 +655,11 @@ window.addEventListener('keydown', function (e) {
             isCommandMenuLevel %= maxLevel;
             break;
         case 'd':
-            isDebug ^= true;
+            if(getGameState('isDebug')){
+                clearGameState('isDebug');
+            }else{
+                setGameState('isDebug');
+            }
             break;
         default:
             break;
@@ -509,11 +698,11 @@ if ('ontouchstart' in window) {
 let isTouch = false;
 window.addEventListener('touchstart', function (e) {
     isTouch = true;
-    if(isStillTalking){
+    if(getGameState('stillTalking')){
         return;
     }
-    isWaitingInput = false;
-    isAfterMessage = true;
+    clearGameState('waitingInput');
+    setGameState('afterMessage');
     let x = playerPosition.x;
     let y = playerPosition.y;
     // タッチ位置を取得
@@ -578,8 +767,12 @@ window.onload = function () {
 function isVisit(location){
     return playerPosition.x === location.x && playerPosition.y === location.y;
 }
+function isVisitTown(){
+    const location = { x: 56, y: 49 };
+    return isVisit(location);
+}
 function isVisitMaira(){
-    return isVisit(flags.fairyFlute.location);
+    return isVisit(gameFlags.fairyFlute.location);
 }
 function isVisitCaveNorth(){
     const location = { x: 112, y: 52 };
@@ -593,47 +786,47 @@ function isVisitCave(){
     return isVisitCaveNorth() || isVisitCaveSouth();
 }
 function isVisitRimurudaru(){
-    return isVisit(flags.magicKey.location);
+    return isVisit(gameFlags.magicKey.location);
 }
 function isVisitCastle(){
-    return isVisit(flags.sunStone.location);
+    return isVisit(gameFlags.sunStone.location);
 }
 function isVisitGarai(){
-    return isVisit(flags.silverHerp.location);
+    return isVisit(gameFlags.silverHerp.location);
 }
 function isVisitMairaShrine(){
-    return isVisit(flags.rainCloudStuff.location);
+    return isVisit(gameFlags.rainCloudStuff.location);
 }
 function isVisitMerukidoGate(){
-    return isVisit(flags.golemKilled.location);
+    return isVisit(gameFlags.golemKilled.location);
 }
 function isVisitMerukido(){
-    const location = flags.golemKilled.location;
+    const location = gameFlags.golemKilled.location;
     location.y += 2;
     return isVisit(location);
 }
 function isVisitRotoEmblem(){
-    return isVisit(flags.rotoEmblem.location);
+    return isVisit(gameFlags.rotoEmblem.location);
 }
 function isVisitDomudora(){
-    return isVisit(flags.rotoArmor.location);
+    return isVisit(gameFlags.rotoArmor.location);
 }
 function isVisitRimurudaruShrine(){
-    return isVisit(flags.rainbowDrop.location);
+    return isVisit(gameFlags.rainbowDrop.location);
 }
 function isVisitRainbowBridge(){
-    return isVisit(flags.rainbowBridge.location);
+    return isVisit(gameFlags.rainbowBridge.location);
 }
 function isVisitDragonCastle(){
-    return isVisit(flags.lightBall.location);
+    return isVisit(gameFlags.lightBall.location);
 }
 
 async function checkConditions() {
     document.getElementById('point').style.display = 'none';
     message = '';
     if(isVisitMaira()){
-        if(!flags.fairyFlute.flag){
-            flags.fairyFlute.flag = true;
+        if(!getGameFlag('fairyFlute')){
+            setGameFlag('fairyFlute');
             message += 'ここはマイラの村だ\n';
             message += '温泉で有名らしい\n';
             message += '温泉の近くに何か落ちている...\n';
@@ -646,12 +839,12 @@ async function checkConditions() {
             await waitForInput(false);
         }
     }else if(isVisitCave()){
-        if(!flags.roraRescued.flag){
-            if(!flags.magicKey.flag){
+        if(!getGameFlag('roraRescued')){
+            if(!getGameFlag('magicKey')){
                 message += '洞窟の中に扉があったが、鍵が無いので開けられなかった...';
                 await waitForInput(false);
             }else{
-                flags.roraRescued.flag = true;
+                setGameFlag('roraRescued');
                 message += '魔法の鍵で扉を開けた！\n';
                 message += 'ドラゴンを倒してローラ姫を救出した！';
                 await waitForInput(false);
@@ -667,8 +860,8 @@ async function checkConditions() {
             playerPosition.y = 52;
         }
     }else if(isVisitRimurudaru()){
-        if(!flags.magicKey.flag){
-            flags.magicKey.flag = true;
+        if(!getGameFlag('magicKey')){
+            setGameFlag('magicKey');
             message += 'ここはリムルダールの町だ\n';
             message += '店で魔法の鍵を手に入れた！';
             await waitForInput(false);
@@ -679,7 +872,7 @@ async function checkConditions() {
     }else if(isVisitCastle()){
         message += 'ここはラダトームの城だ\n';
         await waitForInput(true);
-        if(flags.lightBall.flag){
+        if(getGameFlag('lightBall')){
             message += '王様「勇者よ！よくぞりゅうおうを倒してくれた！\n';
             message += '　　　わしに代わってこの国を治めてくれい！　　」\n';
             await waitForInput(true);
@@ -693,8 +886,8 @@ async function checkConditions() {
             message += '～THE END～';
             await waitForInput(false);
         }else{
-            if(!flags.roraLove.flag && flags.roraRescued.flag){
-                flags.roraLove.flag = true;
+            if(!getGameFlag('roraLove') && getGameFlag('roraRescued')){
+                setGameFlag('roraLove');
                 playerStyle = playerStyleFull;
                 message += '王様「ローラ姫！」\n';
                 await waitForInput(true);
@@ -707,15 +900,15 @@ async function checkConditions() {
                 message += 'ローラ姫「こころは ずっといっしょですわ...//」\n'
                 await waitForInput(false);
             }else{
-                if(!flags.start.flag){
-                    flags.start.flag = true;
+                if(!getGameFlag('start')){
+                    setGameFlag('start');
                     message += '王様「勇者よ！りゅうおうを倒すのだ！\n';
                     message += '　　　光の玉を取り返し 世界の闇を振り払え！」';
                     await waitForInput(true);
                 }
-                if(!flags.sunStone.flag){
-                    if(flags.magicKey.flag){
-                        flags.sunStone.flag = true;
+                if(!getGameFlag('sunStone')){
+                    if(getGameFlag('magicKey')){
+                        setGameFlag('sunStone');
                         message += '城の裏で鍵を使い太陽の石を手に入れた！';
                         await waitForInput(false);
                     }else{
@@ -744,9 +937,9 @@ async function checkConditions() {
             }
         }
     }else if(isVisitGarai()){
-        if(!flags.silverHerp.flag){
-            if(flags.magicKey.flag){
-                flags.silverHerp.flag = true;
+        if(!getGameFlag('silverHerp')){
+            if(getGameFlag('magicKey')){
+                setGameFlag('silverHerp');
                 message += 'ここはガライの町だ\n';
                 message += '吟遊詩人ガライの墓があるらしい\n';
                 message += '隠し通路の鍵を開けてダンジョンに挑んだ！\n';
@@ -765,12 +958,12 @@ async function checkConditions() {
             await waitForInput(false);
         }
     }else if(isVisitMairaShrine()){
-        if(!flags.rainCloudStuff.flag){
-            if(!flags.silverHerp.flag){
+        if(!getGameFlag('rainCloudStuff')){
+            if(!getGameFlag('silverHerp')){
                 message += '老人「銀の竪琴の音色を聞きたいなあ...」';
                 await waitForInput(false);
             }else{
-                flags.rainCloudStuff.flag = true;
+                setGameFlag('rainCloudStuff');
                 message += '老人「おお！それは銀の竪琴ではないか！\n';
                 message += '　　　そなたに雨雲の杖を授けよう！　　」\n';
                 message += '雨雲の杖を手に入れた！';
@@ -781,24 +974,24 @@ async function checkConditions() {
             await waitForInput(false);
         }
     }else if(isVisitMerukidoGate()){
-        if(!flags.golemKilled.flag){
-            if(!flags.fairyFlute.flag){
+        if(!getGameFlag('golemKilled')){
+            if(!getGameFlag('fairyFlute')){
                 message += 'ゴーレムが現れた！\n';
                 message += '動きを止めないと勝ち目がない...！\n';
                 message += 'しんでしまった...';
                 await waitForInput(false);
                 playerKilled();
             }else{
-                flags.golemKilled.flag = true;
+                setGameFlag('golemKilled');
                 message += '妖精の笛でゴーレムを眠らせた！\n';
                 message += 'ゴーレムを倒した！';
                 await waitForInput(false);
             }
         }
     }else if(isVisitMerukido()){
-        if(!flags.rotoEmblem.flag){
-            const dx = flags.rotoEmblem.location.x - flags.sunStone.location.x;
-            const dy = flags.rotoEmblem.location.y - flags.sunStone.location.y;
+        if(!getGameFlag('rotoEmblem')){
+            const dx = gameFlags.rotoEmblem.location.x - gameFlags.sunStone.location.x;
+            const dy = gameFlags.rotoEmblem.location.y - gameFlags.sunStone.location.y;
             message += `老人「ラダトーム城まで西に${dx} 北に${dy}の場所を調べなされ！」`;
             await waitForInput(false);
         }else{
@@ -808,14 +1001,14 @@ async function checkConditions() {
             await waitForInput(false);
         }
     }else if(isVisitRotoEmblem()){
-        if(!flags.rotoEmblem.flag){
-            flags.rotoEmblem.flag = true;
+        if(!getGameFlag('rotoEmblem')){
+            setGameFlag('rotoEmblem');
             message += 'ロトのしるしを手に入れた！';
             await waitForInput(false);
         }
     }else if(isVisitDomudora()){
-        if(!flags.rotoArmor.flag){
-            flags.rotoArmor.flag = true;
+        if(!getGameFlag('rotoArmor')){
+            setGameFlag('rotoArmor');
             message += 'ここはドムドーラの町だった\n';
             message += '今は廃墟となってしまっている...\n';
             message += '突然 あくまのきし が現れた！';
@@ -831,15 +1024,15 @@ async function checkConditions() {
             await waitForInput(false);
         }
     }else if(isVisitRimurudaruShrine()){
-        if(!flags.rainbowDrop.flag){
-            if(flags.sunStone.flag && flags.rainCloudStuff.flag && flags.rotoEmblem.flag){
-                flags.rainbowDrop.flag = true;
+        if(!getGameFlag('rainbowDrop')){
+            if(getGameFlag('sunStone') && getGameFlag('rainCloudStuff') && getGameFlag('rotoEmblem')){
+                setGameFlag('rainbowDrop');
                 message += '老人「よくぞ太陽と雨雲を揃えた！」\n';
                 await waitForInput(true);
                 message += '老人「ここに虹のしずくが完成した！\n';
                 message += '　　　これでりゅうおうへの道が開かれるであろう！」';
                 await waitForInput(false);
-            }else if(!flags.rotoEmblem.flag){
+            }else if(!getGameFlag('rotoEmblem')){
                 message += '老人「勇者だと？嘘をつくな！」\n';
                 await waitForInput(true);
                 message += '老人「もし本物の勇者なら\n';
@@ -860,16 +1053,16 @@ async function checkConditions() {
             await waitForInput(false);
         }
     }else if(isVisitRainbowBridge()){
-        if(!flags.rainbowBridge.flag && flags.rainbowDrop.flag){
-            flags.rainbowBridge.flag = true;
-            mapData[flags.rainbowBridge.location.y][flags.rainbowBridge.location.x-1] = 35;
+        if(!getGameFlag('rainbowBridge') && getGameFlag('rainbowDrop')){
+            setGameFlag('rainbowBridge');
+            mapData[gameFlags.rainbowBridge.location.y][gameFlags.rainbowBridge.location.x-1] = 35;
             message += '虹のしずくを使った！\n';
             await waitForInput(true);
             message += '虹の橋が架かった！';
             await waitForInput(false);
         }
     }else if(isVisitDragonCastle()){
-        if(!flags.rotoArmor.flag){
+        if(!getGameFlag('rotoArmor')){
             message += 'りゅうおうが 現れた！\n';
             await waitForInput(true);
             message += '防御が紙なので 普通にやられてしまった！';
@@ -878,12 +1071,18 @@ async function checkConditions() {
             await waitForInput(false);
             playerKilled();
         }else{
-            flags.lightBall.flag = true;
+            setGameFlag('lightBall');
             message += 'りゅうおうを倒し、光の玉を手に入れた！\n';
             await waitForInput(false);
         }
+    }else if(isVisitTown()){
+        message = [
+            'きろく を へんこうできます',
+            `きろく：${code}`
+        ];
+        await changeCode();
     }else{
         displayMessage(message);
     }
-    if(flags.roraLove.flag) document.getElementById('point').style.display = 'block';
+    if(getGameFlag('roraLove')) document.getElementById('point').style.display = 'block';
 }
