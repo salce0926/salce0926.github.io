@@ -71,6 +71,14 @@ function getGameState(stateName){
 let code = 0;
 const codeMax = 16384;
 
+function modAdd(x, y, mod){
+    let res = x;
+    res += y;
+    res += mod;
+    res %= mod;
+    return res;
+}
+
 // プレイヤーの初期位置
 var playerPosition = { x: 51, y: 51 };
 // var playerPosition = { x: 112, y: 17 };
@@ -80,6 +88,15 @@ var canvas = document.getElementById('canvas');
 var ctx = canvas.getContext('2d');
 canvas.width = screenWidth * tileSize * rate;
 canvas.height = screenHeight * tileSize * rate;
+
+// 画面の中央を起点にしてタッチ位置を計算
+var centerX = window.innerWidth / 2;
+var centerY = window.innerHeight / 2;
+
+var centerLeftX = rate * tileSize * screenWidth / 3;
+var centerRightX = rate * tileSize * screenWidth * 2 / 3;
+var centerTopY = rate * tileSize * screenHeight / 3;
+var centerBottomY = rate * tileSize * screenHeight * 2 / 3;
 
 var message = '';
 var interval = 500;
@@ -144,18 +161,14 @@ function changeCode(){
         window.addEventListener('keydown', function keydownListener(e) {
             switch (e.key) {
                 case 'ArrowUp':
-                    code--;
-                    code += codeMax;
-                    code %= codeMax;
+                    code = modAdd(code, -1, codeMax);
                     textExplainSave = [
                         `きろく：${code}`
                     ];
                     drawWindowCommon(textExplainSave);
                     break;
                 case 'ArrowDown':
-                    code++;
-                    code += codeMax;
-                    code %= codeMax;
+                    code = modAdd(code, 1, codeMax);
                     textExplainSave = [
                         `きろく：${code}`
                     ];
@@ -174,14 +187,6 @@ function changeCode(){
             // タッチ位置を取得
             var touchX = e.touches[0].clientX;
             var touchY = e.touches[0].clientY;
-
-            // 画面の中央を起点にしてタッチ位置を計算
-            var centerX = window.innerWidth / 2;
-            var centerY = window.innerHeight / 2;
-            var centerLeftX = rate * tileSize * screenWidth / 3;
-            var centerRightX = rate * tileSize * screenWidth * 2 / 3;
-            var centerTopY = rate * tileSize * screenHeight / 3;
-            var centerBottomY = rate * tileSize * screenHeight * 2 / 3;
 
             // タッチ位置と中央位置の差を計算
             var deltaX = touchX - centerX;
@@ -206,9 +211,8 @@ function changeCode(){
                 resolve();
             } else {
                 // 上下移動
-                code += deltaY > 0 ? 1 : -1;
-                code += codeMax;
-                code %= codeMax;
+                const dy = deltaY > 0 ? 1 : -1;
+                code = modAdd(code, dy, codeMax);
                 textExplainSave = [
                     'きろく を へんこうできます',
                     `きろく：${code}`
@@ -225,11 +229,11 @@ function playerKilled(){
 }
 
 function screenXToWorldX(screenX){
-    return ((playerPosition.x - screenWidth/2 + screenX) + mapWidth) % mapWidth;
+    return modAdd(playerPosition.x - screenWidth/2, screenX, mapWidth);
 }
 
 function screenYToWorldY(screenY){
-    return ((playerPosition.y - screenHeight/2 + screenY) + mapHeight) % mapHeight;
+    return modAdd(playerPosition.y - screenHeight/2, screenY, mapHeight);
 }
 
 function drawTile(x, y, index){
@@ -255,7 +259,7 @@ function drawMap(){
             if(tileIndex >= 350) tileIndex -= 12*25;
             if(x === screenWidth/2 && y === screenHeight/2){
                 drawCharacter(x, y, playerIndex);
-                playerIndex = (playerIndex + 2) % 2 + playerStyle;
+                playerIndex = modAdd(playerIndex, 2, 2) + playerStyle;
             }else{
                 drawTile(x, y, tileIndex);
             }
@@ -527,10 +531,6 @@ function drawCommandMenu() {
 }
 function drawTapArea(){
     if(!isTouch) return;
-    var centerLeftX = rate * tileSize * screenWidth / 3;
-    var centerRightX = rate * tileSize * screenWidth * 2 / 3;
-    var centerTopY = rate * tileSize * screenHeight / 3;
-    var centerBottomY = rate * tileSize * screenHeight * 2 / 3;
     ctx.beginPath();
     ctx.moveTo(centerLeftX, centerTopY);
     ctx.lineTo(centerRightX, centerTopY);
@@ -573,26 +573,18 @@ async function gameLoop(timestamp){
     const deltaTime = timestamp - lastTime;
     if(!getGameState('waitingInput')){
         if(deltaTime > interval){
-            playerIndex = (playerIndex + 1) % 2 + playerStyle;
+            playerIndex = modAdd(playerIndex, 1, 2) + playerStyle;
             lastTime = timestamp;
         }else if(getGameState('debug')){
-            let x = playerPosition.x + moveX;
-            let y = playerPosition.y + moveY;
-            
-            // マップ外に移動しないように修正
-            x = (x + mapWidth) % mapWidth;
-            y = (y + mapHeight) % mapHeight;
+            let x = modAdd(playerPosition.x, moveX, mapWidth);
+            let y = modAdd(playerPosition.y, moveY, mapHeight);
             
             playerPosition.x = x;
             playerPosition.y = y;
         }
         if (!isCommandMenuLevel && (moveX !== 0 || moveY !== 0)) {
-            let x = playerPosition.x + moveX;
-            let y = playerPosition.y + moveY;
-            
-            // マップ外に移動しないように修正
-            x = (x + mapWidth) % mapWidth;
-            y = (y + mapHeight) % mapHeight;
+            let x = modAdd(playerPosition.x, moveX, mapWidth);
+            let y = modAdd(playerPosition.y, moveY, mapHeight);
             
             if(count++ % 6 === 0 && isMoveAllowed(x, y)){
                 playerPosition.x = x;
@@ -630,17 +622,13 @@ window.addEventListener('keydown', function (e) {
         case 'ArrowUp':
             moveY = -1;
             if(isCommandMenuLevel > 0){
-                textExplainIndex += moveY;
-                textExplainIndex += 4;
-                textExplainIndex %= 4;
+                textExplainIndex = modAdd(textExplainIndex, moveY, 4);
             }
             break;
         case 'ArrowDown':
             moveY = 1;
             if(isCommandMenuLevel > 0){
-                textExplainIndex += moveY;
-                textExplainIndex += 4;
-                textExplainIndex %= 4;
+                textExplainIndex = modAdd(textExplainIndex, moveY, 4);
             }
             break;
         case 'ArrowLeft':
@@ -650,15 +638,13 @@ window.addEventListener('keydown', function (e) {
             moveX = 1;
             break;
         case 'c':
-            isCommandMenuLevel++;
-            isCommandMenuLevel += maxLevel;
-            isCommandMenuLevel %= maxLevel;
+            isCommandMenuLevel = modAdd(isCommandMenuLevel, 1, maxLevel);
             break;
         case 'd':
-            if(getGameState('isDebug')){
-                clearGameState('isDebug');
+            if(getGameState('debug')){
+                clearGameState('debug');
             }else{
-                setGameState('isDebug');
+                setGameState('debug');
             }
             break;
         default:
@@ -709,14 +695,6 @@ window.addEventListener('touchstart', function (e) {
     var touchX = e.touches[0].clientX;
     var touchY = e.touches[0].clientY;
 
-    // 画面の中央を起点にしてタッチ位置を計算
-    var centerX = window.innerWidth / 2;
-    var centerY = window.innerHeight / 2;
-    var centerLeftX = rate * tileSize * screenWidth / 3;
-    var centerRightX = rate * tileSize * screenWidth * 2 / 3;
-    var centerTopY = rate * tileSize * screenHeight / 3;
-    var centerBottomY = rate * tileSize * screenHeight * 2 / 3;
-
     // タッチ位置と中央位置の差を計算
     var deltaX = touchX - centerX;
     var deltaY = touchY - centerY;
@@ -726,24 +704,21 @@ window.addEventListener('touchstart', function (e) {
     && touchX - canvas.getBoundingClientRect().left < centerRightX 
     && centerTopY < touchY - canvas.getBoundingClientRect().top 
     && touchY - canvas.getBoundingClientRect().top < centerBottomY){
-        isCommandMenuLevel++;
-        isCommandMenuLevel += maxLevel;
-        isCommandMenuLevel %= maxLevel;
+        isCommandMenuLevel = modAdd(isCommandMenuLevel, 1, maxLevel);
     }else if (Math.abs(deltaX) > Math.abs(deltaY)) {
         // 左右移動
-        x += deltaX > 0 ? 1 : -1;
-        x = (x + mapWidth) % mapWidth;
+        const dx = deltaX > 0 ? 1 : -1;
+        x = modAdd(x, dx, mapWidth);
     } else {
         // 上下移動
-        y += deltaY > 0 ? 1 : -1;
-        y = (y + mapHeight) % mapHeight;
+        const dy = deltaY > 0 ? 1 : -1;
+        y = modAdd(y, dy, mapHeight);
     }
     if(isCommandMenuLevel > 0){
         if(Math.abs(deltaX) < Math.abs(deltaY)){
-            textExplainIndex += (deltaY > 0 ? 1 : -1);
+            const dy = (deltaY > 0 ? 1 : -1);
+            textExplainIndex = modAdd(textExplainIndex, dy, 4);
         }
-        textExplainIndex += 4;
-        textExplainIndex %= 4;
     }else if(isMoveAllowed(x, y)){
         playerPosition.x = x;
         playerPosition.y = y;
