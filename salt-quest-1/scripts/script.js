@@ -184,12 +184,13 @@ var message = '';
 var interval = 500;
 
 var textExplainSave = [
-    `きろく：${code}`
+    `ふっかつのすうじ：${code}`
 ];
 function updateTextExplainSave(){
     textExplainSave = [
-        'きろく を へんこうできます',
-        `きろく：${code}`
+        'すうじ を へんこうできます',
+        'きろくした すうじに かえてね',
+        `ふっかつのすうじ：${code}`
     ];
 }
 
@@ -256,12 +257,12 @@ function changeCode(){
         window.addEventListener('keydown', function keydownListener(e) {
             switch (e.key) {
                 case 'ArrowUp':
-                    code = modAdd(code, -1, codeMax);
+                    code = modAdd(code, 1, codeMax);
                     updateTextExplainSave();
                     drawWindowCommon(textExplainSave);
                     break;
                 case 'ArrowDown':
-                    code = modAdd(code, 1, codeMax);
+                    code = modAdd(code, -1, codeMax);
                     updateTextExplainSave();
                     drawWindowCommon(textExplainSave);
                     break;
@@ -292,11 +293,9 @@ function changeCode(){
                 resolve();
             } else {
                 // 上下移動
-                const dy = deltaY > 0 ? 1 : -1;
+                const dy = deltaY > 0 ? -1 : 1;
                 code = modAdd(code, dy, codeMax);
-                textExplainSave = [
-                    `きろく：${code}`
-                ];
+                updateTextExplainSave();
                 drawWindowCommon(textExplainSave);
             }
         });
@@ -586,7 +585,9 @@ function drawCommandMenu() {
             case commandMenuSave:
                 calcFlagsToCode();
                 textExplainSave = [
-                    `きろく：${code}`
+                    `じかい まちで にゅうりょくしてください`,
+                    `しろの みぎうえの まちです`,
+                    `ふっかつのすうじ：${code}`
                 ];
                 drawWindowCommon(textExplainSave);
                 break;
@@ -1206,10 +1207,8 @@ async function checkConditions() {
             await waitForInput(false);
         }
     }else if(isVisitTown()){
-        message = [
-            'きろく を へんこうできます',
-            `きろく：${code}`
-        ];
+        updateTextExplainSave();
+        message = textExplainSave;
         await changeCode();
     }else{
         displayMessage(message);
