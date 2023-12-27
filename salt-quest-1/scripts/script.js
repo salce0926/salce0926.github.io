@@ -161,6 +161,13 @@ function waitForInput(isTalking){
     });
 }
 
+function isCenterRect(touchX, touchY){
+    return centerLeftX < touchX - canvas.getBoundingClientRect().left 
+    && touchX - canvas.getBoundingClientRect().left < centerRightX 
+    && centerTopY < touchY - canvas.getBoundingClientRect().top 
+    && touchY - canvas.getBoundingClientRect().top < centerBottomY;
+}
+
 function changeCode(){
     setGameState('waitingInput');
     drawWindowCommon(message);
@@ -197,17 +204,7 @@ function changeCode(){
             var deltaY = touchY - centerY;
 
             // 差の絶対値が大きい方に動く方向を設定
-            if(centerLeftX < touchX - canvas.getBoundingClientRect().left 
-            && touchX - canvas.getBoundingClientRect().left < centerRightX 
-            && centerTopY < touchY - canvas.getBoundingClientRect().top 
-            && touchY - canvas.getBoundingClientRect().top < centerBottomY){
-                calcCodeToFlags();
-                clearGameState('waitingInput');
-                setGameState('afterMessage');
-                window.removeEventListener('touchstart', keydownListener);
-                resolve();
-            }else if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                // 左右移動
+            if(isCenterRect(touchX, touchY) || (Math.abs(deltaX) > Math.abs(deltaY))){
                 calcCodeToFlags();
                 clearGameState('waitingInput');
                 setGameState('afterMessage');
@@ -587,6 +584,12 @@ async function gameLoop(timestamp){
     requestAnimationFrame(gameLoop);
 }
 
+//-----------------------------------------------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------------------
+
 let moveX = 0;
 let moveY = 0;
 let keyDownMap = {}; // キーが押されているかどうかを管理するオブジェクト
@@ -682,10 +685,7 @@ window.addEventListener('touchstart', function (e) {
     var deltaY = touchY - centerY;
 
     // 差の絶対値が大きい方に動く方向を設定
-    if(centerLeftX < touchX - canvas.getBoundingClientRect().left 
-    && touchX - canvas.getBoundingClientRect().left < centerRightX 
-    && centerTopY < touchY - canvas.getBoundingClientRect().top 
-    && touchY - canvas.getBoundingClientRect().top < centerBottomY){
+    if(isCenterRect(touchX, touchY)){
         isCommandMenuLevel = modAdd(isCommandMenuLevel, 1, maxLevel);
     }else if (Math.abs(deltaX) > Math.abs(deltaY)) {
         // 左右移動
@@ -696,8 +696,8 @@ window.addEventListener('touchstart', function (e) {
         moveY = deltaY > 0 ? 1 : -1;
         y = modAdd(y, moveY, mapHeight);
     }
-    if(isCommandMenuLevel > 0){
-        if(Math.abs(deltaX) < Math.abs(deltaY)){
+    if(isCommandMenuLevel === 1){
+        if(!isCenterRect(touchX, touchY) && Math.abs(deltaX) < Math.abs(deltaY)){
             moveY = (deltaY > 0 ? 1 : -1);
             textExplainIndex = modAdd(textExplainIndex, moveY, 4);
         }
