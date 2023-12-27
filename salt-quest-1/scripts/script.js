@@ -55,7 +55,8 @@ let gameStates = {
     afterMessage:     { bit: 1, state: false },
     stillTalking:     { bit: 2, state: false },
     debug:            { bit: 3, state: false },
-    commandMenuLevel: { bit: 4, state: 0 }
+    touch:            { bit: 4, state: false },
+    commandMenuLevel: { bit: 5, state: 0 }
 };
 var isCommandMenuLevel = 0;
 
@@ -332,44 +333,23 @@ function drawWindowPlayerInfo(){
 
     drawWindow(x, y, width, height, text);
 }
-const textSelectStrengthCommand = [
-    '▶つよさ',
-    '　じゅもん',
-    '　どうぐ',
-    '　きろく'
-];
-const textSelectSpellCommand = [
-    '　つよさ',
-    '▶じゅもん',
-    '　どうぐ',
-    '　きろく'
-];
-const textSelectItemCommand = [
-    '　つよさ',
-    '　じゅもん',
-    '▶どうぐ',
-    '　きろく'
-];
-const textSelectSaveCommand = [
-    '　つよさ',
-    '　じゅもん',
-    '　どうぐ',
-    '▶きろく'
-];
-function getTextSelect(){
-    switch (textExplainIndex){
-        case commandMenuStrength:
-            return textSelectStrengthCommand;
-        case commandMenuSpell:
-            return textSelectSpellCommand;
-        case commandMenuItem:
-            return textSelectItemCommand;
-        case commandMenuSave:
-            return textSelectSaveCommand;
-        default:
-            return 'getSelectExplain() has error.';
+const textSelectCommand = ['つよさ', 'じゅもん', 'どうぐ', 'きろく'];
+const cursor = '▶';
+
+function getTextSelect() {
+    if (
+        textExplainIndex >= 0 &&
+        textExplainIndex < textSelectCommand.length
+    ) {
+        const selectedText = textSelectCommand[textExplainIndex];
+        return textSelectCommand.map(text =>
+            text === selectedText ? `${cursor}${text}` : `　${text}`
+        );
+    } else {
+        return 'getSelectExplain() has error.';
     }
 }
+
 function drawWindowPlayerCommand(text){
     const playerCommandWidth = displayTileSize * 4.5;
     const playerCommandHeight = displayTileSize * 4.5;
@@ -381,40 +361,38 @@ function drawWindowPlayerCommand(text){
     drawWindow(playerCommandX, playerCommandY, playerCommandWidth, playerCommandHeight, playerCommandText);
 }
 let textExplainIndex = 0;
-const textExplainStrengthCommand = [
-    'つよさ：',
-    '　あなたの つよさは あなたがきめよう',
-    '　でも きゃっかんてきには こうみえてます'
+
+const textExplainCommand = [
+    [
+        'つよさ：',
+        '　あなたの つよさは あなたがきめよう',
+        '　でも きゃっかんてきには こうみえてます'
+    ],
+    [
+        'じゅもん：',
+        '　あなたの つかえる じゅもんりすと',
+        '　MPの ごりようは けいかくてきに'
+    ],
+    [
+        'どうぐ：',
+        '　あなたの もっている どうぐたち',
+        '　でもほぼ ふらぐの りすとです'
+    ],
+    [
+        'きろく：',
+        '　あなたの ぼうけんを きろくしよう',
+        '　がめんを とじちゃうと だいさんじ'
+    ]
 ];
-const textExplainSpellCommand = [
-    'じゅもん：',
-    '　あなたの つかえる じゅもんりすと',
-    '　MPの ごりようは けいかくてきに'
-];
-const textExplainItemCommand = [
-    'どうぐ：',
-    '　あなたの もっている どうぐたち',
-    '　でもほぼ ふらぐの りすとです'
-];
-const textExplainSaveCommand = [
-    'きろく：',
-    '　あなたの ぼうけんを きろくしよう',
-    '　がめんを とじちゃうと だいさんじ'
-];
-function getTextExplain(){
-    switch (textExplainIndex){
-        case commandMenuStrength:
-            return textExplainStrengthCommand;
-        case commandMenuSpell:
-            return textExplainSpellCommand;
-        case commandMenuItem:
-            return textExplainItemCommand;
-        case commandMenuSave:
-            return textExplainSaveCommand;
-        default:
-            return 'getTextExplain() has error.';
+
+function getTextExplain() {
+    if (textExplainIndex >= 0 && textExplainIndex < textExplainCommand.length) {
+        return textExplainCommand[textExplainIndex];
+    } else {
+        return 'getTextExplain() has error.';
     }
 }
+
 function drawWindowCommon(text){
     const commonWidth = displayTileSize * (screenWidth - 1);
     const commonHeight = displayTileSize * 4;
@@ -538,7 +516,7 @@ function drawCommandMenu() {
     // 他のテキストやボタンを描画するロジックもここに追加
 }
 function drawTapArea(){
-    if(!isTouch) return;
+    if(!getGameState('touch')) return;
     ctx.beginPath();
     ctx.moveTo(centerLeftX, centerTopY);
     ctx.lineTo(centerRightX, centerTopY);
@@ -686,9 +664,8 @@ if ('ontouchstart' in window) {
     document.body.style.touchAction = 'none';
 }
 
-let isTouch = false;
 window.addEventListener('touchstart', function (e) {
-    isTouch = true;
+    setGameState('touch');
     if(getGameState('stillTalking')){
         return;
     }
@@ -712,25 +689,28 @@ window.addEventListener('touchstart', function (e) {
         isCommandMenuLevel = modAdd(isCommandMenuLevel, 1, maxLevel);
     }else if (Math.abs(deltaX) > Math.abs(deltaY)) {
         // 左右移動
-        const dx = deltaX > 0 ? 1 : -1;
-        x = modAdd(x, dx, mapWidth);
+        moveX = deltaX > 0 ? 1 : -1;
+        x = modAdd(x, moveX, mapWidth);
     } else {
         // 上下移動
-        const dy = deltaY > 0 ? 1 : -1;
-        y = modAdd(y, dy, mapHeight);
+        moveY = deltaY > 0 ? 1 : -1;
+        y = modAdd(y, moveY, mapHeight);
     }
     if(isCommandMenuLevel > 0){
         if(Math.abs(deltaX) < Math.abs(deltaY)){
-            const dy = (deltaY > 0 ? 1 : -1);
-            textExplainIndex = modAdd(textExplainIndex, dy, 4);
+            moveY = (deltaY > 0 ? 1 : -1);
+            textExplainIndex = modAdd(textExplainIndex, moveY, 4);
         }
-    }else if(isMoveAllowed(x, y)){
-        movePlayer(x, y);
     }
     drawScreen();
 
     // デフォルトのスクロールを防ぐ
     e.preventDefault();
+});
+
+window.addEventListener('touchend', function (e) {
+    moveX = 0;
+    moveY = 0;
 });
 
 window.onload = function () {
