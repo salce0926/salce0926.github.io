@@ -51,12 +51,14 @@ var commandMenuItem = 2;
 var commandMenuSave = 3;
 
 let gameStates = {
-    waitingInput:     { bit: 0, state: false },
-    afterMessage:     { bit: 1, state: false },
-    stillTalking:     { bit: 2, state: false },
-    debug:            { bit: 3, state: false },
-    touch:            { bit: 4, state: false },
-    commandMenuLevel: { bit: 5, state: 0 }
+    waitingInput:     { bit: 0, state: false },// 決定待ちの場合移動処理をせず再描画
+    afterMessage:     { bit: 1, state: false },// メッセージ直後はフレームを落とさず移動
+    stillTalking:     { bit: 2, state: false },// 話し中は移動処理をスキップし専用関数で入力受付
+    changeCode:       { bit: 3, state: false },// 呪文変更中のキー処理
+    debug:            { bit: 4, state: false },// dでデバッグモード
+    touch:            { bit: 5, state: false },// タッチ操作用のガイドを表示
+    checkConditions:  { bit: 6, state: true },// メニューかイベントかの判定へ // いきなり話しかけて欲しいので初期値true
+    commandMenuLevel: { bit: 7, state: 0 }
 };
 var isCommandMenuLevel = 0;
 
@@ -210,6 +212,27 @@ function updatePlayerLevel(){
     }
 }
 
+function updatePlayerItems(){
+    const flagItems = [
+        { itemName: 'ようせいのふえ', flagName: 'fairyFlute' },
+        { itemName: 'ロトのしるし',   flagName: 'rotoEmblem' },
+        { itemName: 'おうじょのあい', flagName: 'roraLove'},
+        { itemName: 'ぎんのたてごと', flagName: 'silverHerp'},
+        { itemName: 'たいようのいし', flagName: 'sunStone'},
+        { itemName: 'あまぐものつえ', flagName: 'rainCloudStuff'},
+        { itemName: 'にじのしずく',   flagName: 'rainbowDrop'}
+    ];
+
+    for (const item of flagItems) {
+        const itemIndex = player.items.findIndex(i => i.name === item.itemName);
+        if(itemIndex === -1 && gameFlags[item.flagName].flag){
+            addItemToPlayer(item.itemName);
+        }else if(itemIndex !== -1 && !gameFlags[item.flagName].flag){
+            deleteItemFromPlayer(item.itemName);
+        }
+    }
+}
+
 let code = 0;
 const codeMax = 16384;
 
@@ -288,16 +311,18 @@ function waitForInput(isTalking){
 
     return new Promise(resolve => {
         window.addEventListener('keydown', function keydownListener(e) {
-            clearGameState('waitingInput');
-            setGameState('afterMessage');
-            window.removeEventListener('keydown', keydownListener);
-            resolve();
+            pressedKey(e);
+            if(!getGameState('waitingInput')){
+                window.removeEventListener('keydown', keydownListener);
+                resolve();
+            }
         });
         window.addEventListener('touchstart', function keydownListener(e) {
-            clearGameState('waitingInput');
-            setGameState('afterMessage');
-            window.removeEventListener('touchstart', keydownListener);
-            resolve();
+            touchedWindow(e);
+            if(!getGameState('waitingInput')){
+                window.removeEventListener('touchstart', keydownListener);
+                resolve();
+            }
         });
     });
 }
@@ -311,52 +336,26 @@ function isCenterRect(touchX, touchY){
 
 function changeCode(){
     setGameState('waitingInput');
+    setGameState('changeCode');
     drawWindowCommon(message);
 
     return new Promise(resolve => {
         window.addEventListener('keydown', function keydownListener(e) {
-            switch (e.key) {
-                case 'ArrowUp':
-                    code = modAdd(code, 1, codeMax);
-                    updateTextExplainSave();
-                    drawWindowCommon(textExplainSave);
-                    break;
-                case 'ArrowDown':
-                    code = modAdd(code, -1, codeMax);
-                    updateTextExplainSave();
-                    drawWindowCommon(textExplainSave);
-                    break;
-                default:
-                    calcCodeToFlags();
-                    clearGameState('waitingInput');
-                    setGameState('afterMessage');
-                    window.removeEventListener('keydown', keydownListener);
-                    resolve();
-                    break;
+            pressedKey(e);
+            calcCodeToFlags();
+            if(!getGameState('waitingInput')){
+                clearGameState('changeCode');
+                window.removeEventListener('keydown', keydownListener);
+                resolve();
             }
         });
         window.addEventListener('touchstart', function keydownListener(e) {
-            // タッチ位置を取得
-            var touchX = e.touches[0].clientX;
-            var touchY = e.touches[0].clientY;
-
-            // タッチ位置と中央位置の差を計算
-            var deltaX = touchX - centerX;
-            var deltaY = touchY - centerY;
-
-            // 差の絶対値が大きい方に動く方向を設定
-            if(isCenterRect(touchX, touchY) || (Math.abs(deltaX) > Math.abs(deltaY))){
-                calcCodeToFlags();
-                clearGameState('waitingInput');
-                setGameState('afterMessage');
+            touchedWindow(e);
+            calcCodeToFlags();
+            if(!getGameState('waitingInput')){
+                clearGameState('changeCode');
                 window.removeEventListener('touchstart', keydownListener);
                 resolve();
-            } else {
-                // 上下移動
-                const dy = deltaY > 0 ? -1 : 1;
-                code = modAdd(code, dy, codeMax);
-                updateTextExplainSave();
-                drawWindowCommon(textExplainSave);
             }
         });
     });
@@ -621,7 +620,6 @@ function calcCodeToFlags(){
     for (const flagName in gameFlags) {
         gameFlags[flagName].flag = code >> gameFlags[flagName].bit;
     }
-    // console.log(code);
 }
 function drawCommandMenu() {
     if(isCommandMenuLevel > 0){
@@ -721,13 +719,12 @@ async function gameLoop(timestamp){
                 clearGameState('afterMessage');
                 movePlayer(x, y);
             }
-        }
-        
-            
+        }    
     }
     drawScreen();
     await checkConditions();
     drawScreen();
+    updatePlayerItems();
     requestAnimationFrame(gameLoop);
 }
 
@@ -741,37 +738,59 @@ let moveX = 0;
 let moveY = 0;
 let keyDownMap = {}; // キーが押されているかどうかを管理するオブジェクト
 
-window.addEventListener('keydown', function (e) {
-    if(getGameState('stillTalking')){
-        return;
+function pressedUp(){
+    moveY = -1;
+    if(isCommandMenuLevel === 1){
+        textExplainIndex = modAdd(textExplainIndex, moveY, 4);
+    }else if(getGameState('changeCode')){
+        code = modAdd(code, 1, codeMax);
+        updateTextExplainSave();
+        drawWindowCommon(textExplainSave);
     }
-    clearGameState('waitingInput');
-    setGameState('afterMessage');
-
+}
+function pressedDown(){
+    moveY = 1;
+    if(isCommandMenuLevel === 1){
+        textExplainIndex = modAdd(textExplainIndex, moveY, 4);
+    }else if(getGameState('changeCode')){
+        code = modAdd(code, -1, codeMax);
+        updateTextExplainSave();
+        drawWindowCommon(textExplainSave);
+    }
+}
+function pressedLeft(){
+    moveX = -1;
+}
+function pressedRight(){
+    moveX = 1;
+}
+function pressedSpace(){
+    if(getGameState('waitingInput')){
+        clearGameState('waitingInput');
+        setGameState('afterMessage');
+    }else{
+        setGameState('checkConditions');
+    }
+}
+function pressedKey(e){
     // キーが押されている状態を記録
     keyDownMap[e.key] = true;
 
     switch (e.key) {
         case 'ArrowUp':
-            moveY = -1;
-            if(isCommandMenuLevel > 0){
-                textExplainIndex = modAdd(textExplainIndex, moveY, 4);
-            }
+            pressedUp();
             break;
         case 'ArrowDown':
-            moveY = 1;
-            if(isCommandMenuLevel > 0){
-                textExplainIndex = modAdd(textExplainIndex, moveY, 4);
-            }
+            pressedDown();
             break;
         case 'ArrowLeft':
-            moveX = -1;
+            pressedLeft();
             break;
         case 'ArrowRight':
-            moveX = 1;
+            pressedRight();
             break;
-        case 'c':
-            isCommandMenuLevel = modAdd(isCommandMenuLevel, 1, maxLevel);
+        case ' '://Space
+            pressedSpace();
             break;
         case 'd':
             if(getGameState('debug')){
@@ -789,6 +808,13 @@ window.addEventListener('keydown', function (e) {
         default:
             break;
     }
+}
+
+window.addEventListener('keydown', function (e) {
+    if(getGameState('stillTalking')){
+        return;
+    }
+    pressedKey(e);
 });
 
 window.addEventListener('keyup', function (e) {
@@ -808,6 +834,7 @@ window.addEventListener('keyup', function (e) {
             break;
     }
 
+    clearGameState('afterMessage');
     // 全ての方向のキーが離された場合、移動を停止
     if (!Object.values(keyDownMap).includes(true)) {
         moveX = 0;
@@ -820,15 +847,7 @@ if ('ontouchstart' in window) {
     document.body.style.touchAction = 'none';
 }
 
-window.addEventListener('touchstart', function (e) {
-    setGameState('touch');
-    if(getGameState('stillTalking')){
-        return;
-    }
-    clearGameState('waitingInput');
-    setGameState('afterMessage');
-    let x = playerPosition.x;
-    let y = playerPosition.y;
+function touchedWindow(e){
     // タッチ位置を取得
     var touchX = e.touches[0].clientX;
     var touchY = e.touches[0].clientY;
@@ -839,23 +858,30 @@ window.addEventListener('touchstart', function (e) {
 
     // 差の絶対値が大きい方に動く方向を設定
     if(isCenterRect(touchX, touchY)){
-        isCommandMenuLevel = modAdd(isCommandMenuLevel, 1, maxLevel);
+        pressedSpace();
     }else if (Math.abs(deltaX) > Math.abs(deltaY)) {
         // 左右移動
-        moveX = deltaX > 0 ? 1 : -1;
-        x = modAdd(x, moveX, mapWidth);
+        if(deltaX > 0){
+            pressedRight();
+        }else{
+            pressedLeft();
+        }
     } else {
         // 上下移動
-        moveY = deltaY > 0 ? 1 : -1;
-        y = modAdd(y, moveY, mapHeight);
-    }
-    if(isCommandMenuLevel === 1){
-        if(!isCenterRect(touchX, touchY) && Math.abs(deltaX) < Math.abs(deltaY)){
-            moveY = (deltaY > 0 ? 1 : -1);
-            textExplainIndex = modAdd(textExplainIndex, moveY, 4);
+        if(deltaY > 0){
+            pressedDown();
+        }else{
+            pressedUp();
         }
     }
-    drawScreen();
+}
+
+window.addEventListener('touchstart', function (e) {
+    setGameState('touch');
+    if(getGameState('stillTalking')){
+        return;
+    }
+    touchedWindow(e);
 
     // デフォルトのスクロールを防ぐ
     e.preventDefault();
@@ -937,6 +963,9 @@ function isVisitDragonCastle(){
 }
 
 async function checkConditions() {
+    if(getGameState('afterMessage') || !getGameState('checkConditions')){
+        return;
+    }
     if(!getGameState('debug')) document.getElementById('point').style.display = 'none';
     message = '';
     if(isVisitMaira()){
@@ -1278,7 +1307,9 @@ async function checkConditions() {
         message = textExplainSave;
         await changeCode();
     }else{
+        isCommandMenuLevel = modAdd(isCommandMenuLevel, 1, maxLevel);
         displayMessage(message);
     }
     if(getGameFlag('roraLove')) document.getElementById('point').style.display = 'block';
+    clearGameState('checkConditions');
 }
