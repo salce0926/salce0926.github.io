@@ -1,7 +1,7 @@
 // 画像のURL
-var tilesetURL = 'https://www.spriters-resource.com/resources/sheets/10/10199.png';
-var mapURL = 'https://www.spriters-resource.com/resources/sheets/106/109509.png';
-var characterURL = 'https://www.spriters-resource.com/resources/sheets/39/41381.png';
+const tilesetURL = 'https://www.spriters-resource.com/resources/sheets/10/10199.png';
+const mapURL = 'https://www.spriters-resource.com/resources/sheets/106/109509.png';
+const characterURL = './images/41382.png';
 
 // タイルのサイズ
 const tileSize = 16;
@@ -87,7 +87,10 @@ let player = {
     herb: 6,
     key: 0,
     items: [],  // アイテムを管理するための空の配列
-    spells: []
+    spells: [],
+    weapon: 'なし',
+    armor: 'ぬののふく',
+    shield: 'なし'
 };
 
 // アイテムの情報をオブジェクトで定義(説明は嘘)
@@ -107,6 +110,35 @@ const items = [
     { name: 'たいようのいし', description: '太陽の石。特定のパズル解決に必要' },
     { name: 'あまぐものつえ', description: '雨雲の杖。特定の場所で雨を呼ぶことができる' },
     { name: 'にじのしずく', description: '虹のしずく。特定のイベントで使用' }
+];
+
+const weapons = [
+    { name: 'なし' },
+    { name: 'たけざお' },
+    { name: 'こんぼう' },
+    { name: 'どうのつるぎ' },
+    { name: 'てつのおの' },
+    { name: 'はがねのつるぎ' },
+    { name: 'ほのおのつるぎ' },
+    { name: 'ロトのつるぎ' }
+];
+
+const armors = [
+    { name: 'なし' },
+    { name: 'ぬののふく' },
+    { name: 'かわのふく' },
+    { name: 'くさりかたびら' },
+    { name: 'てつのよろい' },
+    { name: 'はがねのよろい' },
+    { name: 'まほうのよろい' },
+    { name: 'ロトのよろい' }
+];
+
+const shields = [
+    { name: 'なし' },
+    { name: 'かわのたて' },
+    { name: 'てつのたて' },
+    { name: 'みかがみのたて' }
 ];
 
 // アイテムをプレイヤーに追加する関数
@@ -399,11 +431,9 @@ function drawMap(){
         for (var x = 0; x <= screenWidth; x++) {
             var tileIndex = mapData[screenYToWorldY(y)][screenXToWorldX(x)];
             if(tileIndex >= 350) tileIndex -= 12*25;
+            drawTile(x, y, tileIndex);
             if(x === screenWidth/2 && y === screenHeight/2){
                 drawCharacter(x, y, playerIndex);
-                playerIndex = modAdd(playerIndex, 2, 2) + playerStyle;
-            }else{
-                drawTile(x, y, tileIndex);
             }
         }
     }
@@ -455,14 +485,24 @@ function drawWindow(x, y, width, height, textArray) {
     }
 }
 
+// 数字を指定の桁数で右寄せするユーティリティ関数
+function alignRight(number, width) {
+    const str = number.toString();
+    return ' '.repeat(Math.max(0, width - str.length)) + str;
+}
+function AlignRight(number, width) {
+    const str = number.toString();
+    return '　'.repeat(Math.max(0, width - str.length)) + str;
+}
+
 function drawWindowPlayerInfo(){
     const text = [
         player.name,
-        `レベル　${player.level}`,
-        `HP　　${player.hp}`,
-        `MP　　${player.mp}`,
-        `G 　　${player.gold}`,
-        `E 　　${player.exp}`
+        `レベル ${alignRight(player.level, 2)}`,
+        `HP　　${alignRight(player.hp, 3)}`,  // 3桁右寄せ
+        `MP　　${alignRight(player.mp, 3)}`,  // 3桁右寄せ
+        `G 　${alignRight(player.gold, 5)}`,  // 5桁右寄せ
+        `E 　${alignRight(player.exp, 5)}`  // 5桁右寄せ
     ];
 
     const x = displayTileSize / 2;
@@ -472,6 +512,7 @@ function drawWindowPlayerInfo(){
 
     drawWindow(x, y, width, height, text);
 }
+
 const textSelectCommand = ['つよさ', 'じゅもん', 'どうぐ', 'きろく'];
 const cursor = '▶';
 
@@ -545,16 +586,16 @@ function drawWindowCommon(text){
 }
 function drawWindowPlayerStrength(){
     const text = [
-        `　　ちから：　　　${player.strength}`,
-        `　すばやさ：　　　${player.agility}`,
-        `こうげき力：　　　${player.strength}`,
-        `　しゅび力：　　　${Math.floor(player.agility/2)}`,
-        `　ぶき：　　　　なし`,
-        `よろい：　ぬののふく`,
-        `　たて：　　　　なし`
+        `　　ちから：　　　${alignRight(player.strength, 3)}`,
+        `　すばやさ：　　　${alignRight(player.agility, 3)}`,
+        `こうげき力：　　　${alignRight(player.strength, 3)}`,
+        `　しゅび力：　　　${alignRight(Math.floor(player.agility/2), 3)}`,
+        `　ぶき：${AlignRight(player.weapon, 7)}`,
+        `よろい：${AlignRight(player.armor, 7)}`,
+        `　たて：${AlignRight(player.shield, 7)}`
     ];
 
-    const width = displayTileSize * 8;
+    const width = displayTileSize * 8.5;
     const height = displayTileSize * (text.length + 0.5);
     const x = displayTileSize * screenWidth - width - displayTileSize / 2;
     const y = displayTileSize / 2;
