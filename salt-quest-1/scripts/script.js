@@ -1,7 +1,6 @@
 // 画像のURL
 const tilesetURL = 'https://www.spriters-resource.com/resources/sheets/10/10199.png';
-const mapURL = 'https://www.spriters-resource.com/resources/sheets/106/109509.png';
-const characterURL = './images/41382.png';
+const characterURL = './images/character.png';
 
 // タイルのサイズ
 const tileSize = 16;
@@ -60,6 +59,25 @@ let gameStates = {
     checkConditions:  { bit: 6, state: true },// メニューかイベントかの判定へ // いきなり話しかけて欲しいので初期値true
     commandMenuLevel: { bit: 7, state: 0 }
 };
+
+const locations = {
+    Maira: gameFlags.fairyFlute.location,
+    CaveNorth: { x: 112, y: 52 },
+    CaveSouth: { x: 112, y: 57 },
+    Town: { x: 56, y: 49 },
+    Rimurudaru: gameFlags.magicKey.location,
+    Castle: gameFlags.sunStone.location,
+    Garai: gameFlags.silverHerp.location,
+    MairaShrine: gameFlags.rainCloudStuff.location,
+    MerukidoGate: gameFlags.golemKilled.location,
+    Merukido: { x: gameFlags.golemKilled.location.x, y: gameFlags.golemKilled.location.y + 2 },
+    RotoEmblem: gameFlags.rotoEmblem.location,
+    Domudora: gameFlags.rotoArmor.location,
+    RimurudaruShrine: gameFlags.rainbowDrop.location,
+    RainbowBridge: gameFlags.rainbowBridge.location,
+    DragonCastle: gameFlags.lightBall.location,
+};
+
 var isCommandMenuLevel = 0;
 
 function setGameState(stateName){
@@ -305,7 +323,6 @@ function modAdd(x, y, mod){
 
 // プレイヤーの初期位置
 var playerPosition = { x: 51, y: 51 };
-// var playerPosition = { x: 112, y: 17 };
 
 // Canvasの設定
 var canvas = document.getElementById('canvas');
@@ -634,18 +651,6 @@ const textExplainPlayerSpellList = [
     'おぼえたじゅもん：'
 ];
 function drawWindowPlayerSpell(){
-    // const text = [
-    //     ' ホイミ',
-    //     ' ギラ',
-    //     ' ラリホー',
-    //     ' レミーラ',
-    //     ' マホトーン',
-    //     ' リレミト',
-    //     ' ルーラ',
-    //     ' トヘロス',
-    //     ' ベホイミ',
-    //     ' ベギラマ'
-    // ];
     const text = player.spells.length === 0 ? ['なし'] : player.spells;
 
     const width = displayTileSize * 5;
@@ -692,12 +697,19 @@ function calcCodeToFlags(){
     }
 }
 
+function inputPass(){
+    pass[hiraganaCursorIndex] = editedHiragana;
+}
+
 function getHiraganaFromList(hiragana) {
     // ひらがなリストから対応するひらがなを取得
     return passHiraganaList[hiragana] || '？'; // 見つからない場合は空文字列を返すか、エラー処理を行うなど
 }
 
 let selectedHiraganaIndex = 0; // 初期選択位置
+let hiraganaCursorIndex = 0;
+let editedHiragana = passHiraganaList[selectedHiraganaIndex];
+
 function drawHiraganaList() {
     const x = displayTileSize / 2;
     const y = displayTileSize * 2.5;
@@ -734,6 +746,9 @@ function drawHiraganaList() {
     }
 }
 function drawCommandMenu() {
+    if(isCommandMenuLevel === 0 && getGameState('changeCode')){
+        drawHiraganaList();
+    }
     if(isCommandMenuLevel > 0){
         drawWindowPlayerInfo();
         drawWindowPlayerCommand(getTextSelect());
@@ -766,7 +781,6 @@ function drawCommandMenu() {
                 break;
         }
     }
-    drawHiraganaList();
 
     // 他のテキストやボタンを描画するロジックもここに追加
 }
@@ -811,6 +825,7 @@ function isMoveAllowed(x, y) {
 let lastTime = 0;
 let count = 0;
 async function gameLoop(timestamp){
+    console.log(isVisitCastle());
     const deltaTime = timestamp - lastTime;
     if(!getGameState('waitingInput')){
         if(deltaTime > interval){
@@ -847,6 +862,16 @@ async function gameLoop(timestamp){
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 
+const KEYS = {
+    ARROW_UP: 'ArrowUp',
+    ARROW_DOWN: 'ArrowDown',
+    ARROW_LEFT: 'ArrowLeft',
+    ARROW_RIGHT: 'ArrowRight',
+    SPACE: ' ',
+    D: 'd',
+    L: 'l',
+};
+
 let moveX = 0;
 let moveY = 0;
 let keyDownMap = {}; // キーが押されているかどうかを管理するオブジェクト
@@ -856,28 +881,30 @@ function pressedUp(){
     if(isCommandMenuLevel === 1){
         textExplainIndex = modAdd(textExplainIndex, moveY, 4);
     }else if(getGameState('changeCode')){
-        code = modAdd(code, 1, codeMax);
+        // code = modAdd(code, 1, codeMax);
+        selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
         updateTextExplainSave();
         drawWindowCommon(textExplainSave);
     }
-    selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
 }
 function pressedDown(){
     moveY = 1;
     if(isCommandMenuLevel === 1){
         textExplainIndex = modAdd(textExplainIndex, moveY, 4);
     }else if(getGameState('changeCode')){
-        code = modAdd(code, -1, codeMax);
+        // code = modAdd(code, -1, codeMax);
+        selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
         updateTextExplainSave();
         drawWindowCommon(textExplainSave);
     }
-    selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
 }
 function pressedLeft(){
     moveX = -1;
+    hiraganaCursorIndex = modAdd(hiraganaCursorIndex, moveX, 3);
 }
 function pressedRight(){
     moveX = 1;
+    hiraganaCursorIndex = modAdd(hiraganaCursorIndex, moveX, 3);
 }
 function pressedSpace(){
     if(getGameState('waitingInput')){
@@ -892,22 +919,23 @@ function pressedKey(e){
     keyDownMap[e.key] = true;
 
     switch (e.key) {
-        case 'ArrowUp':
+        case KEYS.ARROW_UP:
             pressedUp();
             break;
-        case 'ArrowDown':
+        case KEYS.ARROW_DOWN:
             pressedDown();
             break;
-        case 'ArrowLeft':
+        case KEYS.ARROW_LEFT:
             pressedLeft();
             break;
-        case 'ArrowRight':
+        case KEYS.ARROW_RIGHT:
             pressedRight();
             break;
-        case ' '://Space
+        case KEYS.SPACE:
+            console.log('SPACE');
             pressedSpace();
             break;
-        case 'd':
+        case KEYS.D:
             if(getGameState('debug')){
                 clearGameState('debug');
             }else{
@@ -915,7 +943,7 @@ function pressedKey(e){
                 document.getElementById('point').style.display = 'block';
             }
             break;
-        case 'l':
+        case KEYS.L:
             player.exp += 1;
             console.log(`lv:${player.level}, exp:${player.exp}`);
             updatePlayerLevel();
@@ -937,12 +965,12 @@ window.addEventListener('keyup', function (e) {
     keyDownMap[e.key] = false;
 
     switch (e.key) {
-        case 'ArrowUp':
-        case 'ArrowDown':
+        case KEYS.ARROW_UP:
+        case KEYS.ARROW_DOWN:
             moveY = 0;
             break;
-        case 'ArrowLeft':
-        case 'ArrowRight':
+        case KEYS.ARROW_LEFT:
+        case KEYS.ARROW_RIGHT:
             moveX = 0;
             break;
         default:
