@@ -93,6 +93,31 @@ let player = {
     shield: 'なし'
 };
 
+const hiraganaList = ['あ', 'い', 'う', 'え', 'お', 'か', 'き', 'く', 'け', 'こ', 'さ', 'し', 'す', 'せ', 'そ', 'た', 'ち', 'つ', 'て', 'と', 'な', 'に', 'ぬ', 'ね', 'の', 'は', 'ひ', 'ふ', 'へ', 'ほ', 'ま', 'み', 'む', 'め', 'も', 'や', 'ゆ', 'よ', 'ら', 'り', 'る', 'れ', 'ろ', 'わ', 'を', 'ん'];
+const passHiraganaList = {
+    0:"あ", 1:"い", 2:"う", 3:"え", 4:"お", 5:"か", 6:"き", 7:"く", 8:"け", 9:"こ",
+    10:"さ", 11:"し", 12:"す", 13:"せ", 14:"そ", 15:"た", 16:"ち", 17:"つ", 18:"て", 19:"と",
+    20:"な", 21:"に", 22:"ぬ", 23:"ね", 24:"の", 25:"は", 26:"ひ", 27:"ふ", 28:"へ", 29:"ほ",
+    30:"ま", 31:"み", 32:"む", 33:"め", 34:"も", 35:"や", 36:"ゆ", 37:"よ", 38:"ら", 39:"り",
+    40:"る", 41:"れ", 42:"ろ", 43:"わ", 44:"が", 45:"ぎ", 46:"ぐ", 47:"げ", 48:"ご", 49:"ざ",
+    50:"じ", 51:"ず", 52:"ぜ", 53:"ぞ", 54:"だ", 55:"ぢ", 56:"づ", 57:"で", 58:"ど", 59:"ば",
+    60:"び", 61:"ぶ", 62:"べ", 63:"ぼ"
+};
+
+function generatePass(){
+    // 6ビットずつ3つに分割
+    const part1 = (code >> 12) & 0x3F;
+    const part2 = (code >> 6) & 0x3F;
+    const part3 = code & 0x3F;
+    
+    // ひらがなリストから対応するひらがなを取得
+    const hiragana1 = getHiraganaFromList(part1);
+    const hiragana2 = getHiraganaFromList(part2);
+    const hiragana3 = getHiraganaFromList(part3);
+    
+    pass = hiragana1 + hiragana2 + hiragana3;
+}
+
 // アイテムの情報をオブジェクトで定義(説明は嘘)
 const items = [
     { name: 'なし', description: '何もない' },
@@ -245,6 +270,7 @@ function updatePlayerLevel(){
 }
 
 function updatePlayerItems(){
+    player.armor = (getGameFlag('rotoArmor') ? 'ロトのよろい' : 'ぬののふく');
     const flagItems = [
         { itemName: 'ようせいのふえ', flagName: 'fairyFlute' },
         { itemName: 'ロトのしるし',   flagName: 'rotoEmblem' },
@@ -267,6 +293,7 @@ function updatePlayerItems(){
 
 let code = 0;
 const codeMax = 16384;
+let pass = '';
 
 function modAdd(x, y, mod){
     let res = x;
@@ -299,13 +326,14 @@ var message = '';
 var interval = 500;
 
 var textExplainSave = [
-    `ふっかつのすうじ：${code}`
+    `ふっかつのじゅもん：${pass}`
 ];
 function updateTextExplainSave(){
+    generatePass();
     textExplainSave = [
-        'すうじ を へんこうできます',
-        'きろくした すうじに かえてね',
-        `ふっかつのすうじ：${code}`
+        'じゅもん を へんこうできます',
+        'きろくした じゅもんに かえてね',
+        `ふっかつのじゅもん：${pass}`
     ];
 }
 
@@ -656,10 +684,53 @@ function calcFlagsToCode(){
             code |= gameFlags[flagName].flag << gameFlags[flagName].bit;
         }
     }
+    generatePass();
 }
 function calcCodeToFlags(){
     for (const flagName in gameFlags) {
         gameFlags[flagName].flag = code >> gameFlags[flagName].bit;
+    }
+}
+
+function getHiraganaFromList(hiragana) {
+    // ひらがなリストから対応するひらがなを取得
+    return passHiraganaList[hiragana] || '？'; // 見つからない場合は空文字列を返すか、エラー処理を行うなど
+}
+
+let selectedHiraganaIndex = 0; // 初期選択位置
+function drawHiraganaList() {
+    const x = displayTileSize / 2;
+    const y = displayTileSize * 2.5;
+    const width = displayTileSize * 2;
+    const height = displayTileSize * 5;
+
+    // 背景
+    ctx.fillStyle = 'black';
+    ctx.fillRect(x, y, width, height);
+
+    // 枠
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, width, height);
+
+    // テキスト
+    ctx.fillStyle = 'white';
+    ctx.font = '16px cinecaption';
+
+    const visibleItems = 5; // 画面に表示するひらがなの数
+
+    for (let i = -2; i < -2 + visibleItems; i++) {
+        const textX = x + displayTileSize / 2;
+        const textY = y + displayTileSize * (i + 2.8);
+
+        if (i === 0) {
+            // 選択中のひらがなを強調表示
+            ctx.fillStyle = 'yellow';
+            ctx.fillRect(x, y + displayTileSize * (i + 2), width, displayTileSize);
+            ctx.fillStyle = 'black';
+        }
+        ctx.fillText(passHiraganaList[modAdd(selectedHiraganaIndex, i, Object.keys(passHiraganaList).length)], textX, textY);
+        ctx.fillStyle = 'white';
     }
 }
 function drawCommandMenu() {
@@ -687,7 +758,7 @@ function drawCommandMenu() {
                 textExplainSave = [
                     `じかい まちで にゅうりょくしてください`,
                     `しろの みぎうえの まちです`,
-                    `ふっかつのすうじ：${code}`
+                    `ふっかつのじゅもん：${pass}`
                 ];
                 drawWindowCommon(textExplainSave);
                 break;
@@ -695,6 +766,7 @@ function drawCommandMenu() {
                 break;
         }
     }
+    drawHiraganaList();
 
     // 他のテキストやボタンを描画するロジックもここに追加
 }
@@ -788,6 +860,7 @@ function pressedUp(){
         updateTextExplainSave();
         drawWindowCommon(textExplainSave);
     }
+    selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
 }
 function pressedDown(){
     moveY = 1;
@@ -798,6 +871,7 @@ function pressedDown(){
         updateTextExplainSave();
         drawWindowCommon(textExplainSave);
     }
+    selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
 }
 function pressedLeft(){
     moveX = -1;
