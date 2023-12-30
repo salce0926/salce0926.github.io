@@ -122,7 +122,7 @@ const passHiraganaList = {
     60:"び", 61:"ぶ", 62:"べ", 63:"ぼ"
 };
 
-function generatePass(){
+function getPassFromCode(){
     // 6ビットずつ3つに分割
     const part1 = (code >> 12) & 0x3F;
     const part2 = (code >> 6) & 0x3F;
@@ -346,7 +346,7 @@ var textExplainSave = [
     `ふっかつのじゅもん：${pass}`
 ];
 function updateTextExplainSave(){
-    generatePass();
+    inputPass();
     textExplainSave = [
         'じゅもん を へんこうできます',
         'きろくした じゅもんに かえてね',
@@ -689,26 +689,49 @@ function calcFlagsToCode(){
             code |= gameFlags[flagName].flag << gameFlags[flagName].bit;
         }
     }
-    generatePass();
+    getPassFromCode();
 }
 function calcCodeToFlags(){
+    getCodeFromPass();
     for (const flagName in gameFlags) {
         gameFlags[flagName].flag = code >> gameFlags[flagName].bit;
     }
 }
 
-function inputPass(){
-    pass[hiraganaCursorIndex] = editedHiragana;
+function inputPass() {
+    // 選択中のひらがなを取得
+    const selectedHiragana = passHiraganaList[selectedHiraganaIndex];
+
+    // パスワードの特定の位置の文字を書き換える
+    const newPassword = pass.substring(0, hiraganaCursorIndex) + selectedHiragana + pass.substring(hiraganaCursorIndex + 1);
+
+    // パスワードを更新
+    pass = newPassword;
 }
+
 
 function getHiraganaFromList(hiragana) {
     // ひらがなリストから対応するひらがなを取得
     return passHiraganaList[hiragana] || '？'; // 見つからない場合は空文字列を返すか、エラー処理を行うなど
 }
 
+function getCodeFromPass() {
+    // 各ひらがなのコードを逆引きして、6ビットずつの3つの部分に分割
+    const part1 = getCodeByHiragana(passHiraganaList, pass[0]) << 12;
+    const part2 = getCodeByHiragana(passHiraganaList, pass[1]) << 6;
+    const part3 = getCodeByHiragana(passHiraganaList, pass[2]);
+
+    // 3つの部分を結合してコードを生成
+    code = part1 | part2 | part3;
+}
+
+function getCodeByHiragana(object, value) {
+    // オブジェクトの値からキーを取得するヘルパー関数
+    return Object.keys(object).find(key => object[key] === value);
+}
+
 let selectedHiraganaIndex = 0; // 初期選択位置
 let hiraganaCursorIndex = 0;
-let editedHiragana = passHiraganaList[selectedHiraganaIndex];
 
 function drawHiraganaList() {
     const x = displayTileSize / 2;
@@ -825,7 +848,6 @@ function isMoveAllowed(x, y) {
 let lastTime = 0;
 let count = 0;
 async function gameLoop(timestamp){
-    console.log(isVisitCastle());
     const deltaTime = timestamp - lastTime;
     if(!getGameState('waitingInput')){
         if(deltaTime > interval){
@@ -881,7 +903,6 @@ function pressedUp(){
     if(isCommandMenuLevel === 1){
         textExplainIndex = modAdd(textExplainIndex, moveY, 4);
     }else if(getGameState('changeCode')){
-        // code = modAdd(code, 1, codeMax);
         selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
         updateTextExplainSave();
         drawWindowCommon(textExplainSave);
@@ -892,7 +913,6 @@ function pressedDown(){
     if(isCommandMenuLevel === 1){
         textExplainIndex = modAdd(textExplainIndex, moveY, 4);
     }else if(getGameState('changeCode')){
-        // code = modAdd(code, -1, codeMax);
         selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
         updateTextExplainSave();
         drawWindowCommon(textExplainSave);
@@ -932,7 +952,6 @@ function pressedKey(e){
             pressedRight();
             break;
         case KEYS.SPACE:
-            console.log('SPACE');
             pressedSpace();
             break;
         case KEYS.D:
