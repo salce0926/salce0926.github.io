@@ -311,7 +311,7 @@ function updatePlayerItems(){
 
 let code = 0;
 const codeMax = 16384;
-let pass = '';
+let pass = 'ああい';
 
 function modAdd(x, y, mod){
     let res = x;
@@ -414,6 +414,7 @@ function isCenterRect(touchX, touchY){
 function changeCode(){
     setGameState('waitingInput');
     setGameState('changeCode');
+    drawHiraganaList();
     drawWindowCommon(message);
 
     return new Promise(resolve => {
@@ -727,7 +728,7 @@ function getCodeFromPass() {
 
 function getCodeByHiragana(object, value) {
     // オブジェクトの値からキーを取得するヘルパー関数
-    return Object.keys(object).find(key => object[key] === value);
+    return Number(Object.keys(object).find(key => object[key] === value))   ;
 }
 
 let selectedHiraganaIndex = 0; // 初期選択位置
@@ -769,9 +770,6 @@ function drawHiraganaList() {
     }
 }
 function drawCommandMenu() {
-    if(isCommandMenuLevel === 0 && getGameState('changeCode')){
-        drawHiraganaList();
-    }
     if(isCommandMenuLevel > 0){
         drawWindowPlayerInfo();
         drawWindowPlayerCommand(getTextSelect());
@@ -900,31 +898,15 @@ let keyDownMap = {}; // キーが押されているかどうかを管理する�
 
 function pressedUp(){
     moveY = -1;
-    if(isCommandMenuLevel === 1){
-        textExplainIndex = modAdd(textExplainIndex, moveY, 4);
-    }else if(getGameState('changeCode')){
-        selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
-        updateTextExplainSave();
-        drawWindowCommon(textExplainSave);
-    }
 }
 function pressedDown(){
     moveY = 1;
-    if(isCommandMenuLevel === 1){
-        textExplainIndex = modAdd(textExplainIndex, moveY, 4);
-    }else if(getGameState('changeCode')){
-        selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
-        updateTextExplainSave();
-        drawWindowCommon(textExplainSave);
-    }
 }
 function pressedLeft(){
     moveX = -1;
-    hiraganaCursorIndex = modAdd(hiraganaCursorIndex, moveX, 3);
 }
 function pressedRight(){
     moveX = 1;
-    hiraganaCursorIndex = modAdd(hiraganaCursorIndex, moveX, 3);
 }
 function pressedSpace(){
     if(getGameState('waitingInput')){
@@ -970,10 +952,24 @@ function pressedKey(e){
         default:
             break;
     }
+    if(isCommandMenuLevel === 1){
+        textExplainIndex = modAdd(textExplainIndex, moveY, 4);
+    }else if(getGameState('changeCode')){
+        // 横ならカーソル、縦ならひらがなを更新
+        selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
+        hiraganaCursorIndex = modAdd(hiraganaCursorIndex, moveX, 3);
+        // 縦ならパスワードも更新
+        if(moveY !== 0) updateTextExplainSave();
+        selectedHiraganaIndex = getCodeByHiragana(passHiraganaList, pass[hiraganaCursorIndex]);
+        updateTextExplainSave();
+        drawHiraganaList();
+        drawWindowCommon(textExplainSave);
+    }
 }
 
 window.addEventListener('keydown', function (e) {
-    if(getGameState('stillTalking')){
+    // changeCode中はスキップしないとpressedKeyを2回呼んでしまう
+    if(getGameState('stillTalking') || getGameState('changeCode')){
         return;
     }
     pressedKey(e);
