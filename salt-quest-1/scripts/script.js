@@ -66,16 +66,6 @@ class GameState {
             debug:            { state: false },// dでデバッグモード
             touch:            { state: false },// タッチ操作用のガイドを表示
             checkConditions:  { state: true  },// メニューかイベントかの判定へ // いきなり話しかけて欲しいので初期値true
-            battle:           { state: false },// 戦闘中
-            battleStart:      { state: false },// 戦闘開始
-            battleEnd:        { state: false },// 戦闘終了
-            playerLevelUp:    { state: false },// レベルアップ
-            playerAttack:     { state: false },// 戦闘中(勇者の攻撃)
-            playerDefense:    { state: false },// 戦闘中(敵の攻撃)
-            playerSpell:      { state: false },// 戦闘中(勇者の呪文)
-            playerItem:       { state: false },// 戦闘中(どうぐ)
-            playerEscape:     { state: false },// 戦闘中(逃げる)
-            playerKilled:     { state: false },// 全滅
             commandMenuLevel: { state: 0 }
         };
     }
@@ -94,6 +84,142 @@ class GameState {
 }
 
 const gameState = new GameState();
+
+class BattleState {
+    constructor() {
+        this.battle      = false;// 戦闘中
+        this.battleStart = false;// 戦闘開始
+        this.battleEnd   = false;// 戦闘終了
+        this.levelUp     = false;// レベルアップ
+        this.attack      = false;// 戦闘中(勇者の攻撃)
+        this.defense     = false;// 戦闘中(敵の攻撃)
+        this.spell       = false;// 戦闘中(勇者の呪文)
+        this.item        = false;// 戦闘中(どうぐ)
+        this.escape      = false;// 戦闘中(逃げる)
+        this.killed      = false;// 全滅
+    }
+
+    startBattle() {
+        this.battle = true;
+        this.battleStart = true;
+        enemy.hp = enemy.maxHp;
+        this.battleStart = false;
+    }
+
+    async playerAttack() {
+        const randomFactor = Math.floor(Math.random() * 256);
+        enemy.damage = Math.floor((randomFactor * (player.attack - enemy.defense / 2 + 1) / 256 + player.attack - enemy.defense / 2) / 4);
+        enemy.hp -= enemy.damage;
+        console.log(`damage: ${enemy.damage}, hp: ${enemy.hp}`);
+        message = [
+            `${player.name}の こうげき！`,
+            `${enemy.name}に ${enemy.damage}ポイントの`,
+            `ダメージを あたえた！`
+        ];
+        await waitForInput(false);
+        this.attack = false;
+        if(enemy.hp > 0){
+            this.defense = true;
+        }else{
+            this.battleEnd = true;
+        }
+    }
+
+    async playerDefense() {
+        const randomFactor = Math.floor(Math.random() * 256);
+
+        if (enemy.attack - player.defense / 2 >= enemy.attack / 2 + 1) {
+            // 敵攻撃力-守備/2 ≧ 敵攻撃力/2+1
+            player.damage = Math.floor((randomFactor * (enemy.attack - player.defense / 2 + 1) / 256 + enemy.attack - player.defense / 2) / 4);
+        } else {
+            // 敵攻撃力-守備/2 ＜ 敵攻撃力/2+1
+            player.damage = Math.floor(randomFactor * (enemy.attack / 2 + 1) / 256) + 2;
+        }
+        player.hp -= player.damage;
+        message = [
+            `${enemy.name}の こうげき！`,
+            `${player.name}に ${player.damage}ポイントの`,
+            `ダメージを あたえた！`
+        ];
+        await waitForInput(false);
+        this.defense = false;
+        if(player.hp <= 0){
+            await waitForInput(true);
+            message = [
+                `${player.name}は しんでしまった！`
+            ];
+            await waitForInput(false);
+            this.battle      = false;
+            this.battleStart = false;
+            this.battleEnd   = false;
+            this.levelUp     = false;
+            this.attack      = false;
+            this.defense     = false;
+            this.spell       = false;
+            this.item        = false;
+            this.escape      = false;
+            this.killed      = true;
+            playerKilled();
+        }else{
+            await waitForInput(false);
+        }
+    }
+
+    async playerSpell() {
+        message = [
+            `せんとうちゅうに つかえる`,
+            `じゅもんを おぼえていない！`
+        ];
+        await waitForInput(false);
+        this.spell = false;
+    }
+
+    async playerItem() {
+        message = [
+            `せんとうちゅうに つかえる`,
+            `どうぐを もっていない！`,
+            `やくそうの処理は 未実装だ！！！`
+        ];
+        await waitForInput(false);
+        this.item = false;
+    }
+
+    async playerEscape() {
+        message = [
+            `${player.name}は にげだした！`
+        ];
+        await waitForInput(false);
+        this.battle      = false;
+        this.battleStart = false;
+        this.battleEnd   = false;
+        this.levelUp     = false;
+        this.attack      = false;
+        this.defense     = false;
+        this.spell       = false;
+        this.item        = false;
+        this.escape      = false;
+        this.killed      = false;
+    }
+
+    async endBattle() {
+        message = [
+            `${enemy.name}を たおした！`
+        ];
+        await waitForInput(false);
+        this.battle      = false;
+        this.battleStart = false;
+        this.battleEnd   = false;
+        this.levelUp     = false;
+        this.attack      = false;
+        this.defense     = false;
+        this.spell       = false;
+        this.item        = false;
+        this.escape      = false;
+        this.killed      = false;
+    }
+}
+
+const battleState = new BattleState();
 
 const locations = {
     Maira: gameFlags.fairyFlute.location,
@@ -604,7 +730,7 @@ const cursor = '▶';
 
 function getTextSelect() {
     let textList = textSelectCommand;
-    if(gameState.get('battle')) textList = textSelectBattleCommand;
+    if(battleState.battle) textList = textSelectBattleCommand;
     if (
         textExplainIndex >= 0 &&
         textExplainIndex < textList.length
@@ -846,7 +972,7 @@ function drawWindowBattleEnemy(){
     drawEnemyWindow(x, y, width, height);
 }
 function drawCommandMenu() {
-    if(gameState.get('battle')){ //&&
+    if(battleState.battle){ //&&
         // !gameState.get('battleStart') &&
         // !gameState.get('playerAttack') &&
         // !gameState.get('playerItem') &&
@@ -859,40 +985,38 @@ function drawCommandMenu() {
         drawWindowPlayerInfo();
         // drawWindowPlayerCommand(getTextSelect());
         // drawWindowCommon(message);
-        if(gameState.get('battleStart')){
+        if(battleState.battleStart){
             message = [
                 `${enemy.name}が あらわれた！`
             ];
             drawWindowCommon(message);
             drawWindowPlayerCommand(getTextSelect());
-        }else if(gameState.get('playerAttack')){
+        }else if(battleState.attack){
             message = [
                 `${player.name}の こうげき！`,
                 `${enemy.name}に ${enemy.damage}ポイントの`,
                 `ダメージを あたえた！`
             ];
             drawWindowCommon(message);
-        }else if(gameState.get('playerDefense')){
+        }else if(battleState.defense){
             message = [
                 `${enemy.name}の こうげき！`,
                 `${player.name}に ${player.damage}ポイントの`,
                 `ダメージを あたえた！`
             ];
             drawWindowCommon(message);
-        }else if(gameState.get('playerSpell')){
+        }else if(battleState.spell){
             message = [
                 `せんとうちゅうに つかえる`,
                 `じゅもんを おぼえていない！`
             ];
-            gameState.clear('playerSpell');
             drawWindowCommon(message);
-        }else if(gameState.get('playerItem')){
+        }else if(battleState.item){
             message = [
                 `せんとうちゅうに つかえる`,
                 `どうぐを もっていない！`,
                 `やくそうの処理は 未実装だ！！！`
             ];
-            gameState.clear('playerItem');
             drawWindowCommon(message);
         }else{
             message = [
@@ -989,7 +1113,7 @@ async function gameLoop(timestamp){
             
             movePlayer(x, y);
         }
-        if (!gameState.get('battle') && !isCommandMenuLevel && (moveX !== 0 || moveY !== 0)) {
+        if (!battleState.battle && !isCommandMenuLevel && (moveX !== 0 || moveY !== 0)) {
             let x = modAdd(playerPosition.x, moveX, mapWidth);
             let y = modAdd(playerPosition.y, moveY, mapHeight);
             
@@ -1070,12 +1194,10 @@ function pressedKey(e){
             pressedSpace();
             break;
         case KEYS.B:
-            if(gameState.get('battle')){
-                gameState.clear('battle');
-                gameState.clear('battleStart');
+            if(battleState.battle){
+                battleState.endBattle();
             }else{
-                gameState.set('battle');
-                gameState.set('battleStart');
+                battleState.startBattle();
             }
             break;
         case KEYS.D:
@@ -1094,7 +1216,7 @@ function pressedKey(e){
         default:
             break;
     }
-    if(isCommandMenuLevel === 1 || gameState.get('battle')){
+    if(isCommandMenuLevel === 1 || battleState.battle){
         textExplainIndex = modAdd(textExplainIndex, moveY, 4);
     }else if(gameState.get('changeCode')){
         // 横ならカーソル、縦ならひらがなを更新
@@ -1266,91 +1388,35 @@ async function checkConditions() {
     if(gameState.get('afterMessage') || !gameState.get('checkConditions')){
         return;
     }
-    if(gameState.get('battle')){
-        if(gameState.get('battleStart')){
-            enemy.hp = enemy.maxHp;
-            gameState.clear('battleStart');
-        }else if(gameState.get('playerAttack')){
-            const randomFactor = Math.floor(Math.random() * 256);
-            enemy.damage = Math.floor((randomFactor * (player.attack - enemy.defense / 2 + 1) / 256 + player.attack - enemy.defense / 2) / 4);
-            enemy.hp -= enemy.damage;
-            console.log(`damage: ${enemy.damage}, hp: ${enemy.hp}`);
-            gameState.clear('playerAttack');
-            if(enemy.hp > 0){
-                gameState.set('playerDefense');
-            }else{
-                gameState.set('battleEnd');
-            }
-        }else if(gameState.get('battleEnd')){
-            message = [
-                `${enemy.name}を たおした！`
-            ];
-            await waitForInput(false);
-            gameState.clear('battleEnd');
-            gameState.clear('battle');
-        }else if(gameState.get('playerSpell')){
-            message = [
-                `せんとうちゅうに つかえる`,
-                `じゅもんを おぼえていない！`
-            ];
-            await waitForInput(false);
-            gameState.clear('playerSpell');
-        }else if(gameState.get('playerItem')){
-            message = [
-                `せんとうちゅうに つかえる`,
-                `どうぐを もっていない！`,
-                `やくそうの処理は 未実装だ！！！`
-            ];
-            await waitForInput(false);
-            gameState.clear('playerItem');
-        }else if(gameState.get('playerEscape')){
-            message = [
-                `${player.name}は にげだした！`
-            ];
-            await waitForInput(false);
-            gameState.clear('playerEscape');
-            gameState.clear('battle');
-        }else if(gameState.get('playerDefense')){
-            const randomFactor = Math.floor(Math.random() * 256);
-
-            if (enemy.attack - player.defense / 2 >= enemy.attack / 2 + 1) {
-                // 敵攻撃力-守備/2 ≧ 敵攻撃力/2+1
-                player.damage = Math.floor((randomFactor * (enemy.attack - player.defense / 2 + 1) / 256 + enemy.attack - player.defense / 2) / 4);
-            } else {
-                // 敵攻撃力-守備/2 ＜ 敵攻撃力/2+1
-                player.damage = Math.floor(randomFactor * (enemy.attack / 2 + 1) / 256) + 2;
-            }
-            player.hp -= player.damage;
-            gameState.clear('playerDefense');
-            if(player.hp <= 0){
-                await waitForInput(true);
-                message = [
-                    `${player.name}は しんでしまった！`
-                ];
-                await waitForInput(false);
-                gameState.set('playerKilled');
-                gameState.clear('battle');
-                gameState.clear('playerDefense');
-                playerKilled();
-            }else{
-                await waitForInput(false);
-            }
+    if(battleState.battle){
+        if(battleState.attack){
+            await battleState.playerAttack();
+        }else if(battleState.battleEnd){
+            await battleState.endBattle();
+        }else if(battleState.spell){
+            await battleState.playerSpell();
+        }else if(battleState.item){
+            await battleState.playerItem();
+        }else if(battleState.escape){
+            await battleState.playerEscape(); 
+        }else if(battleState.defense){
+            await battleState.playerDefense();
         }else{
             if(gameState.get('afterMessage') || !gameState.get('checkConditions')){
                 return;
             }
             switch (textExplainIndex){
                 case commandMenuBattleAttack:
-                    gameState.set('playerAttack');
+                    battleState.attack = true;
                     break;
                 case commandMenuBattleSpell:
-                    gameState.set('playerSpell');
+                    battleState.spell = true;
                     break;
                 case commandMenuBattleItem:
-                    gameState.set('playerItem');
+                    battleState.item = true;
                     break;
                 case commandMenuBattleEscape:
-                    gameState.set('playerEscape');
+                    battleState.escape = true;
                     break;
                 default:
                     break;
@@ -1425,8 +1491,8 @@ async function checkConditions() {
                 await waitForInput(false);
             }
         }else if(isVisitCastle()){
-            if(gameState.get('playerKilled')){
-                gameState.clear('playerKilled');
+            if(battleState.killed){
+                battleState.killed = false;
                 message = [
                     `おお ${player.name}よ！`,
                     `しんでしまうとは なさけない！`
