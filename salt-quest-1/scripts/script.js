@@ -721,7 +721,7 @@ function waitForInput(isTalking){
             }
         });
         window.addEventListener('touchstart', function keydownListener(e) {
-            touchedWindow(e);
+            game.handleWindowTouched(e);
             if(!gameState.get('waitingInput')){
                 window.removeEventListener('touchstart', keydownListener);
                 resolve();
