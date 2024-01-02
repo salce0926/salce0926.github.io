@@ -56,26 +56,44 @@ var commandMenuBattleEscape = 3;
 
 let isCommandMenuLevel = 0;
 
-let gameStates = {
-    waitingInput:     { state: false },// 決定待ちの場合移動処理をせず再描画
-    afterMessage:     { state: false },// メッセージ直後はフレームを落とさず移動
-    stillTalking:     { state: false },// 話し中は移動処理をスキップし専用関数で入力受付
-    changeCode:       { state: false },// 呪文変更中のキー処理
-    debug:            { state: false },// dでデバッグモード
-    touch:            { state: false },// タッチ操作用のガイドを表示
-    checkConditions:  { state: true },// メニューかイベントかの判定へ // いきなり話しかけて欲しいので初期値true
-    battle:           { state: false },// 戦闘中
-    battleStart:      { state: false },// 戦闘開始
-    battleEnd:        { state: false },// 戦闘終了
-    playerLevelUp:    { state: false },// レベルアップ
-    playerAttack:     { state: false },// 戦闘中(勇者の攻撃)
-    playerDefense:    { state: false },// 戦闘中(敵の攻撃)
-    playerSpell:       { state: false },// 戦闘中(勇者の呪文)
-    playerItem:       { state: false },// 戦闘中(どうぐ)
-    playerEscape:     { state: false },// 戦闘中(逃げる)
-    playerKilled:     { state: false },// 全滅
-    commandMenuLevel: { state: 0 }
-};
+class GameState {
+    constructor() {
+        this.flags = {
+            waitingInput:     { state: false },// 決定待ちの場合移動処理をせず再描画
+            afterMessage:     { state: false },// メッセージ直後はフレームを落とさず移動
+            stillTalking:     { state: false },// 話し中は移動処理をスキップし専用関数で入力受付
+            changeCode:       { state: false },// 呪文変更中のキー処理
+            debug:            { state: false },// dでデバッグモード
+            touch:            { state: false },// タッチ操作用のガイドを表示
+            checkConditions:  { state: true  },// メニューかイベントかの判定へ // いきなり話しかけて欲しいので初期値true
+            battle:           { state: false },// 戦闘中
+            battleStart:      { state: false },// 戦闘開始
+            battleEnd:        { state: false },// 戦闘終了
+            playerLevelUp:    { state: false },// レベルアップ
+            playerAttack:     { state: false },// 戦闘中(勇者の攻撃)
+            playerDefense:    { state: false },// 戦闘中(敵の攻撃)
+            playerSpell:      { state: false },// 戦闘中(勇者の呪文)
+            playerItem:       { state: false },// 戦闘中(どうぐ)
+            playerEscape:     { state: false },// 戦闘中(逃げる)
+            playerKilled:     { state: false },// 全滅
+            commandMenuLevel: { state: 0 }
+        };
+    }
+
+    set(stateName) {
+        this.flags[stateName].state = true;
+    }
+
+    clear(stateName) {
+        this.flags[stateName].state = false;
+    }
+
+    get(stateName) {
+        return this.flags[stateName].state || false;
+    }
+}
+
+const gameState = new GameState();
 
 const locations = {
     Maira: gameFlags.fairyFlute.location,
@@ -94,16 +112,6 @@ const locations = {
     RainbowBridge: gameFlags.rainbowBridge.location,
     DragonCastle: gameFlags.lightBall.location,
 };
-
-function setGameState(stateName){
-    gameStates[stateName].state = true;
-}
-function clearGameState(stateName){
-    gameStates[stateName].state = false;
-}
-function getGameState(stateName){
-    return gameStates[stateName].state;
-}
 
 // プレイヤーオブジェクト
 let player = {
@@ -408,25 +416,25 @@ function displayMessage(mes){
 }
 
 function waitForInput(isTalking){
-    setGameState('waitingInput');
+    gameState.set('waitingInput');
     if(isTalking){
-        setGameState('stillTalking');
+        gameState.set('stillTalking');
     }else{
-        clearGameState('stillTalking');
+        gameState.clear('stillTalking');
     }
     drawWindowCommon(message);
 
     return new Promise(resolve => {
         window.addEventListener('keydown', function keydownListener(e) {
             pressedKey(e);
-            if(!getGameState('waitingInput')){
+            if(!gameState.get('waitingInput')){
                 window.removeEventListener('keydown', keydownListener);
                 resolve();
             }
         });
         window.addEventListener('touchstart', function keydownListener(e) {
             touchedWindow(e);
-            if(!getGameState('waitingInput')){
+            if(!gameState.get('waitingInput')){
                 window.removeEventListener('touchstart', keydownListener);
                 resolve();
             }
@@ -442,8 +450,8 @@ function isCenterRect(touchX, touchY){
 }
 
 function changeCode(){
-    setGameState('waitingInput');
-    setGameState('changeCode');
+    gameState.set('waitingInput');
+    gameState.set('changeCode');
     drawHiraganaList();
     drawWindowCommon(message);
 
@@ -451,8 +459,8 @@ function changeCode(){
         window.addEventListener('keydown', function keydownListener(e) {
             pressedKey(e);
             calcCodeToFlags();
-            if(!getGameState('waitingInput')){
-                clearGameState('changeCode');
+            if(!gameState.get('waitingInput')){
+                gameState.clear('changeCode');
                 window.removeEventListener('keydown', keydownListener);
                 resolve();
             }
@@ -460,8 +468,8 @@ function changeCode(){
         window.addEventListener('touchstart', function keydownListener(e) {
             touchedWindow(e);
             calcCodeToFlags();
-            if(!getGameState('waitingInput')){
-                clearGameState('changeCode');
+            if(!gameState.get('waitingInput')){
+                gameState.clear('changeCode');
                 window.removeEventListener('touchstart', keydownListener);
                 resolve();
             }
@@ -528,7 +536,7 @@ function drawPoint(){
     if(getGameFlag('roraLove')) {
         document.getElementById('point').innerText = `ローラ「ラダトーム城まで${ns}へ${dx} ${ew}へ${dy}ですわ」`;
     }
-    if(getGameState('debug')) {
+    if(gameState.get('debug')) {
         document.getElementById('point').innerText = `x: ${x}, y: ${y}, tile: ${tile}`;
     }
 }
@@ -596,7 +604,7 @@ const cursor = '▶';
 
 function getTextSelect() {
     let textList = textSelectCommand;
-    if(getGameState('battle')) textList = textSelectBattleCommand;
+    if(gameState.get('battle')) textList = textSelectBattleCommand;
     if (
         textExplainIndex >= 0 &&
         textExplainIndex < textList.length
@@ -838,12 +846,12 @@ function drawWindowBattleEnemy(){
     drawEnemyWindow(x, y, width, height);
 }
 function drawCommandMenu() {
-    if(getGameState('battle')){ //&&
-        // !getGameState('battleStart') &&
-        // !getGameState('playerAttack') &&
-        // !getGameState('playerItem') &&
-        // !getGameState('playerEscape') &&
-        // !getGameState('playerDefense')){
+    if(gameState.get('battle')){ //&&
+        // !gameState.get('battleStart') &&
+        // !gameState.get('playerAttack') &&
+        // !gameState.get('playerItem') &&
+        // !gameState.get('playerEscape') &&
+        // !gameState.get('playerDefense')){
         // message = [
         //     `コマンド？`
         // ];
@@ -851,40 +859,40 @@ function drawCommandMenu() {
         drawWindowPlayerInfo();
         // drawWindowPlayerCommand(getTextSelect());
         // drawWindowCommon(message);
-        if(getGameState('battleStart')){
+        if(gameState.get('battleStart')){
             message = [
                 `${enemy.name}が あらわれた！`
             ];
             drawWindowCommon(message);
             drawWindowPlayerCommand(getTextSelect());
-        }else if(getGameState('playerAttack')){
+        }else if(gameState.get('playerAttack')){
             message = [
                 `${player.name}の こうげき！`,
                 `${enemy.name}に ${enemy.damage}ポイントの`,
                 `ダメージを あたえた！`
             ];
             drawWindowCommon(message);
-        }else if(getGameState('playerDefense')){
+        }else if(gameState.get('playerDefense')){
             message = [
                 `${enemy.name}の こうげき！`,
                 `${player.name}に ${player.damage}ポイントの`,
                 `ダメージを あたえた！`
             ];
             drawWindowCommon(message);
-        }else if(getGameState('playerSpell')){
+        }else if(gameState.get('playerSpell')){
             message = [
                 `せんとうちゅうに つかえる`,
                 `じゅもんを おぼえていない！`
             ];
-            clearGameState('playerSpell');
+            gameState.clear('playerSpell');
             drawWindowCommon(message);
-        }else if(getGameState('playerItem')){
+        }else if(gameState.get('playerItem')){
             message = [
                 `せんとうちゅうに つかえる`,
                 `どうぐを もっていない！`,
                 `やくそうの処理は 未実装だ！！！`
             ];
-            clearGameState('playerItem');
+            gameState.clear('playerItem');
             drawWindowCommon(message);
         }else{
             message = [
@@ -930,7 +938,7 @@ function drawCommandMenu() {
     // 他のテキストやボタンを描画するロジックもここに追加
 }
 function drawTapArea(){
-    if(!getGameState('touch')) return;
+    if(!gameState.get('touch')) return;
     ctx.beginPath();
     ctx.moveTo(centerLeftX, centerTopY);
     ctx.lineTo(centerRightX, centerTopY);
@@ -950,7 +958,7 @@ function drawScreen() {
 }
 
 function isMoveAllowed(x, y) {
-    if(getGameState('debug')) return true;
+    if(gameState.get('debug')) return true;
     switch (mapData[y][x]){
         case 25://城
         case 26://町
@@ -971,24 +979,24 @@ let lastTime = 0;
 let count = 0;
 async function gameLoop(timestamp){
     const deltaTime = timestamp - lastTime;
-    if(!getGameState('waitingInput')){
+    if(!gameState.get('waitingInput')){
         if(deltaTime > interval){
             playerIndex = modAdd(playerIndex, 1, 2) + playerStyle;
             lastTime = timestamp;
-        }else if(getGameState('debug')){
+        }else if(gameState.get('debug')){
             let x = modAdd(playerPosition.x, moveX, mapWidth);
             let y = modAdd(playerPosition.y, moveY, mapHeight);
             
             movePlayer(x, y);
         }
-        if (!getGameState('battle') && !isCommandMenuLevel && (moveX !== 0 || moveY !== 0)) {
+        if (!gameState.get('battle') && !isCommandMenuLevel && (moveX !== 0 || moveY !== 0)) {
             let x = modAdd(playerPosition.x, moveX, mapWidth);
             let y = modAdd(playerPosition.y, moveY, mapHeight);
             
             if(count++ % 6 === 0 && isMoveAllowed(x, y)){
                 movePlayer(x, y);
-            }else if(getGameState('afterMessage') && isMoveAllowed(x, y)){
-                clearGameState('afterMessage');
+            }else if(gameState.get('afterMessage') && isMoveAllowed(x, y)){
+                gameState.clear('afterMessage');
                 movePlayer(x, y);
             }
         }    
@@ -1034,11 +1042,11 @@ function pressedRight(){
     moveX = 1;
 }
 function pressedSpace(){
-    if(getGameState('waitingInput')){
-        clearGameState('waitingInput');
-        setGameState('afterMessage');
+    if(gameState.get('waitingInput')){
+        gameState.clear('waitingInput');
+        gameState.set('afterMessage');
     }else{
-        setGameState('checkConditions');
+        gameState.set('checkConditions');
     }
 }
 function pressedKey(e){
@@ -1062,19 +1070,19 @@ function pressedKey(e){
             pressedSpace();
             break;
         case KEYS.B:
-            if(getGameState('battle')){
-                clearGameState('battle');
-                clearGameState('battleStart');
+            if(gameState.get('battle')){
+                gameState.clear('battle');
+                gameState.clear('battleStart');
             }else{
-                setGameState('battle');
-                setGameState('battleStart');
+                gameState.set('battle');
+                gameState.set('battleStart');
             }
             break;
         case KEYS.D:
-            if(getGameState('debug')){
-                clearGameState('debug');
+            if(gameState.get('debug')){
+                gameState.clear('debug');
             }else{
-                setGameState('debug');
+                gameState.set('debug');
                 document.getElementById('point').style.display = 'block';
             }
             break;
@@ -1086,9 +1094,9 @@ function pressedKey(e){
         default:
             break;
     }
-    if(isCommandMenuLevel === 1 || getGameState('battle')){
+    if(isCommandMenuLevel === 1 || gameState.get('battle')){
         textExplainIndex = modAdd(textExplainIndex, moveY, 4);
-    }else if(getGameState('changeCode')){
+    }else if(gameState.get('changeCode')){
         // 横ならカーソル、縦ならひらがなを更新
         selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
         hiraganaCursorIndex = modAdd(hiraganaCursorIndex, moveX, 3);
@@ -1103,7 +1111,7 @@ function pressedKey(e){
 
 window.addEventListener('keydown', function (e) {
     // changeCode中はスキップしないとpressedKeyを2回呼んでしまう
-    if(getGameState('stillTalking') || getGameState('changeCode')){
+    if(gameState.get('stillTalking') || gameState.get('changeCode')){
         return;
     }
     pressedKey(e);
@@ -1126,7 +1134,7 @@ window.addEventListener('keyup', function (e) {
             break;
     }
 
-    clearGameState('afterMessage');
+    gameState.clear('afterMessage');
     // 全ての方向のキーが離された場合、移動を停止
     if (!Object.values(keyDownMap).includes(true)) {
         moveX = 0;
@@ -1169,8 +1177,8 @@ function touchedWindow(e){
 }
 
 window.addEventListener('touchstart', function (e) {
-    setGameState('touch');
-    if(getGameState('stillTalking')){
+    gameState.set('touch');
+    if(gameState.get('stillTalking')){
         return;
     }
     touchedWindow(e);
@@ -1255,54 +1263,54 @@ function isVisitDragonCastle(){
 }
 
 async function checkConditions() {
-    if(getGameState('afterMessage') || !getGameState('checkConditions')){
+    if(gameState.get('afterMessage') || !gameState.get('checkConditions')){
         return;
     }
-    if(getGameState('battle')){
-        if(getGameState('battleStart')){
+    if(gameState.get('battle')){
+        if(gameState.get('battleStart')){
             enemy.hp = enemy.maxHp;
-            clearGameState('battleStart');
-        }else if(getGameState('playerAttack')){
+            gameState.clear('battleStart');
+        }else if(gameState.get('playerAttack')){
             const randomFactor = Math.floor(Math.random() * 256);
             enemy.damage = Math.floor((randomFactor * (player.attack - enemy.defense / 2 + 1) / 256 + player.attack - enemy.defense / 2) / 4);
             enemy.hp -= enemy.damage;
             console.log(`damage: ${enemy.damage}, hp: ${enemy.hp}`);
-            clearGameState('playerAttack');
+            gameState.clear('playerAttack');
             if(enemy.hp > 0){
-                setGameState('playerDefense');
+                gameState.set('playerDefense');
             }else{
-                setGameState('battleEnd');
+                gameState.set('battleEnd');
             }
-        }else if(getGameState('battleEnd')){
+        }else if(gameState.get('battleEnd')){
             message = [
                 `${enemy.name}を たおした！`
             ];
             await waitForInput(false);
-            clearGameState('battleEnd');
-            clearGameState('battle');
-        }else if(getGameState('playerSpell')){
+            gameState.clear('battleEnd');
+            gameState.clear('battle');
+        }else if(gameState.get('playerSpell')){
             message = [
                 `せんとうちゅうに つかえる`,
                 `じゅもんを おぼえていない！`
             ];
             await waitForInput(false);
-            clearGameState('playerSpell');
-        }else if(getGameState('playerItem')){
+            gameState.clear('playerSpell');
+        }else if(gameState.get('playerItem')){
             message = [
                 `せんとうちゅうに つかえる`,
                 `どうぐを もっていない！`,
                 `やくそうの処理は 未実装だ！！！`
             ];
             await waitForInput(false);
-            clearGameState('playerItem');
-        }else if(getGameState('playerEscape')){
+            gameState.clear('playerItem');
+        }else if(gameState.get('playerEscape')){
             message = [
                 `${player.name}は にげだした！`
             ];
             await waitForInput(false);
-            clearGameState('playerEscape');
-            clearGameState('battle');
-        }else if(getGameState('playerDefense')){
+            gameState.clear('playerEscape');
+            gameState.clear('battle');
+        }else if(gameState.get('playerDefense')){
             const randomFactor = Math.floor(Math.random() * 256);
 
             if (enemy.attack - player.defense / 2 >= enemy.attack / 2 + 1) {
@@ -1313,47 +1321,47 @@ async function checkConditions() {
                 player.damage = Math.floor(randomFactor * (enemy.attack / 2 + 1) / 256) + 2;
             }
             player.hp -= player.damage;
-            clearGameState('playerDefense');
+            gameState.clear('playerDefense');
             if(player.hp <= 0){
                 await waitForInput(true);
                 message = [
                     `${player.name}は しんでしまった！`
                 ];
                 await waitForInput(false);
-                setGameState('playerKilled');
-                clearGameState('battle');
-                clearGameState('playerDefense');
+                gameState.set('playerKilled');
+                gameState.clear('battle');
+                gameState.clear('playerDefense');
                 playerKilled();
             }else{
                 await waitForInput(false);
             }
         }else{
-            if(getGameState('afterMessage') || !getGameState('checkConditions')){
+            if(gameState.get('afterMessage') || !gameState.get('checkConditions')){
                 return;
             }
             switch (textExplainIndex){
                 case commandMenuBattleAttack:
-                    setGameState('playerAttack');
+                    gameState.set('playerAttack');
                     break;
                 case commandMenuBattleSpell:
-                    setGameState('playerSpell');
+                    gameState.set('playerSpell');
                     break;
                 case commandMenuBattleItem:
-                    setGameState('playerItem');
+                    gameState.set('playerItem');
                     break;
                 case commandMenuBattleEscape:
-                    setGameState('playerEscape');
+                    gameState.set('playerEscape');
                     break;
                 default:
                     break;
             }
-            clearGameState('checkConditions');
+            gameState.clear('checkConditions');
         }
     }else{
-        if(getGameState('afterMessage') || !getGameState('checkConditions')){
+        if(gameState.get('afterMessage') || !gameState.get('checkConditions')){
             return;
         }
-        if(!getGameState('debug')) document.getElementById('point').style.display = 'none';
+        if(!gameState.get('debug')) document.getElementById('point').style.display = 'none';
         message = '';
         if(isVisitMaira()){
             if(!getGameFlag('fairyFlute')){
@@ -1417,8 +1425,8 @@ async function checkConditions() {
                 await waitForInput(false);
             }
         }else if(isVisitCastle()){
-            if(getGameState('playerKilled')){
-                clearGameState('playerKilled');
+            if(gameState.get('playerKilled')){
+                gameState.clear('playerKilled');
                 message = [
                     `おお ${player.name}よ！`,
                     `しんでしまうとは なさけない！`
@@ -1712,6 +1720,6 @@ async function checkConditions() {
             displayMessage(message);
         }
         if(getGameFlag('roraLove')) document.getElementById('point').style.display = 'block';
-        clearGameState('checkConditions');
+        gameState.clear('checkConditions');
     }
 }
