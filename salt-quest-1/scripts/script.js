@@ -56,6 +56,17 @@ var commandMenuBattleEscape = 3;
 
 let isCommandMenuLevel = 0;
 
+const KEYS = {
+    ARROW_UP: 'ArrowUp',
+    ARROW_DOWN: 'ArrowDown',
+    ARROW_LEFT: 'ArrowLeft',
+    ARROW_RIGHT: 'ArrowRight',
+    SPACE: ' ',
+    B: 'b',
+    D: 'd',
+    L: 'l',
+};
+
 class GameState {
     constructor() {
         this.flags = {
@@ -82,8 +93,6 @@ class GameState {
         return this.flags[stateName].state || false;
     }
 }
-
-const gameState = new GameState();
 
 class BattleState {
     constructor() {
@@ -219,7 +228,161 @@ class BattleState {
     }
 }
 
-const battleState = new BattleState();
+class Game {
+    constructor() {
+        this.lastTime = 0;
+        this.count = 0;
+        this.interval = 1000; // 適切なインターバルを設定
+        this.keyDownMap = {}; // キーが押されているかどうかを管理するオブジェクト
+    }
+
+    pressedUp(){
+        moveY = -1;
+    }
+    pressedDown(){
+        moveY = 1;
+    }
+    pressedLeft(){
+        moveX = -1;
+    }
+    pressedRight(){
+        moveX = 1;
+    }
+    pressedSpace(){
+        if(gameState.get('waitingInput')){
+            gameState.clear('waitingInput');
+            gameState.set('afterMessage');
+        }else{
+            gameState.set('checkConditions');
+        }
+    }
+
+    handleKeyDown(e) {
+        // キーが押されている状態を記録
+        this.keyDownMap[e.key] = true;
+
+        switch (e.key) {
+            case KEYS.ARROW_UP:
+                this.pressedUp();
+                break;
+            case KEYS.ARROW_DOWN:
+                this.pressedDown();
+                break;
+            case KEYS.ARROW_LEFT:
+                this.pressedLeft();
+                break;
+            case KEYS.ARROW_RIGHT:
+                this.pressedRight();
+                break;
+            case KEYS.SPACE:
+                this.pressedSpace();
+                break;
+            case KEYS.B:
+                if(battleState.battle){
+                    battleState.endBattle();
+                }else{
+                    battleState.startBattle();
+                }
+                break;
+            case KEYS.D:
+                if(gameState.get('debug')){
+                    gameState.clear('debug');
+                }else{
+                    gameState.set('debug');
+                    document.getElementById('point').style.display = 'block';
+                }
+                break;
+            case KEYS.L:
+                player.exp += 1;
+                console.log(`lv:${player.level}, exp:${player.exp}`);
+                updatePlayerLevel();
+                break;
+            default:
+                break;
+        }
+        if(isCommandMenuLevel === 1 || battleState.battle){
+            textExplainIndex = modAdd(textExplainIndex, moveY, 4);
+        }else if(gameState.get('changeCode')){
+            // 横ならカーソル、縦ならひらがなを更新
+            selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
+            hiraganaCursorIndex = modAdd(hiraganaCursorIndex, moveX, 3);
+            // 縦ならパスワードも更新
+            if(moveY !== 0) updateTextExplainSave();
+            selectedHiraganaIndex = getCodeByHiragana(passHiraganaList, pass[hiraganaCursorIndex]);
+            updateTextExplainSave();
+            drawHiraganaList();
+            drawWindowCommon(textExplainSave);
+        }
+    }
+
+    handleWindowTouched(e){
+        // タッチ位置を取得
+        var touchX = e.touches[0].clientX;
+        var touchY = e.touches[0].clientY;
+    
+        // タッチ位置と中央位置の差を計算
+        var deltaX = touchX - centerX;
+        var deltaY = touchY - centerY;
+    
+        // 差の絶対値が大きい方に動く方向を設定
+        if(isCenterRect(touchX, touchY)){
+            this.pressedSpace();
+        }else if (Math.abs(deltaX) > Math.abs(deltaY)) {
+            // 左右移動
+            if(deltaX > 0){
+                this.pressedRight();
+            }else{
+                this.pressedLeft();
+            }
+        } else {
+            // 上下移動
+            if(deltaY > 0){
+                this.pressedDown();
+            }else{
+                this.pressedUp();
+            }
+        }
+    }
+
+    async loop(timestamp) {
+        const deltaTime = timestamp - this.lastTime;
+        
+        if (!gameState.get('waitingInput')) {
+            if (deltaTime > this.interval) {
+                playerIndex = modAdd(playerIndex, 1, 2) + playerStyle;
+                this.lastTime = timestamp;
+            } else if (gameState.get('debug')) {
+                let x = modAdd(playerPosition.x, moveX, mapWidth);
+                let y = modAdd(playerPosition.y, moveY, mapHeight);
+
+                movePlayer(x, y);
+            }
+            if (!battleState.battle && !isCommandMenuLevel && (moveX !== 0 || moveY !== 0)) {
+                let x = modAdd(playerPosition.x, moveX, mapWidth);
+                let y = modAdd(playerPosition.y, moveY, mapHeight);
+
+                if (this.count++ % 6 === 0 && isMoveAllowed(x, y)) {
+                    movePlayer(x, y);
+                } else if (gameState.get('afterMessage') && isMoveAllowed(x, y)) {
+                    gameState.clear('afterMessage');
+                    movePlayer(x, y);
+                }
+            }
+        }
+        drawScreen();
+        await checkConditions();
+        drawScreen();
+        updatePlayerItems();
+
+        requestAnimationFrame((timestamp) => this.loop(timestamp));
+    }
+
+    init() {
+        // 他の初期化処理も追加
+        updatePlayerLevel();
+        this.loop(0);
+    }
+}
 
 const locations = {
     Maira: gameFlags.fairyFlute.location,
@@ -501,8 +664,7 @@ var centerRightX = displayTileSize * screenWidth * 2 / 3;
 var centerTopY = displayTileSize * screenHeight / 3;
 var centerBottomY = displayTileSize * screenHeight * 2 / 3;
 
-var message = '';
-var interval = 500;
+let message = '';
 
 var textExplainSave = [
     `ふっかつのじゅもん：${pass}`
@@ -552,7 +714,7 @@ function waitForInput(isTalking){
 
     return new Promise(resolve => {
         window.addEventListener('keydown', function keydownListener(e) {
-            pressedKey(e);
+            game.handleKeyDown(e);
             if(!gameState.get('waitingInput')){
                 window.removeEventListener('keydown', keydownListener);
                 resolve();
@@ -583,7 +745,7 @@ function changeCode(){
 
     return new Promise(resolve => {
         window.addEventListener('keydown', function keydownListener(e) {
-            pressedKey(e);
+            game.handleKeyDown(e);
             calcCodeToFlags();
             if(!gameState.get('waitingInput')){
                 gameState.clear('changeCode');
@@ -592,7 +754,7 @@ function changeCode(){
             }
         });
         window.addEventListener('touchstart', function keydownListener(e) {
-            touchedWindow(e);
+            game.handleWindowTouched(e);
             calcCodeToFlags();
             if(!gameState.get('waitingInput')){
                 gameState.clear('changeCode');
@@ -1099,149 +1261,26 @@ function isMoveAllowed(x, y) {
     return false;
 }
 
-let lastTime = 0;
-let count = 0;
-async function gameLoop(timestamp){
-    const deltaTime = timestamp - lastTime;
-    if(!gameState.get('waitingInput')){
-        if(deltaTime > interval){
-            playerIndex = modAdd(playerIndex, 1, 2) + playerStyle;
-            lastTime = timestamp;
-        }else if(gameState.get('debug')){
-            let x = modAdd(playerPosition.x, moveX, mapWidth);
-            let y = modAdd(playerPosition.y, moveY, mapHeight);
-            
-            movePlayer(x, y);
-        }
-        if (!battleState.battle && !isCommandMenuLevel && (moveX !== 0 || moveY !== 0)) {
-            let x = modAdd(playerPosition.x, moveX, mapWidth);
-            let y = modAdd(playerPosition.y, moveY, mapHeight);
-            
-            if(count++ % 6 === 0 && isMoveAllowed(x, y)){
-                movePlayer(x, y);
-            }else if(gameState.get('afterMessage') && isMoveAllowed(x, y)){
-                gameState.clear('afterMessage');
-                movePlayer(x, y);
-            }
-        }    
-    }
-    drawScreen();
-    await checkConditions();
-    drawScreen();
-    updatePlayerItems();
-    requestAnimationFrame(gameLoop);
-}
-
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 //-----------------------------------------------------------------------------------------------------------------------------------------------
-
-const KEYS = {
-    ARROW_UP: 'ArrowUp',
-    ARROW_DOWN: 'ArrowDown',
-    ARROW_LEFT: 'ArrowLeft',
-    ARROW_RIGHT: 'ArrowRight',
-    SPACE: ' ',
-    B: 'b',
-    D: 'd',
-    L: 'l',
-};
 
 let moveX = 0;
 let moveY = 0;
-let keyDownMap = {}; // キーが押されているかどうかを管理するオブジェクト
-
-function pressedUp(){
-    moveY = -1;
-}
-function pressedDown(){
-    moveY = 1;
-}
-function pressedLeft(){
-    moveX = -1;
-}
-function pressedRight(){
-    moveX = 1;
-}
-function pressedSpace(){
-    if(gameState.get('waitingInput')){
-        gameState.clear('waitingInput');
-        gameState.set('afterMessage');
-    }else{
-        gameState.set('checkConditions');
-    }
-}
-function pressedKey(e){
-    // キーが押されている状態を記録
-    keyDownMap[e.key] = true;
-
-    switch (e.key) {
-        case KEYS.ARROW_UP:
-            pressedUp();
-            break;
-        case KEYS.ARROW_DOWN:
-            pressedDown();
-            break;
-        case KEYS.ARROW_LEFT:
-            pressedLeft();
-            break;
-        case KEYS.ARROW_RIGHT:
-            pressedRight();
-            break;
-        case KEYS.SPACE:
-            pressedSpace();
-            break;
-        case KEYS.B:
-            if(battleState.battle){
-                battleState.endBattle();
-            }else{
-                battleState.startBattle();
-            }
-            break;
-        case KEYS.D:
-            if(gameState.get('debug')){
-                gameState.clear('debug');
-            }else{
-                gameState.set('debug');
-                document.getElementById('point').style.display = 'block';
-            }
-            break;
-        case KEYS.L:
-            player.exp += 1;
-            console.log(`lv:${player.level}, exp:${player.exp}`);
-            updatePlayerLevel();
-            break;
-        default:
-            break;
-    }
-    if(isCommandMenuLevel === 1 || battleState.battle){
-        textExplainIndex = modAdd(textExplainIndex, moveY, 4);
-    }else if(gameState.get('changeCode')){
-        // 横ならカーソル、縦ならひらがなを更新
-        selectedHiraganaIndex = modAdd(selectedHiraganaIndex, moveY, Object.keys(passHiraganaList).length);
-        hiraganaCursorIndex = modAdd(hiraganaCursorIndex, moveX, 3);
-        // 縦ならパスワードも更新
-        if(moveY !== 0) updateTextExplainSave();
-        selectedHiraganaIndex = getCodeByHiragana(passHiraganaList, pass[hiraganaCursorIndex]);
-        updateTextExplainSave();
-        drawHiraganaList();
-        drawWindowCommon(textExplainSave);
-    }
-}
 
 window.addEventListener('keydown', function (e) {
-    // changeCode中はスキップしないとpressedKeyを2回呼んでしまう
+    // changeCode中はスキップしないとhandleKeyDownを2回呼んでしまう
     if(gameState.get('stillTalking') || gameState.get('changeCode')){
         return;
     }
-    pressedKey(e);
+    game.handleKeyDown(e);
 });
 
 window.addEventListener('keyup', function (e) {
     // キーが離されたら、そのキーの状態をリセット
-    keyDownMap[e.key] = false;
+    game.keyDownMap[e.key] = false;
 
     switch (e.key) {
         case KEYS.ARROW_UP:
@@ -1258,7 +1297,7 @@ window.addEventListener('keyup', function (e) {
 
     gameState.clear('afterMessage');
     // 全ての方向のキーが離された場合、移動を停止
-    if (!Object.values(keyDownMap).includes(true)) {
+    if (!Object.values(game.keyDownMap).includes(true)) {
         moveX = 0;
         moveY = 0;
     }
@@ -1269,41 +1308,12 @@ if ('ontouchstart' in window) {
     document.body.style.touchAction = 'none';
 }
 
-function touchedWindow(e){
-    // タッチ位置を取得
-    var touchX = e.touches[0].clientX;
-    var touchY = e.touches[0].clientY;
-
-    // タッチ位置と中央位置の差を計算
-    var deltaX = touchX - centerX;
-    var deltaY = touchY - centerY;
-
-    // 差の絶対値が大きい方に動く方向を設定
-    if(isCenterRect(touchX, touchY)){
-        pressedSpace();
-    }else if (Math.abs(deltaX) > Math.abs(deltaY)) {
-        // 左右移動
-        if(deltaX > 0){
-            pressedRight();
-        }else{
-            pressedLeft();
-        }
-    } else {
-        // 上下移動
-        if(deltaY > 0){
-            pressedDown();
-        }else{
-            pressedUp();
-        }
-    }
-}
-
 window.addEventListener('touchstart', function (e) {
     gameState.set('touch');
     if(gameState.get('stillTalking')){
         return;
     }
-    touchedWindow(e);
+    game.handleWindowTouched(e);
 
     // デフォルトのスクロールを防ぐ
     e.preventDefault();
@@ -1314,9 +1324,12 @@ window.addEventListener('touchend', function (e) {
     moveY = 0;
 });
 
+const gameState = new GameState();
+const battleState = new BattleState();
+const game = new Game();
+
 window.onload = function () {
-    updatePlayerLevel();
-    gameLoop();
+    game.init();
 };
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------
