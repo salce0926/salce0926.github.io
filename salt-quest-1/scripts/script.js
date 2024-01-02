@@ -1,6 +1,7 @@
 // 画像のURL
 const tilesetURL = 'https://www.spriters-resource.com/resources/sheets/10/10199.png';
 const characterURL = './images/character.png';
+const enemyURL = './images/enemy.png';
 
 // タイルのサイズ
 const tileSize = 16;
@@ -48,16 +49,32 @@ var commandMenuStrength = 0;
 var commandMenuSpell = 1;
 var commandMenuItem = 2;
 var commandMenuSave = 3;
+var commandMenuBattleAttack = 0;
+var commandMenuBattleSpell = 1;
+var commandMenuBattleItem = 2;
+var commandMenuBattleEscape = 3;
+
+let isCommandMenuLevel = 0;
 
 let gameStates = {
-    waitingInput:     { bit: 0, state: false },// 決定待ちの場合移動処理をせず再描画
-    afterMessage:     { bit: 1, state: false },// メッセージ直後はフレームを落とさず移動
-    stillTalking:     { bit: 2, state: false },// 話し中は移動処理をスキップし専用関数で入力受付
-    changeCode:       { bit: 3, state: false },// 呪文変更中のキー処理
-    debug:            { bit: 4, state: false },// dでデバッグモード
-    touch:            { bit: 5, state: false },// タッチ操作用のガイドを表示
-    checkConditions:  { bit: 6, state: true },// メニューかイベントかの判定へ // いきなり話しかけて欲しいので初期値true
-    commandMenuLevel: { bit: 7, state: 0 }
+    waitingInput:     { state: false },// 決定待ちの場合移動処理をせず再描画
+    afterMessage:     { state: false },// メッセージ直後はフレームを落とさず移動
+    stillTalking:     { state: false },// 話し中は移動処理をスキップし専用関数で入力受付
+    changeCode:       { state: false },// 呪文変更中のキー処理
+    debug:            { state: false },// dでデバッグモード
+    touch:            { state: false },// タッチ操作用のガイドを表示
+    checkConditions:  { state: true },// メニューかイベントかの判定へ // いきなり話しかけて欲しいので初期値true
+    battle:           { state: false },// 戦闘中
+    battleStart:      { state: false },// 戦闘開始
+    battleEnd:        { state: false },// 戦闘終了
+    playerLevelUp:    { state: false },// レベルアップ
+    playerAttack:     { state: false },// 戦闘中(勇者の攻撃)
+    playerDefense:    { state: false },// 戦闘中(敵の攻撃)
+    playerSpell:       { state: false },// 戦闘中(勇者の呪文)
+    playerItem:       { state: false },// 戦闘中(どうぐ)
+    playerEscape:     { state: false },// 戦闘中(逃げる)
+    playerKilled:     { state: false },// 全滅
+    commandMenuLevel: { state: 0 }
 };
 
 const locations = {
@@ -77,8 +94,6 @@ const locations = {
     RainbowBridge: gameFlags.rainbowBridge.location,
     DragonCastle: gameFlags.lightBall.location,
 };
-
-var isCommandMenuLevel = 0;
 
 function setGameState(stateName){
     gameStates[stateName].state = true;
@@ -100,8 +115,10 @@ let player = {
     maxMp: 0,
     gold: 0,
     exp: 0,
-    strength: 0,
-    agility: 0,
+    strength: 4,
+    agility: 4,
+    attack: 4,
+    defense: 2,
     herb: 6,
     key: 0,
     items: [],  // アイテムを管理するための空の配列
@@ -109,6 +126,15 @@ let player = {
     weapon: 'なし',
     armor: 'ぬののふく',
     shield: 'なし'
+};
+let enemy = {
+    name: 'スライム',
+    hp: 3,
+    maxHp: 3,
+    attack: 5,
+    defense: 3,
+    exp: 1,
+    gold: 2
 };
 
 const hiraganaList = ['あ', 'い', 'う', 'え', 'お', 'か', 'き', 'く', 'け', 'こ', 'さ', 'し', 'す', 'せ', 'そ', 'た', 'ち', 'つ', 'て', 'と', 'な', 'に', 'ぬ', 'ね', 'の', 'は', 'ひ', 'ふ', 'へ', 'ほ', 'ま', 'み', 'む', 'め', 'も', 'や', 'ゆ', 'よ', 'ら', 'り', 'る', 'れ', 'ろ', 'わ', 'を', 'ん'];
@@ -280,6 +306,8 @@ function updatePlayerLevel(){
     player.level = newStatus.level;
     player.strength = newStatus.strength;
     player.agility = newStatus.agility;
+    player.attack = newStatus.strength;
+    player.defense = newStatus.agility / 2;
     player.maxHp = newStatus.hp;
     player.maxMp = newStatus.mp;
     if(newStatus.spell !== '-'){
@@ -366,6 +394,8 @@ var playerStyle = playerStyleNormal;
 // イメージのロード
 var characterImage = new Image();
 characterImage.src = characterURL;
+var enemyImage = new Image();
+enemyImage.src = enemyURL;
 var tilesetImage = new Image();
 tilesetImage.src = tilesetURL;
 tilesetImage.onload = function () {
@@ -446,6 +476,7 @@ function movePlayer(x, y){
 
 function playerKilled(){
     movePlayer(51, 51);
+    player.hp = player.maxHp;
 }
 
 function screenXToWorldX(screenX){
@@ -560,19 +591,23 @@ function drawWindowPlayerInfo(){
 }
 
 const textSelectCommand = ['つよさ', 'じゅもん', 'どうぐ', 'きろく'];
+const textSelectBattleCommand = ['たたかう', 'じゅもん', 'どうぐ', 'にげる'];
 const cursor = '▶';
 
 function getTextSelect() {
+    let textList = textSelectCommand;
+    if(getGameState('battle')) textList = textSelectBattleCommand;
     if (
         textExplainIndex >= 0 &&
-        textExplainIndex < textSelectCommand.length
+        textExplainIndex < textList.length
     ) {
-        const selectedText = textSelectCommand[textExplainIndex];
-        return textSelectCommand.map(text =>
+        const selectedText = textList[textExplainIndex];
+        return textList.map(text =>
             text === selectedText ? `${cursor}${text}` : `　${text}`
         );
     } else {
-        return 'getSelectExplain() has error.';
+        console.log(textExplainIndex);
+        return ['getSelectExplain() has error.'];
     }
 }
 
@@ -769,7 +804,96 @@ function drawHiraganaList() {
         ctx.fillStyle = 'white';
     }
 }
+function drawEnemy(index){
+    const width = 22;
+    const height = 18;
+    const offsetX = 2;
+    const offsetY = 2;
+    const x = canvas.width / 2 - width;
+    const y = canvas.height / 2 - height;
+    const src = enemyImage;
+    ctx.drawImage(src, offsetX, offsetY, width, height, 
+                             x,       y, width*2, height*2);
+}
+function drawEnemyWindow(x, y, width, height) {
+    // 背景
+    ctx.fillStyle = '#80D010';
+    ctx.fillRect(x, y, width, height);
+
+    // 枠
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2; // 枠の太さ
+    ctx.lineJoin = 'round'; // 角を丸くする
+    ctx.strokeRect(x, y, width, height);
+
+    drawEnemy(0);
+}
+function drawWindowBattleEnemy(){
+
+    const width = canvas.width / 2;
+    const height = canvas.height / 2;
+    const x = canvas.width / 2 - width / 2;
+    const y = canvas.height / 2 - height / 2;
+
+    drawEnemyWindow(x, y, width, height);
+}
 function drawCommandMenu() {
+    if(getGameState('battle')){ //&&
+        // !getGameState('battleStart') &&
+        // !getGameState('playerAttack') &&
+        // !getGameState('playerItem') &&
+        // !getGameState('playerEscape') &&
+        // !getGameState('playerDefense')){
+        // message = [
+        //     `コマンド？`
+        // ];
+        drawWindowBattleEnemy();
+        drawWindowPlayerInfo();
+        // drawWindowPlayerCommand(getTextSelect());
+        // drawWindowCommon(message);
+        if(getGameState('battleStart')){
+            message = [
+                `${enemy.name}が あらわれた！`
+            ];
+            drawWindowCommon(message);
+            drawWindowPlayerCommand(getTextSelect());
+        }else if(getGameState('playerAttack')){
+            message = [
+                `${player.name}の こうげき！`,
+                `${enemy.name}に ${enemy.damage}ポイントの`,
+                `ダメージを あたえた！`
+            ];
+            drawWindowCommon(message);
+        }else if(getGameState('playerDefense')){
+            message = [
+                `${enemy.name}の こうげき！`,
+                `${player.name}に ${player.damage}ポイントの`,
+                `ダメージを あたえた！`
+            ];
+            drawWindowCommon(message);
+        }else if(getGameState('playerSpell')){
+            message = [
+                `せんとうちゅうに つかえる`,
+                `じゅもんを おぼえていない！`
+            ];
+            clearGameState('playerSpell');
+            drawWindowCommon(message);
+        }else if(getGameState('playerItem')){
+            message = [
+                `せんとうちゅうに つかえる`,
+                `どうぐを もっていない！`,
+                `やくそうの処理は 未実装だ！！！`
+            ];
+            clearGameState('playerItem');
+            drawWindowCommon(message);
+        }else{
+            message = [
+                `コマンド？`
+            ];
+            drawWindowPlayerCommand(getTextSelect());
+            drawWindowCommon(message);
+        }
+    }
     if(isCommandMenuLevel > 0){
         drawWindowPlayerInfo();
         drawWindowPlayerCommand(getTextSelect());
@@ -857,7 +981,7 @@ async function gameLoop(timestamp){
             
             movePlayer(x, y);
         }
-        if (!isCommandMenuLevel && (moveX !== 0 || moveY !== 0)) {
+        if (!getGameState('battle') && !isCommandMenuLevel && (moveX !== 0 || moveY !== 0)) {
             let x = modAdd(playerPosition.x, moveX, mapWidth);
             let y = modAdd(playerPosition.y, moveY, mapHeight);
             
@@ -888,6 +1012,7 @@ const KEYS = {
     ARROW_LEFT: 'ArrowLeft',
     ARROW_RIGHT: 'ArrowRight',
     SPACE: ' ',
+    B: 'b',
     D: 'd',
     L: 'l',
 };
@@ -936,6 +1061,15 @@ function pressedKey(e){
         case KEYS.SPACE:
             pressedSpace();
             break;
+        case KEYS.B:
+            if(getGameState('battle')){
+                clearGameState('battle');
+                clearGameState('battleStart');
+            }else{
+                setGameState('battle');
+                setGameState('battleStart');
+            }
+            break;
         case KEYS.D:
             if(getGameState('debug')){
                 clearGameState('debug');
@@ -952,7 +1086,7 @@ function pressedKey(e){
         default:
             break;
     }
-    if(isCommandMenuLevel === 1){
+    if(isCommandMenuLevel === 1 || getGameState('battle')){
         textExplainIndex = modAdd(textExplainIndex, moveY, 4);
     }else if(getGameState('changeCode')){
         // 横ならカーソル、縦ならひらがなを更新
@@ -1124,350 +1258,460 @@ async function checkConditions() {
     if(getGameState('afterMessage') || !getGameState('checkConditions')){
         return;
     }
-    if(!getGameState('debug')) document.getElementById('point').style.display = 'none';
-    message = '';
-    if(isVisitMaira()){
-        if(!getGameFlag('fairyFlute')){
-            setGameFlag('fairyFlute');
-            addItemToPlayer('ようせいのふえ');
-            message = [
-                'ここはマイラの村だ',
-                '温泉で有名らしい',
-                '温泉の近くに何か落ちている...'
-            ];
-            await waitForInput(true);
-            message = ['妖精の笛を手に入れた！'];
-            await waitForInput(false);
-        }else{
-            message = [
-                'ここはマイラの村だ',
-                '温泉で有名らしい'
-            ];
-            await waitForInput(false);
-        }
-    }else if(isVisitCave()){
-        if(!getGameFlag('roraRescued')){
-            if(!getGameFlag('magicKey')){
-                message = [
-                    '洞窟の中に扉があったが',
-                    '鍵が無いので開けられなかった...'
-                ];
-                await waitForInput(false);
+    if(getGameState('battle')){
+        if(getGameState('battleStart')){
+            enemy.hp = enemy.maxHp;
+            clearGameState('battleStart');
+        }else if(getGameState('playerAttack')){
+            const randomFactor = Math.floor(Math.random() * 256);
+            enemy.damage = Math.floor((randomFactor * (player.attack - enemy.defense / 2 + 1) / 256 + player.attack - enemy.defense / 2) / 4);
+            enemy.hp -= enemy.damage;
+            console.log(`damage: ${enemy.damage}, hp: ${enemy.hp}`);
+            clearGameState('playerAttack');
+            if(enemy.hp > 0){
+                setGameState('playerDefense');
             }else{
-                setGameFlag('roraRescued');
+                setGameState('battleEnd');
+            }
+        }else if(getGameState('battleEnd')){
+            message = [
+                `${enemy.name}を たおした！`
+            ];
+            await waitForInput(false);
+            clearGameState('battleEnd');
+            clearGameState('battle');
+        }else if(getGameState('playerSpell')){
+            message = [
+                `せんとうちゅうに つかえる`,
+                `じゅもんを おぼえていない！`
+            ];
+            await waitForInput(false);
+            clearGameState('playerSpell');
+        }else if(getGameState('playerItem')){
+            message = [
+                `せんとうちゅうに つかえる`,
+                `どうぐを もっていない！`,
+                `やくそうの処理は 未実装だ！！！`
+            ];
+            await waitForInput(false);
+            clearGameState('playerItem');
+        }else if(getGameState('playerEscape')){
+            message = [
+                `${player.name}は にげだした！`
+            ];
+            await waitForInput(false);
+            clearGameState('playerEscape');
+            clearGameState('battle');
+        }else if(getGameState('playerDefense')){
+            const randomFactor = Math.floor(Math.random() * 256);
+
+            if (enemy.attack - player.defense / 2 >= enemy.attack / 2 + 1) {
+                // 敵攻撃力-守備/2 ≧ 敵攻撃力/2+1
+                player.damage = Math.floor((randomFactor * (enemy.attack - player.defense / 2 + 1) / 256 + enemy.attack - player.defense / 2) / 4);
+            } else {
+                // 敵攻撃力-守備/2 ＜ 敵攻撃力/2+1
+                player.damage = Math.floor(randomFactor * (enemy.attack / 2 + 1) / 256) + 2;
+            }
+            player.hp -= player.damage;
+            clearGameState('playerDefense');
+            if(player.hp <= 0){
+                await waitForInput(true);
                 message = [
-                    '魔法の鍵で扉を開けた！',
-                    'ドラゴンを倒してローラ姫を救出した！'
+                    `${player.name}は しんでしまった！`
                 ];
                 await waitForInput(false);
-                playerStyle = playerStyleWithRora;
+                setGameState('playerKilled');
+                clearGameState('battle');
+                clearGameState('playerDefense');
+                playerKilled();
+            }else{
+                await waitForInput(false);
             }
         }else{
-            message = [
-                '倒したドラゴンのことは',
-                '今度片付けよう'
-            ];
-            await waitForInput(false);
+            if(getGameState('afterMessage') || !getGameState('checkConditions')){
+                return;
+            }
+            switch (textExplainIndex){
+                case commandMenuBattleAttack:
+                    setGameState('playerAttack');
+                    break;
+                case commandMenuBattleSpell:
+                    setGameState('playerSpell');
+                    break;
+                case commandMenuBattleItem:
+                    setGameState('playerItem');
+                    break;
+                case commandMenuBattleEscape:
+                    setGameState('playerEscape');
+                    break;
+                default:
+                    break;
+            }
+            clearGameState('checkConditions');
         }
-        if(isVisitCaveNorth()){
-            playerPosition.y = 57;
-        }else if(isVisitCaveSouth()){
-            playerPosition.y = 52;
+    }else{
+        if(getGameState('afterMessage') || !getGameState('checkConditions')){
+            return;
         }
-    }else if(isVisitRimurudaru()){
-        if(!getGameFlag('magicKey')){
-            setGameFlag('magicKey');
-            player.key = 1;
-            message = [
-                'ここはリムルダールの町だ',
-                '店で魔法の鍵を手に入れた！'
-            ];
-            await waitForInput(false);
-        }else{
-            message = ['ここはリムルダールの町だ'];
-            await waitForInput(false);
-        }
-    }else if(isVisitCastle()){
-        message = ['ここはラダトームの城だ'];
-        await waitForInput(true);
-        if(getGameFlag('lightBall')){
-            message = [
-                '王様「勇者よ！よくぞりゅうおうを倒してくれた！',
-                '　　　わしに代わってこの国を治めてくれい！　　」'
-            ];
-            await waitForInput(true);
-            message = ['しかし あなたは いいました（←！？）'];
-            await waitForInput(true);
-            message = [
-                '勇者「自分の治める国があるなら',
-                '　　　それは自分で探したいのです」'
-            ];
-            await waitForInput(true);
-            message = [
-                'ローラ姫「私も連れて行ってください！」',
-                'ローラ姫は 返事も聞かずに隣に立った！'
-            ];
-            await waitForInput(true);
-            message = ['～THE END～'];
-            await waitForInput(false);
-        }else{
-            if(!getGameFlag('roraLove') && getGameFlag('roraRescued')){
-                setGameFlag('roraLove');
-                addItemToPlayer('おうじょのあい');
-                playerStyle = playerStyleFull;
-                message = ['王様「ローラ姫！」'];
-                await waitForInput(true);
+        if(!getGameState('debug')) document.getElementById('point').style.display = 'none';
+        message = '';
+        if(isVisitMaira()){
+            if(!getGameFlag('fairyFlute')){
+                setGameFlag('fairyFlute');
+                addItemToPlayer('ようせいのふえ');
                 message = [
-                    '王様「なんと！ドラゴンに囚われておったのか',
-                    '　　　よくぞローラ姫を救い出してくれた！」'
+                    'ここはマイラの村だ',
+                    '温泉で有名らしい',
+                    '温泉の近くに何か落ちている...'
                 ];
                 await waitForInput(true);
+                message = ['妖精の笛を手に入れた！'];
+                await waitForInput(false);
+            }else{
                 message = [
-                    'ローラ姫「ありがとうございます...//」',
-                    'おうじょのあいを手に入れた！'
+                    'ここはマイラの村だ',
+                    '温泉で有名らしい'
+                ];
+                await waitForInput(false);
+            }
+        }else if(isVisitCave()){
+            if(!getGameFlag('roraRescued')){
+                if(!getGameFlag('magicKey')){
+                    message = [
+                        '洞窟の中に扉があったが',
+                        '鍵が無いので開けられなかった...'
+                    ];
+                    await waitForInput(false);
+                }else{
+                    setGameFlag('roraRescued');
+                    message = [
+                        '魔法の鍵で扉を開けた！',
+                        'ドラゴンを倒してローラ姫を救出した！'
+                    ];
+                    await waitForInput(false);
+                    playerStyle = playerStyleWithRora;
+                }
+            }else{
+                message = [
+                    '倒したドラゴンのことは',
+                    '今度片付けよう'
+                ];
+                await waitForInput(false);
+            }
+            if(isVisitCaveNorth()){
+                playerPosition.y = 57;
+            }else if(isVisitCaveSouth()){
+                playerPosition.y = 52;
+            }
+        }else if(isVisitRimurudaru()){
+            if(!getGameFlag('magicKey')){
+                setGameFlag('magicKey');
+                player.key = 1;
+                message = [
+                    'ここはリムルダールの町だ',
+                    '店で魔法の鍵を手に入れた！'
                 ];
                 await waitForInput(false);
             }else{
-                if(!getGameFlag('start')){
-                    setGameFlag('start');
+                message = ['ここはリムルダールの町だ'];
+                await waitForInput(false);
+            }
+        }else if(isVisitCastle()){
+            if(getGameState('playerKilled')){
+                clearGameState('playerKilled');
+                message = [
+                    `おお ${player.name}よ！`,
+                    `しんでしまうとは なさけない！`
+                ];
+                await waitForInput(true);
+                message = [
+                    `そなたに もういちど`,
+                    `チャンスを あたえよう！`
+                ];
+                await waitForInput(false);
+            }else{
+                message = ['ここはラダトームの城だ'];
+                await waitForInput(true);
+                if(getGameFlag('lightBall')){
                     message = [
-                        '王様「勇者よ！りゅうおうを倒すのだ！',
-                        '　　　光の玉を取り返し',
-                        '　　　世界の闇を振り払え！」'
+                        '王様「勇者よ！よくぞりゅうおうを倒してくれた！',
+                        '　　　わしに代わってこの国を治めてくれい！　　」'
                     ];
                     await waitForInput(true);
-                }
-                if(!getGameFlag('sunStone')){
-                    if(getGameFlag('magicKey')){
-                        setGameFlag('sunStone');
-                        addItemToPlayer('たいようのいし');
-                        message = ['城の裏で鍵を使い太陽の石を手に入れた！'];
-                        await waitForInput(false);
-                    }else{
-                        message = ['王様「こんな時にローラ姫はどこへ...」'];
-                        await waitForInput(false);
-                    }
+                    message = ['しかし あなたは いいました（←！？）'];
+                    await waitForInput(true);
+                    message = [
+                        '勇者「自分の治める国があるなら',
+                        '　　　それは自分で探したいのです」'
+                    ];
+                    await waitForInput(true);
+                    message = [
+                        'ローラ姫「私も連れて行ってください！」',
+                        'ローラ姫は 返事も聞かずに隣に立った！'
+                    ];
+                    await waitForInput(true);
+                    message = ['～THE END～'];
+                    await waitForInput(false);
                 }else{
-                    if(playerStyle === playerStyleNormal){
+                    if(!getGameFlag('roraLove') && getGameFlag('roraRescued')){
+                        setGameFlag('roraLove');
+                        addItemToPlayer('おうじょのあい');
+                        playerStyle = playerStyleFull;
+                        message = ['王様「ローラ姫！」'];
+                        await waitForInput(true);
                         message = [
-                            '王様「もし敵にやられてしまったら',
-                            '　　　ここまで運び込まれるのじゃ」'
+                            '王様「なんと！ドラゴンに囚われておったのか',
+                            '　　　よくぞローラ姫を救い出してくれた！」'
                         ];
                         await waitForInput(true);
                         message = [
-                            '王様「所持金の概念が無くて良かったのう',
-                            '　　　我が城の兵士を動かすのも',
-                            '　　　タダというわけではないんじゃが… 」'
+                            'ローラ姫「ありがとうございます...//」',
+                            'おうじょのあいを手に入れた！'
                         ];
                         await waitForInput(false);
                     }else{
-                        message = [
-                            '王様「ローラ姫を助けるくだりが',
-                            '　　　正直ほとんど無かったじゃろう」'
-                        ];
-                        await waitForInput(true);
-                        message = [
-                            '王様「装備の概念も少なすぎるから',
-                            '　　　一応見た目だけ 剣と盾を与えてあるぞ',
-                            '　　　せめてもの計らいに 感謝してくれ　　」'
-                        ];
-                        await waitForInput(false);
+                        if(!getGameFlag('start')){
+                            setGameFlag('start');
+                            message = [
+                                '王様「勇者よ！りゅうおうを倒すのだ！',
+                                '　　　光の玉を取り返し',
+                                '　　　世界の闇を振り払え！」'
+                            ];
+                            await waitForInput(true);
+                        }
+                        if(!getGameFlag('sunStone')){
+                            if(getGameFlag('magicKey')){
+                                setGameFlag('sunStone');
+                                addItemToPlayer('たいようのいし');
+                                message = ['城の裏で鍵を使い太陽の石を手に入れた！'];
+                                await waitForInput(false);
+                            }else{
+                                message = ['王様「こんな時にローラ姫はどこへ...」'];
+                                await waitForInput(false);
+                            }
+                        }else{
+                            if(playerStyle === playerStyleNormal){
+                                message = [
+                                    '王様「もし敵にやられてしまったら',
+                                    '　　　ここまで運び込まれるのじゃ」'
+                                ];
+                                await waitForInput(true);
+                                message = [
+                                    '王様「所持金の概念が無くて良かったのう',
+                                    '　　　我が城の兵士を動かすのも',
+                                    '　　　タダというわけではないんじゃが… 」'
+                                ];
+                                await waitForInput(false);
+                            }else{
+                                message = [
+                                    '王様「ローラ姫を助けるくだりが',
+                                    '　　　正直ほとんど無かったじゃろう」'
+                                ];
+                                await waitForInput(true);
+                                message = [
+                                    '王様「装備の概念も少なすぎるから',
+                                    '　　　一応見た目だけ 剣と盾を与えてあるぞ',
+                                    '　　　せめてもの計らいに 感謝してくれ　　」'
+                                ];
+                                await waitForInput(false);
+                            }
+                        }
                     }
                 }
             }
-        }
-    }else if(isVisitGarai()){
-        if(!getGameFlag('silverHerp')){
-            if(getGameFlag('magicKey')){
-                setGameFlag('silverHerp');
-                addItemToPlayer('ぎんのたてごと');
-                message = [
-                    'ここはガライの町だ',
-                    '吟遊詩人ガライの墓があるらしい',
-                    '隠し通路の鍵を開けてダンジョンに挑んだ！'
-                ];
-                await waitForInput(true);
-                message = ['ガライの墓で銀の竪琴を手に入れた！'];
-                await waitForInput(false);
-            }else{
-                message = [
-                    'ここはガライの町だ',
-                    '吟遊詩人ガライの墓があるらしい',
-                    '隠し通路を見つけたが鍵がかかっている...'
-                ];
-                await waitForInput(false);
-            }
-        }else{
-            message = [
-                'ここはガライの町だ',
-                '吟遊詩人ガライの墓があるらしい'
-            ];
-            await waitForInput(false);
-        }
-    }else if(isVisitMairaShrine()){
-        if(!getGameFlag('rainCloudStuff')){
+        }else if(isVisitGarai()){
             if(!getGameFlag('silverHerp')){
-                message = ['老人「銀の竪琴の音色を聞きたいなあ...」'];
-                await waitForInput(false);
+                if(getGameFlag('magicKey')){
+                    setGameFlag('silverHerp');
+                    addItemToPlayer('ぎんのたてごと');
+                    message = [
+                        'ここはガライの町だ',
+                        '吟遊詩人ガライの墓があるらしい',
+                        '隠し通路の鍵を開けてダンジョンに挑んだ！'
+                    ];
+                    await waitForInput(true);
+                    message = ['ガライの墓で銀の竪琴を手に入れた！'];
+                    await waitForInput(false);
+                }else{
+                    message = [
+                        'ここはガライの町だ',
+                        '吟遊詩人ガライの墓があるらしい',
+                        '隠し通路を見つけたが鍵がかかっている...'
+                    ];
+                    await waitForInput(false);
+                }
             }else{
-                setGameFlag('rainCloudStuff');
-                addItemToPlayer('あまぐものつえ');
                 message = [
-                    '老人「おお！それは銀の竪琴ではないか！',
-                    '　　　そなたに雨雲の杖を授けよう！　　」'
-                ];
-                await waitForInput(true);
-                message = [
-                    '雨雲の杖を手に入れた！'
+                    'ここはガライの町だ',
+                    '吟遊詩人ガライの墓があるらしい'
                 ];
                 await waitForInput(false);
             }
-        }else{
-            message = ['老人「もう思い残すことはないわいﾋﾟﾛﾋﾟﾛ」'];
-            await waitForInput(false);
-        }
-    }else if(isVisitMerukidoGate()){
-        if(!getGameFlag('golemKilled')){
-            if(!getGameFlag('fairyFlute')){
+        }else if(isVisitMairaShrine()){
+            if(!getGameFlag('rainCloudStuff')){
+                if(!getGameFlag('silverHerp')){
+                    message = ['老人「銀の竪琴の音色を聞きたいなあ...」'];
+                    await waitForInput(false);
+                }else{
+                    setGameFlag('rainCloudStuff');
+                    addItemToPlayer('あまぐものつえ');
+                    message = [
+                        '老人「おお！それは銀の竪琴ではないか！',
+                        '　　　そなたに雨雲の杖を授けよう！　　」'
+                    ];
+                    await waitForInput(true);
+                    message = [
+                        '雨雲の杖を手に入れた！'
+                    ];
+                    await waitForInput(false);
+                }
+            }else{
+                message = ['老人「もう思い残すことはないわいﾋﾟﾛﾋﾟﾛ」'];
+                await waitForInput(false);
+            }
+        }else if(isVisitMerukidoGate()){
+            if(!getGameFlag('golemKilled')){
+                if(!getGameFlag('fairyFlute')){
+                    message = [
+                        'ゴーレムが現れた！',
+                        '動きを止めないと勝ち目がない...！',
+                        'しんでしまった...'
+                    ];
+                    await waitForInput(false);
+                    playerKilled();
+                }else{
+                    setGameFlag('golemKilled');
+                    message = [
+                        '妖精の笛でゴーレムを眠らせた！',
+                        'ゴーレムを倒した！'
+                    ];
+                    await waitForInput(false);
+                }
+            }
+        }else if(isVisitMerukido()){
+            if(!getGameFlag('rotoEmblem')){
+                const dx = gameFlags.rotoEmblem.location.x - gameFlags.sunStone.location.x;
+                const dy = gameFlags.rotoEmblem.location.y - gameFlags.sunStone.location.y;
                 message = [
-                    'ゴーレムが現れた！',
-                    '動きを止めないと勝ち目がない...！',
-                    'しんでしまった...'
+                    '老人「ラダトーム城まで',
+                    `西に${dx} 北に${dy}`,
+                    'の場所を調べなされ！」'
                 ];
+                await waitForInput(false);
+            }else{
+                message = ['老人「てか おうじょのあい 重くない？」'];
+                await waitForInput(true);
+                message = ['老人「もちろん 物理的な 話なんだけど」'];
+                await waitForInput(false);
+            }
+        }else if(isVisitRotoEmblem()){
+            if(!getGameFlag('rotoEmblem')){
+                setGameFlag('rotoEmblem');
+                addItemToPlayer('ロトのしるし');
+                message = ['ロトのしるしを手に入れた！'];
+                await waitForInput(false);
+            }
+        }else if(isVisitDomudora()){
+            if(!getGameFlag('rotoArmor')){
+                setGameFlag('rotoArmor');
+                message = [
+                    'ここはドムドーラの町だった',
+                    '今は廃墟となってしまっている...',
+                    '突然 あくまのきし が現れた！'
+                ];
+                await waitForInput(true);
+                message = [
+                    'あくまのきし を倒して',
+                    'ロトのよろいを 手に入れた！'
+                ];
+                await waitForInput(false);
+            }else{
+                message = [
+                    'ここはドムドーラの町だった',
+                    '今は廃墟となってしまっている...'
+                ];
+                await waitForInput(true);
+                message = [
+                    '何故ここにロトのよろいがあったのか',
+                    'その真相は製品版をお買い求めください'
+                ];
+                await waitForInput(false);
+            }
+        }else if(isVisitRimurudaruShrine()){
+            if(!getGameFlag('rainbowDrop')){
+                if(getGameFlag('sunStone') && getGameFlag('rainCloudStuff') && getGameFlag('rotoEmblem')){
+                    setGameFlag('rainbowDrop');
+                    deleteItemFromPlayer('たいようのいし');
+                    deleteItemFromPlayer('あまぐものつえ');
+                    addItemToPlayer('にじのしずく');
+                    message = ['老人「よくぞ太陽と雨雲を揃えた！」'];
+                    await waitForInput(true);
+                    message = [
+                        '老人「ここに虹のしずくが完成した！',
+                        '　　　これでりゅうおうへの',
+                        '　　　道が開かれるであろう！」'
+                    ];
+                    await waitForInput(false);
+                }else if(!getGameFlag('rotoEmblem')){
+                    message = ['老人「勇者だと？嘘をつくな！」'];
+                    await waitForInput(true);
+                    message = [
+                        '老人「もし本物の勇者なら',
+                        '　　　どこかにしるしがあるはずじゃ！」'
+                    ];
+                    await waitForInput(false);
+                }else{
+                    message = ['老人「しるしを持っているな！本物の勇者じゃ」'];
+                    await waitForInput(true);
+                    message = [
+                        '老人「太陽と雨雲が揃ったとき',
+                        '　　　虹の橋が架かるとの言い伝えじゃ！」'
+                    ];
+                    await waitForInput(false);
+                }
+            }else{
+                message = ['老人「前から 思ってたけど...」'];
+                await waitForInput(true);
+                message = [
+                    '老人「虹のしずくを 経由しなくても',
+                    '　　　全部揃ってたら 橋が架かる',
+                    '　　　って勘違いしない？」'
+                ];
+                await waitForInput(false);
+            }
+        }else if(isVisitRainbowBridge()){
+            if(!getGameFlag('rainbowBridge') && getGameFlag('rainbowDrop')){
+                setGameFlag('rainbowBridge');
+                mapData[gameFlags.rainbowBridge.location.y][gameFlags.rainbowBridge.location.x-1] = 35;
+                message = ['虹のしずくを使った！'];
+                await waitForInput(true);
+                deleteItemFromPlayer('にじのしずく');
+                message = ['虹の橋が架かった！'];
+                await waitForInput(false);
+            }
+        }else if(isVisitDragonCastle()){
+            if(!getGameFlag('rotoArmor')){
+                message = ['りゅうおうが 現れた！'];
+                await waitForInput(true);
+                message = ['防御が紙なので 普通にやられてしまった！'];
+                await waitForInput(true);
+                message = ['どうしてこんな装備で 挑んでしまったんだ！'];
                 await waitForInput(false);
                 playerKilled();
             }else{
-                setGameFlag('golemKilled');
-                message = [
-                    '妖精の笛でゴーレムを眠らせた！',
-                    'ゴーレムを倒した！'
-                ];
+                setGameFlag('lightBall');
+                message = ['りゅうおうを倒し、光の玉を手に入れた！'];
                 await waitForInput(false);
             }
-        }
-    }else if(isVisitMerukido()){
-        if(!getGameFlag('rotoEmblem')){
-            const dx = gameFlags.rotoEmblem.location.x - gameFlags.sunStone.location.x;
-            const dy = gameFlags.rotoEmblem.location.y - gameFlags.sunStone.location.y;
-            message = [
-                '老人「ラダトーム城まで',
-                `西に${dx} 北に${dy}`,
-                'の場所を調べなされ！」'
-            ];
-            await waitForInput(false);
+        }else if(isVisitTown()){
+            updateTextExplainSave();
+            message = textExplainSave;
+            await changeCode();
         }else{
-            message = ['老人「てか おうじょのあい 重くない？」'];
-            await waitForInput(true);
-            message = ['老人「もちろん 物理的な 話なんだけど」'];
-            await waitForInput(false);
+            isCommandMenuLevel = modAdd(isCommandMenuLevel, 1, maxLevel);
+            displayMessage(message);
         }
-    }else if(isVisitRotoEmblem()){
-        if(!getGameFlag('rotoEmblem')){
-            setGameFlag('rotoEmblem');
-            addItemToPlayer('ロトのしるし');
-            message = ['ロトのしるしを手に入れた！'];
-            await waitForInput(false);
-        }
-    }else if(isVisitDomudora()){
-        if(!getGameFlag('rotoArmor')){
-            setGameFlag('rotoArmor');
-            message = [
-                'ここはドムドーラの町だった',
-                '今は廃墟となってしまっている...',
-                '突然 あくまのきし が現れた！'
-            ];
-            await waitForInput(true);
-            message = [
-                'あくまのきし を倒して',
-                'ロトのよろいを 手に入れた！'
-            ];
-            await waitForInput(false);
-        }else{
-            message = [
-                'ここはドムドーラの町だった',
-                '今は廃墟となってしまっている...'
-            ];
-            await waitForInput(true);
-            message = [
-                '何故ここにロトのよろいがあったのか',
-                'その真相は製品版をお買い求めください'
-            ];
-            await waitForInput(false);
-        }
-    }else if(isVisitRimurudaruShrine()){
-        if(!getGameFlag('rainbowDrop')){
-            if(getGameFlag('sunStone') && getGameFlag('rainCloudStuff') && getGameFlag('rotoEmblem')){
-                setGameFlag('rainbowDrop');
-                deleteItemFromPlayer('たいようのいし');
-                deleteItemFromPlayer('あまぐものつえ');
-                addItemToPlayer('にじのしずく');
-                message = ['老人「よくぞ太陽と雨雲を揃えた！」'];
-                await waitForInput(true);
-                message = [
-                    '老人「ここに虹のしずくが完成した！',
-                    '　　　これでりゅうおうへの',
-                    '　　　道が開かれるであろう！」'
-                ];
-                await waitForInput(false);
-            }else if(!getGameFlag('rotoEmblem')){
-                message = ['老人「勇者だと？嘘をつくな！」'];
-                await waitForInput(true);
-                message = [
-                    '老人「もし本物の勇者なら',
-                    '　　　どこかにしるしがあるはずじゃ！」'
-                ];
-                await waitForInput(false);
-            }else{
-                message = ['老人「しるしを持っているな！本物の勇者じゃ」'];
-                await waitForInput(true);
-                message = [
-                    '老人「太陽と雨雲が揃ったとき',
-                    '　　　虹の橋が架かるとの言い伝えじゃ！」'
-                ];
-                await waitForInput(false);
-            }
-        }else{
-            message = ['老人「前から 思ってたけど...」'];
-            await waitForInput(true);
-            message = [
-                '老人「虹のしずくを 経由しなくても',
-                '　　　全部揃ってたら 橋が架かる',
-                '　　　って勘違いしない？」'
-            ];
-            await waitForInput(false);
-        }
-    }else if(isVisitRainbowBridge()){
-        if(!getGameFlag('rainbowBridge') && getGameFlag('rainbowDrop')){
-            setGameFlag('rainbowBridge');
-            mapData[gameFlags.rainbowBridge.location.y][gameFlags.rainbowBridge.location.x-1] = 35;
-            message = ['虹のしずくを使った！'];
-            await waitForInput(true);
-            deleteItemFromPlayer('にじのしずく');
-            message = ['虹の橋が架かった！'];
-            await waitForInput(false);
-        }
-    }else if(isVisitDragonCastle()){
-        if(!getGameFlag('rotoArmor')){
-            message = ['りゅうおうが 現れた！'];
-            await waitForInput(true);
-            message = ['防御が紙なので 普通にやられてしまった！'];
-            await waitForInput(true);
-            message = ['どうしてこんな装備で 挑んでしまったんだ！'];
-            await waitForInput(false);
-            playerKilled();
-        }else{
-            setGameFlag('lightBall');
-            message = ['りゅうおうを倒し、光の玉を手に入れた！'];
-            await waitForInput(false);
-        }
-    }else if(isVisitTown()){
-        updateTextExplainSave();
-        message = textExplainSave;
-        await changeCode();
-    }else{
-        isCommandMenuLevel = modAdd(isCommandMenuLevel, 1, maxLevel);
-        displayMessage(message);
+        if(getGameFlag('roraLove')) document.getElementById('point').style.display = 'block';
+        clearGameState('checkConditions');
     }
-    if(getGameFlag('roraLove')) document.getElementById('point').style.display = 'block';
-    clearGameState('checkConditions');
 }
