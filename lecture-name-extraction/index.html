@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>講義名抜き出し</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        label {
+            font-size: 16px;
+            margin-bottom: 10px;
+            display: block;
+        }
+        textarea {
+            width: calc(100% - 20px); /* 20pxはpaddingの合計値 */
+            padding: 10px;
+            font-size: 14px;
+            box-sizing: border-box; /* paddingを含めたボックスサイズに設定 */
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            margin: 20px 0;
+            display: inline-block;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result_container {
+            border: 1px solid #ddd;
+            padding: 20px;
+            max-width: 600px;
+            overflow: hidden;
+        }
+        #result_text {
+            font-size: 14px;
+            float: left;
+        }
+        #copy_message {
+            font-size: 14px;
+            color: green;
+            font-weight: bold;
+            float: right;
+            margin-top: 20px;
+        }
+        .clearfix {
+            max-width: 600px;
+        }
+        .clearfix::after {
+            content: "";
+            clear: both;
+            display: table;
+        }
+    </style>
+</head>
+<body>
+    <h1>講義名抜き出し</h1>
+
+    <label for="input_text">入力テキスト:</label>
+    <textarea id="input_text" rows="10" placeholder="ここにテキストを入力してください..."></textarea>
+    <button onclick="processText()">処理</button>
+    <button onclick="clearInput()">クリア</button>
+
+    <h2>処理されたテキスト:</h2>
+    <div id="result_container">
+        <p id="result_text"></p>
+    </div>
+    <div class="clearfix">
+        <button onclick="copyToClipboard()">コピー</button>
+        <p id="copy_message"></p>
+    </div>
+
+    <p><strong>使い方:</strong></p>
+    <p>1. 上記の「入力テキスト」エリアに成績表からコピーしたテキストを入力します。</p>
+    <p>2. 「処理」ボタンをクリックして、テキストを処理します。</p>
+    <p>3. 「クリップボードにコピー」ボタンをクリックして、処理されたテキストをクリップボードにコピーします。</p>
+
+    <p><strong>例:</strong></p>
+    <p>以下は、成績表からコピーしたテキストの例です。</p>
+    <p>【言語教育科目】<br>
+    《中国語》 4単位<br>
+    中国語初級基礎Ａ 1 S 19 前<br>
+    中国語初級基礎Ｂ 1 A+ 19 後<br>
+    中国語初級演習Ａ 1 S 19 前<br>
+    中国語初級演習Ｂ 1 S 19 後</p>
+    <p>このテキストを処理すると、以下のように講義名のみが抽出されます。</p>
+    <p>中国語初級基礎Ａ<br>
+    中国語初級基礎Ｂ<br>
+    中国語初級演習Ａ<br>
+    中国語初級演習Ｂ</p>
+    <p>具体的な処理として、【】や《》を含む行を削除し、各行の単位数以降を削除しています。</p>
+
+    <p><strong>使い道:</strong></p>
+    <p>就職活動中に、履修履歴データベースなどの入力を補助します。<br>
+    学部の成績を入力する場合、100単位を超えることは少なくありません。<br>
+    成績表の講義名を含む部分を選択してコピーし、ここで処理した結果をデータベースに貼り付けてください。</p>
+
+    <a href="../index.html" class="link">Return to main page</a>
+
+    <script>
+        function processText() {
+            var inputText = document.getElementById('input_text').value;
+
+            // 【】や《》を含む行をまるごと削除
+            var cleanedText = inputText.replace(/【.*?】|\《.*?》/g, '');
+
+            // 各行の空白の後に数字がある場合、それ以降の部分を削除
+            cleanedText = cleanedText.replace(/\s+\d.*/g, '');
+
+            document.getElementById('result_text').innerText = cleanedText;
+            document.getElementById('copy_message').innerText = ''; // コピーメッセージをクリア
+        }
+
+        function copyToClipboard() {
+            var resultText = document.getElementById('result_text');
+            var range = document.createRange();
+            range.selectNode(resultText);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+
+            try {
+                document.execCommand('copy');
+                document.getElementById('copy_message').innerText = 'テキストがクリップボードにコピーされました！';
+            } catch (err) {
+                document.getElementById('copy_message').innerText = 'テキストをクリップボードにコピーできませんでした。Ctrl+C（MacではCmd+C）を使用してください。';
+            }
+
+            window.getSelection().removeAllRanges();
+        }
+
+        function clearInput() {
+            document.getElementById('input_text').value = '';
+            document.getElementById('result_text').innerText = '';
+            document.getElementById('copy_message').innerText = '';
+        }
+    </script>
+</body>
+</html>
+
+
+<!-- 
+Interactive English A
+Interactive English B
+Career English Basic
+Academic English
+Career English Intermediate
+Career English Advanced
+中国語中級Ａ
+中国語中級Ｂ
+中国語初級基礎Ａ
+中国語初級基礎Ｂ
+中国語初級演習Ａ
+中国語初級演習Ｂ
+工芸科学基礎
+キャリア教育基礎
+地球環境論
+ものづくり加工実習
+伝統産業概論Ⅱ
+京の生活文化史
+知的財産経営論
+発達心理学
+国際政治
+比較宗教学
+人と自然と数学α
+化学概論Ⅰ
+情報工学セミナー
+情報工学概論
+基礎解析Ⅰ
+基礎解析Ⅱ
+線形代数学Ⅰ
+線形代数学Ⅱ
+統計数理
+数学演習Ⅰ
+数学演習Ⅱ
+解析学Ⅰ
+解析学Ⅱ
+数理解析
+応用数理
+応用解析
+物理学実験法及び基礎実験
+物理学Ⅰ
+物理学Ⅰ演習
+情報リテラシー概論
+プログラミングⅠ
+プログラミングⅡ
+ソフトウェア演習Ⅰ
+ソフトウェア演習Ⅱ
+プロジェクト実習Ⅰ
+プロジェクト実習Ⅱ
+プロジェクト実習Ⅲ
+情報システムプログラミング
+ネットワークプログラミング
+言語処理プログラミング
+卒業研究
+情報理論
+コンピュータシステム
+システム最適化
+論理設計
+データ構造とアルゴリズム
+データベース
+コンパイラ
+ヒューマンインタフェース
+離散数学
+情報セキュリティ
+ソフトウェア工学
+システム論
+エレクトロニクス
+ディジタル電子回路
+制御工学
+プログラミング言語論
+知能工学
+AI・データサイエンス基礎
+組み込みシステム設計論
+ディジタル信号処理
+画像工学
+コンピュータシステム特論
+人間情報環境特論
+情報ネットワーク特論
+ダイナミカルシステム論
+マルチメディア効果論
+認知的インタラクションデザイン学
+ソフトウェアメトリクス論
+IoTプロセシング特論
+情報伝送システム論
+ソフトウェアマイニング分析論
+ -->

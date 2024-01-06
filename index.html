@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -20,16 +20,23 @@
             background-color: #eee;
         }
 
-        .game-container {
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            flex-wrap: wrap;
+        .container {
             max-width: 800px;
             margin: 20px auto;
         }
 
-        .game {
+        .game-container,
+        .other-content-container {
+            margin-top: 20px;
+        }
+
+        .container h2 {
+            text-align: center;
+            color: #4285f4;
+            margin-bottom: 20px;
+        }
+
+        .content {
             text-align: center;
             padding: 20px;
             margin: 10px;
@@ -39,8 +46,12 @@
             transition: transform 0.3s ease-in-out;
         }
 
-        .game:hover {
+        .game-container .content:hover {
             transform: scale(1.05);
+        }
+
+        .other-content-container .content:hover {
+            transform: scale(1.03);
         }
 
         a {
@@ -50,10 +61,48 @@
             display: block;
             margin-top: 15px;
             font-weight: bold;
+            cursor: pointer;
         }
 
-        .game:hover a {
+        .content:hover a {
             color: #0d47a1;
+        }
+
+        .game-container h2 {
+            color: #0d47a1;
+        }
+
+        .other-content-container h2 {
+            color: #e65100;
+        }
+
+        .other-content-container .content a {
+            color: #ff7043;
+        }
+
+        .other-content-container .content:hover a {
+            color: #e65100;
+        }
+
+        #languageToggle {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #languageToggle button {
+            background-color: #4285f4;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        #languageToggle button:hover {
+            background-color: #0d47a1;
         }
     </style>
 </head>
@@ -61,38 +110,110 @@
 
 <h1>Salce's pages</h1>
 
-<div class="game-container">
-    <div class="game">
-        <h2>Shut The Box</h2>
-        <p>A classic dice game. Can you close the box?</p>
-        <a href="./shut-the-box/index.html">Play Now</a>
+<div class="container">
+
+    <div id="languageToggle">
+        <button onclick="toggleLanguage('en')">English</button>
+        <button onclick="toggleLanguage('ja')">日本語</button>
     </div>
-    <div class="game">
-        <h2>Suica Fall</h2>
-        <p>Strategically drop and merge fruits to harvest juicy watermelons!</p>
-        <a href="./suica-fall/index.html">Play Now</a>
+
+    <div class="game-container">
+        <h2 class="en">Games</h2>
+        <h2 class="ja" style="display:none;">ゲーム</h2>
+
+        <div class="content">
+            <h2 class="en">Shut The Box</h2>
+            <h2 class="ja" style="display:none;">シャットザボックス</h2>
+            <p class="en">A classic dice game. Can you close the box?</p>
+            <p class="ja" style="display:none;">クラシックなサイコロゲーム。ボックスを閉じることができますか？</p>
+            <a href="./suica-fall/index.html" class="en">Play Now</a>
+            <a href="./suica-fall/index.html" class="ja" style="display:none;">今すぐプレイ</a>
+        </div>
+
+        <div class="content">
+            <h2 class="en">Suica Fall</h2>
+            <h2 class="ja" style="display:none;">スイカフォール</h2>
+            <p class="en">Strategically drop and merge fruits to harvest juicy watermelons!</p>
+            <p class="ja" style="display:none;">戦略的に果物を落として統合し、ジューシーなスイカを収穫しましょう！</p>
+            <a href="./suica-fall/index.html" class="en">Play Now</a>
+            <a href="./suica-fall/index.html" class="ja" style="display:none;">今すぐプレイ</a>
+        </div>        
+
+        <div class="content">
+            <h2 class="en">Tetris</h2>
+            <h2 class="ja" style="display:none;">テトリス</h2>
+            <p class="en">Arrange falling blocks to complete lines and score points.</p>
+            <p class="ja" style="display:none;">落ちてくるブロックを配置してラインを完成させ、ポイントを獲得しましょう。</p>
+            <a href="./tetris/index.html" class="en">Play Now</a>
+            <a href="./tetris/index.html" class="ja" style="display:none;">今すぐプレイ</a>
+        </div>
+        
+        <div class="content">
+            <h2 class="en">Avoid Game (Keyboard)</h2>
+            <h2 class="ja" style="display:none;">避けゲー（キーボード）</h2>
+            <p class="en">Use your keyboard to navigate and avoid obstacles.</p>
+            <p class="ja" style="display:none;">キーボードを使って自機を操作し、障害物を回避します。</p>
+            <a href="./avoid-game/index.html" class="en">Play Now</a>
+            <a href="./avoid-game/index.html" class="ja" style="display:none;">今すぐプレイ</a>
+        </div>
+        
+        <div class="content">
+            <h2 class="en">Coming Soon...</h2>
+            <h2 class="ja" style="display:none;">近日公開...</h2>
+            <p class="en">Coming Soon...</p>
+            <p class="ja" style="display:none;">近日公開...</p>
+            <a href="./rock-paper-scissors/index.html" class="en">Play Now</a>
+            <a href="./rock-paper-scissors/index.html" class="ja" style="display:none;">今すぐプレイ</a>
+        </div>        
+
+        <div class="content">
+            <h2 class="en">Salt Quest</h2>
+            <h2 class="ja" style="display:none;">ソルトクエスト</h2>
+            <p class="en">A new legend is about to be born. Yet, it feels strangely familiar...</p>
+            <p class="ja" style="display:none;">今、新たな伝説が生まれようとしている。しかし、どこかで見たような...</p>
+            <a href="./salt-quest-1/index.html" class="en">Play Now</a>
+            <a href="./salt-quest-1/index.html" class="ja" style="display:none;">今すぐプレイ</a>
+        </div>        
     </div>
-    <div class="game">
-        <h2>Tetris</h2>
-        <p>Arrange falling blocks to complete lines and score points.</p>
-        <a href="./tetris/index.html">Play Now</a>
+
+    <div class="other-content-container">
+        <h2 class="en">Other Content</h2>
+        <h2 class="ja" style="display:none;">その他のコンテンツ</h2>
+
+        <div class="content">
+            <h2 class="en">Lecture Name Extraction</h2>
+            <h2 class="ja" style="display:none;">講義名抽出</h2>
+            <p class="en">Extract lecture names from the text of the report card.</p>
+            <p class="ja" style="display:none;">成績表のテキストから講義名を抽出します。</p>
+            <a href="./lecture-name-extraction/index.html" class="en">Go to Page</a>
+            <a href="./lecture-name-extraction/index.html" class="ja" style="display: none;">Go to Page</a>
+        </div>
     </div>
-    <div class="game">
-        <h2>Avoid Game (Keyboard)</h2>
-        <p>Use your keyboard to navigate and avoid obstacles.</p>
-        <a href="./avoid-game/index.html">Play Now</a>
-    </div>
-    <div class="game">
-        <h2>Coming Soon...</h2>
-        <p>Coming Soon...</p>
-        <a href="./rock-paper-scissors/index.html">Play Now</a>
-    </div>
-    <div class="game">
-        <h2>Salt Quest</h2>
-        <p>A new legend is about to be born. Yet, it feels strangely familiar...</p>
-        <a href="./salt-quest-1/index.html">Play Now</a>
-    </div>
+
 </div>
+
+<script>
+    function toggleLanguage(language) {
+        var enElements = document.querySelectorAll('.en');
+        var jaElements = document.querySelectorAll('.ja');
+
+        if (language === 'en') {
+            enElements.forEach(function (el) {
+                el.style.display = 'block';
+            });
+            jaElements.forEach(function (el) {
+                el.style.display = 'none';
+            });
+        } else {
+            enElements.forEach(function (el) {
+                el.style.display = 'none';
+            });
+            jaElements.forEach(function (el) {
+                el.style.display = 'block';
+            });
+        }
+    }
+</script>
 
 </body>
 </html>
