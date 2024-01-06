@@ -13,11 +13,33 @@
             background-color: #f8f8f8;
         }
 
-        h1 {
+        header {
+            background-color: #333;
+            color: #fff;
             text-align: center;
+            padding: 20px 0;
+        }
+
+        nav {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        nav a {
+            text-decoration: none;
             color: #333;
-            padding: 20px;
-            background-color: #eee;
+            margin: 0 15px;
+            font-weight: bold;
+            font-size: 18px;
+            transition: color 0.3s ease;
+        }
+
+        nav a:hover {
+            color: #4285f4;
+        }
+
+        nav .other:hover {
+            color: #ff7043;
         }
 
         .container {
@@ -54,34 +76,40 @@
             transform: scale(1.03);
         }
 
-        a {
+        .content a {
             text-decoration: none;
             color: #4285f4;
             transition: color 0.3s ease;
-            display: block;
+            display: inline-block;
             margin-top: 15px;
             font-weight: bold;
+            padding: 8px 20px;
+            border-radius: 5px;
+            border: 2px solid #4285f4;
             cursor: pointer;
         }
 
         .content:hover a {
             color: #0d47a1;
+            border-color: #0d47a1;
         }
 
         .game-container h2 {
-            color: #0d47a1;
+            color: #4285f4;
         }
 
         .other-content-container h2 {
-            color: #e65100;
+            color: #ff7043;
         }
 
         .other-content-container .content a {
             color: #ff7043;
+            border-color:#ff7043;
         }
 
         .other-content-container .content:hover a {
             color: #e65100;
+            border-color:#e65100;
         }
 
         #languageToggle {
@@ -108,7 +136,14 @@
 </head>
 <body>
 
-<h1>Salce's pages</h1>
+<header>
+    <h1>Salce's pages</h1>
+</header>
+
+<nav>
+    <a href="#games" class="game">Games</a>
+    <a href="#other" class="other">Other Content</a>
+</nav>
 
 <div class="container">
 
@@ -117,7 +152,7 @@
         <button onclick="toggleLanguage('ja')">日本語</button>
     </div>
 
-    <div class="game-container">
+    <div class="game-container" id="games">
         <h2 class="en">Games</h2>
         <h2 class="ja" style="display:none;">ゲーム</h2>
 
@@ -176,7 +211,7 @@
         </div>        
     </div>
 
-    <div class="other-content-container">
+    <div class="other-content-container" id="other">
         <h2 class="en">Other Content</h2>
         <h2 class="ja" style="display:none;">その他のコンテンツ</h2>
 
@@ -186,7 +221,7 @@
             <p class="en">Extract lecture names from the text of the report card.</p>
             <p class="ja" style="display:none;">成績表のテキストから講義名を抽出します。</p>
             <a href="./lecture-name-extraction/index.html" class="en">Go to Page</a>
-            <a href="./lecture-name-extraction/index.html" class="ja" style="display: none;">Go to Page</a>
+            <a href="./lecture-name-extraction/index.html" class="ja" style="display: none;">ページに移動</a>
         </div>
     </div>
 
