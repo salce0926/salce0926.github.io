@@ -14,32 +14,60 @@
         }
 
         header {
+            position: fixed; /* ヘッダーを固定位置に */
+            top: 0;
+            right: 0;
+            left: 0;
+            height: 10vh;
             background-color: #333;
             color: #fff;
-            text-align: center;
-            padding: 20px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 2; /* 写真より手前に表示 */
+        }
+
+        header h1 {
+            margin: 20px;
         }
 
         nav {
-            text-align: center;
-            margin-bottom: 20px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            z-index: 2;
         }
 
         nav a {
             text-decoration: none;
-            color: #333;
-            margin: 0 15px;
+            color: #fff;
+            margin: 15px; /* 適宜余白を調整 */
             font-weight: bold;
             font-size: 18px;
             transition: color 0.3s ease;
+            cursor: pointer;
         }
 
         nav a:hover {
             color: #4285f4;
         }
 
-        nav .other:hover {
+        nav .page:hover {
             color: #ff7043;
+        }
+
+        .back-to-top:hover {
+            color: #0d47a1;
+        }
+
+        .fullscreen-image {
+            width: 100%;
+            height: calc(100vh - 10vh); /* 画面の高さいっぱいに表示 */
+            background: url('./images/image.jpg') center/cover no-repeat; /* 画像を背景に表示 */
+            position: relative;
+            text-align: center;
+            color: #fff;
+            margin-top: 10vh; /* ヘッダーの高さを考慮して余白を追加 */
         }
 
         .container {
@@ -48,7 +76,7 @@
         }
 
         .game-container,
-        .other-content-container {
+        .page-container {
             margin-top: 20px;
         }
 
@@ -72,7 +100,7 @@
             transform: scale(1.05);
         }
 
-        .other-content-container .content:hover {
+        .page-container .content:hover {
             transform: scale(1.03);
         }
 
@@ -80,12 +108,10 @@
             text-decoration: none;
             color: #4285f4;
             transition: color 0.3s ease;
-            display: inline-block;
+            display: block;
             margin-top: 15px;
             font-weight: bold;
             padding: 8px 20px;
-            border-radius: 5px;
-            border: 2px solid #4285f4;
             cursor: pointer;
         }
 
@@ -98,16 +124,16 @@
             color: #4285f4;
         }
 
-        .other-content-container h2 {
+        .page-container h2 {
             color: #ff7043;
         }
 
-        .other-content-container .content a {
+        .page-container .content a {
             color: #ff7043;
             border-color:#ff7043;
         }
 
-        .other-content-container .content:hover a {
+        .page-container .content:hover a {
             color: #e65100;
             border-color:#e65100;
         }
@@ -138,12 +164,18 @@
 
 <header>
     <h1>Salce's pages</h1>
+    <nav>
+        <a href="#top" class="back-to-top">Top</a><!-- href="#"で一番上へ移動できるが、スクロールさせる-->
+        <a href="#games" class="game">Games</a>
+        <a href="#pages" class="page">Pages</a>
+    </nav>
 </header>
 
-<nav>
-    <a href="#games" class="game">Games</a>
-    <a href="#other" class="other">Other Content</a>
-</nav>
+<div class="fullscreen-image" id="top">
+    <!-- ここに写真に関するコンテンツを追加 -->
+
+    <!-- スクロールを促すメッセージやアイコンなどもここに追加できます -->
+</div>
 
 <div class="container">
 
@@ -211,9 +243,9 @@
         </div>        
     </div>
 
-    <div class="other-content-container" id="other">
-        <h2 class="en">Other Content</h2>
-        <h2 class="ja" style="display:none;">その他のコンテンツ</h2>
+    <div class="page-container" id="pages">
+        <h2 class="en">Pages</h2>
+        <h2 class="ja" style="display:none;">ページ</h2>
 
         <div class="content">
             <h2 class="en">Lecture Name Extraction</h2>
@@ -248,6 +280,24 @@
             });
         }
     }
+    document.querySelectorAll('nav a').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+
+            const targetId = this.getAttribute('href').substring(1);
+            const targetElement = document.getElementById(targetId);
+
+            if (targetElement) {
+                const headerHeight = document.querySelector('header').offsetHeight;
+
+                window.scrollTo({
+                    top: targetElement.offsetTop - headerHeight,
+                    behavior: 'smooth'
+                });
+            }
+        });
+    });
+
 </script>
 
 </body>
