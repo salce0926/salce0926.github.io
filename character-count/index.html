@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文字数カウント</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        label {
+            font-size: 16px;
+            margin-bottom: 10px;
+            display: block;
+        }
+        textarea {
+            width: calc(100% - 20px); /* 20pxはpaddingの合計値 */
+            padding: 10px;
+            font-size: 14px;
+            box-sizing: border-box; /* paddingを含めたボックスサイズに設定 */
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            margin-top: 20px;
+            margin-right: 20px;
+            display: inline-block;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #copy_message, #copy_message2 {
+            font-size: 14px;
+            color: green;
+            font-weight: bold;
+            float: right;
+            margin-top: 20px;
+        }
+        .clearfix {
+            max-width: calc(100% - 20px);
+            display: flex;
+        }
+        .clearfix::after {
+            content: "";
+            clear: both;
+            display: table;
+        }
+
+        #result_container {
+            border: 1px solid #ddd;
+            padding: 20px;
+            max-width: calc(100% - 20px);
+            overflow: hidden;
+        }
+        #result_text {
+            font-size: 14px;
+            float: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>文字数カウント</h1>
+
+    <label for="input_text">入力テキスト:</label>
+    <textarea id="input_text" rows="10" placeholder="ここにテキストを入力してください..."></textarea>
+    <div class="clearfix">
+        <button onclick="processText()">空白・改行の除去処理</button>
+        <button onclick="clearInput()">クリア</button>
+        <button onclick="copyToClipboard()">コピー</button>
+        <p id="copy_message"></p>
+    </div>
+    
+    <div>
+        <p>文字数（空白・改行を含む）: <span id="charCount">0</span></p>
+        <p>文字数（空白・改行を除く）: <span id="charCountNoSpace">0</span></p>
+        <p>行数　　　　　　　　　　　: <span id="lineCount">0</span></p>
+    </div>
+    
+    <h2>処理されたテキスト:</h2>
+    <div id="result_container">
+        <p id="result_text"></p>
+    </div>
+    <div class="clearfix">
+        <button onclick="copyToClipboard2()">コピー</button>
+        <button onclick="clearInput2()">クリア</button>
+        <p id="copy_message2"></p>
+    </div>
+
+    <p><strong>使い方:</strong></p>
+    <p>1. 上記の「入力テキスト」エリアに文字数をカウントしたいテキストを入力します。</p>
+    <p>2. 必要なら「空白・改行の除去処理」ボタンをクリックして、テキストを処理します。</p>
+    <p>3. 「クリップボードにコピー」ボタンをクリックして、テキストをクリップボードにコピーします。</p>
+
+    <p><strong>例:</strong></p>
+    <p>以下は、文字数をカウントするテキストの例です。</p>
+    <p>The die is cast"（賽は投げられた）は有名なフレーズで、
+        特定の決定や出来事が避けられなくなった状況を指します。<br>
+        このフレーズは、古代ローマの将軍ユリウス・カエサルが、
+        ルビコン川を越えてイタリアに侵入する際に発した言葉として知られています。<br>
+        これは、一度サイコロが振られたら戻すことができないという比喩的な表現として使われています。</p>
+    <p>このテキストを入力すると、以下のように文字数がカウントされます。</p>
+    <p>文字数（空白・改行を含む）: 174<br>
+        文字数（空白・改行を除く）: 167<br>
+        行数　　　　　　　　　　　: 3</p>
+
+    <p><strong>使い道:</strong></p>
+    <p>就職活動中に、ESなどの作成を補助します。<br>
+    リアルタイムで文字数がカウントされるため、文章を入力しながら現在の状況が確認できます。<br>
+    文章作成時は見やすさのために改行しておき、指定の文字数になったら改行を除去してそのままコピーすることができます。</p>
+
+    <a href="../index.html" class="link">Return to main page</a>
+
+    <script>
+        document.getElementById('input_text').addEventListener('input', function () {
+            var text = this.value;
+            
+            // 改行を含む文字数
+            var charCount = text.length;
+
+            // 空白を含まない文字数
+            var charCountNoSpace = text.replace(/\s/g, '').length;
+
+            // 行数
+            var lineCount = text.split(/\r\n|\r|\n/).length;
+
+            document.getElementById('charCount').textContent = charCount;
+            document.getElementById('charCountNoSpace').textContent = charCountNoSpace;
+            document.getElementById('lineCount').textContent = lineCount;
+        });
+
+        function processText() {
+            var inputText = document.getElementById('input_text').value;
+
+            // 空白や改行がある場合、削除
+            var cleanedText = inputText.replace(/\s*|\r\n|\r|\n/g, '');
+
+            document.getElementById('result_text').innerText = cleanedText;
+            document.getElementById('copy_message').innerText = ''; // コピーメッセージをクリア
+        }
+
+        function copyToClipboard() {
+            var inputText = document.getElementById('input_text');
+            var range = document.createRange();
+            range.selectNode(inputText);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+
+            try {
+                document.execCommand('copy');
+                document.getElementById('copy_message').innerText = 'テキストがクリップボードにコピーされました！';
+            } catch (err) {
+                document.getElementById('copy_message').innerText = 'テキストをクリップボードにコピーできませんでした。Ctrl+C（MacではCmd+C）を使用してください。';
+            }
+
+            window.getSelection().removeAllRanges();
+        }
+
+        function copyToClipboard2() {
+            var inputText = document.getElementById('result_text');
+            var range = document.createRange();
+            range.selectNode(inputText);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+
+            try {
+                document.execCommand('copy');
+                document.getElementById('copy_message2').innerText = 'テキストがクリップボードにコピーされました！';
+            } catch (err) {
+                document.getElementById('copy_message2').innerText = 'テキストをクリップボードにコピーできませんでした。Ctrl+C（MacではCmd+C）を使用してください。';
+            }
+
+            window.getSelection().removeAllRanges();
+        }
+
+        function clearInput() {
+            document.getElementById('input_text').value = '';
+            document.getElementById('copy_message').innerText = '';
+        }
+        function clearInput2() {
+            document.getElementById('result_text').innerText = '';
+            document.getElementById('copy_message2').innerText = '';
+        }
+    </script>
+</body>
+</html>
