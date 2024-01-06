@@ -12,20 +12,23 @@
 <header>
     <h1>Salce's pages</h1>
     <nav>
-        <a href="#top" class="back-to-top">Top</a><!-- href="#"で一番上へ移動できるが、スクロールさせる-->
+        <a href="#top" class="top">Top</a><!-- href="#"で一番上へ移動できるが、スクロールさせる-->
         <a href="#games" class="game">Games</a>
         <a href="#pages" class="page">Pages</a>
         <a class="languageToggle" onclick="toggleLanguage()">日本語</a>
-        <!-- <div id="languageToggle">
-            <button onclick="toggleLanguage('en')">English</button>
-            <button onclick="toggleLanguage('ja')">日本語</button>
-        </div> -->
     </nav>
 </header>
 
-<div class="fullscreen-image" id="top">
-    <!-- ここに写真に関するコンテンツを追加 -->
-
+<div class="image-container" id="top">
+    <div class="text-overlay">
+        <h2>The Die is Cast</h2>
+        <p class="en">Once the die is cast, there's no turning back.</p>
+        <p class="ja" style="display: none;">一度投げられた賽を、戻すことはできない。</p>
+        <div class="scroll">
+            <span class="scroll-down-message">Scroll down for more</p>
+        </div>
+    </div>
+    <img src="./images/image.jpg">
     <!-- スクロールを促すメッセージやアイコンなどもここに追加できます -->
 </div>
 

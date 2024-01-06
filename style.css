@@ -40,7 +40,7 @@ nav a {
     cursor: pointer;
 }
 
-nav a:hover {
+nav .game:hover {
     color: #4285f4;
 }
 
@@ -48,18 +48,114 @@ nav .page:hover {
     color: #ff7043;
 }
 
-.back-to-top:hover {
-    color: #0d47a1;
+nav .top,
+nav .languageToggle {
+    position: relative;
 }
 
-.fullscreen-image {
+nav .top:hover {
+    transition: .3s;
+    transform: translateY(-4px);
+}
+
+nav .languageToggle::before,
+nav .languageToggle::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 2px;
+    bottom: 0;
+    background-color: #fff; /* 下線の色を指定 */
+    transition: width 0.3s ease-in-out;
+}
+
+nav .languageToggle::before {
+    left: 51%;
+    transform: translateX(-100%);
+}
+
+nav .languageToggle::after {
+    right: 51%;
+    transform: translateX(100%);
+}
+
+nav .languageToggle:hover::before,
+nav .languageToggle:hover::after {
+    width: 50%;
+}
+
+.image-container {
+    position: relative;
     width: 100%;
     height: calc(100vh - 20vh); /* 画面の高さいっぱいに表示 */
-    background: url('./images/image.jpg') center/cover no-repeat; /* 画像を背景に表示 */
-    position: relative;
-    text-align: center;
+    overflow: hidden;
+    margin-top: 10vh;
+}
+
+.image-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.text-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+    padding: 20px; /* テキストとコンテナの余白調整 */
+    background-color: rgba(0, 0, 0, 0.5); /* 黒い半透明の背景 */
     color: #fff;
-    margin-top: 10vh; /* ヘッダーの高さを考慮して余白を追加 */
+    text-align: right;
+}
+
+.text-overlay h2 {
+    margin-bottom: 10px;
+}
+
+.text-overlay p {
+    margin: 0;
+}
+
+.scroll {
+    position: absolute;
+    bottom: 10px;
+    opacity: 0.8;
+}
+
+.scroll::before {
+    animation: scroll 2.5s infinite;
+    border: solid #fff;
+    border-width: 0 0 1px 1px;
+    content: "";
+    display: inline-block;
+    margin: auto;
+    position: absolute;
+    top: -70px;
+    right: 0;
+    left: 0;
+    transform: rotate(-45deg);
+    width: 20px;
+    height: 20px;
+}
+@keyframes scroll {
+    0% {
+      transform: rotate(-45deg) translate(0, 0);
+    }
+    80% {
+      transform: rotate(-45deg) translate(-30px, 30px);
+    }
+    0%, 80%, 100% {
+      opacity: 0;
+    }
+    40% {
+      opacity: 1;
+    }
 }
 
 .container {
@@ -129,24 +225,3 @@ nav .page:hover {
     color: #e65100;
     border-color:#e65100;
 }
-
-/* #languageToggle {
-    text-align: center;
-    margin-bottom: 20px;
-} */
-
-/* #languageToggle button {
-    background-color: #4285f4;
-    color: #fff;
-    border: none;
-    padding: 10px 20px;
-    margin: 5px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.3s ease;
-}
-
-#languageToggle button:hover {
-    background-color: #0d47a1;
-} */
