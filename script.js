@@ -15,8 +15,9 @@ function toggleLanguage() {
     });
 
     // 言語切り替えリンクの表示を切り替え
-    const languageToggleLink = document.getElementsByClassName('languageToggle')[0];
-    languageToggleLink.textContent = isEnglish ? '日本語' : 'English';
+    const languageToggleLink = document.getElementsByClassName('languageToggle');
+    languageToggleLink[0].textContent = isEnglish ? '日本語' : 'English';
+    languageToggleLink[1].textContent = isEnglish ? '日本語' : 'English';
 }
 
 document.querySelectorAll('nav a').forEach(anchor => {
