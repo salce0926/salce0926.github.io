@@ -54,7 +54,7 @@ nav .page:hover {
 
 .fullscreen-image {
     width: 100%;
-    height: calc(100vh - 10vh); /* 画面の高さいっぱいに表示 */
+    height: calc(100vh - 20vh); /* 画面の高さいっぱいに表示 */
     background: url('./images/image.jpg') center/cover no-repeat; /* 画像を背景に表示 */
     position: relative;
     text-align: center;
@@ -130,12 +130,12 @@ nav .page:hover {
     border-color:#e65100;
 }
 
-#languageToggle {
+/* #languageToggle {
     text-align: center;
     margin-bottom: 20px;
-}
+} */
 
-#languageToggle button {
+/* #languageToggle button {
     background-color: #4285f4;
     color: #fff;
     border: none;
@@ -149,4 +149,4 @@ nav .page:hover {
 
 #languageToggle button:hover {
     background-color: #0d47a1;
-}
+} */

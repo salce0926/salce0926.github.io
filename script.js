@@ -1,37 +1,38 @@
-function toggleLanguage(language) {
+let isEnglish = true; // 初期値は英語
+
+function toggleLanguage() {
     var enElements = document.querySelectorAll('.en');
     var jaElements = document.querySelectorAll('.ja');
+    // 言語を切り替え
+    isEnglish = !isEnglish;
 
-    if (language === 'en') {
-        enElements.forEach(function (el) {
-            el.style.display = 'block';
-        });
-        jaElements.forEach(function (el) {
-            el.style.display = 'none';
-        });
-    } else {
-        enElements.forEach(function (el) {
-            el.style.display = 'none';
-        });
-        jaElements.forEach(function (el) {
-            el.style.display = 'block';
-        });
-    }
+    // 各要素の表示・非表示をトグル
+    enElements.forEach(function (el) {
+        el.style.display = isEnglish ? 'block' : 'none';
+    });
+    jaElements.forEach(function (el) {
+        el.style.display = isEnglish ? 'none' : 'block';
+    });
+
+    // 言語切り替えリンクの表示を切り替え
+    const languageToggleLink = document.getElementsByClassName('languageToggle')[0];
+    languageToggleLink.textContent = isEnglish ? '日本語' : 'English';
 }
+
 document.querySelectorAll('nav a').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
-        e.preventDefault();
+        if (!this.classList.contains('languageToggle')) {
+            e.preventDefault();
+            const targetId = this.getAttribute('href').substring(1);
+            const targetElement = document.getElementById(targetId);
 
-        const targetId = this.getAttribute('href').substring(1);
-        const targetElement = document.getElementById(targetId);
-
-        if (targetElement) {
-            const headerHeight = document.querySelector('header').offsetHeight;
-
-            window.scrollTo({
-                top: targetElement.offsetTop - headerHeight,
-                behavior: 'smooth'
-            });
+            if (targetElement) {
+                const headerHeight = document.querySelector('header').offsetHeight;
+                window.scrollTo({
+                    top: targetElement.offsetTop - headerHeight,
+                    behavior: 'smooth'
+                });
+            }
         }
     });
 });
