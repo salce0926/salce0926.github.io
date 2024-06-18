@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Blind Timer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Poker Blind Timer</h1>
+    <div id="timer">00:00</div>
+    <div id="blinds-container">
+        <div class="blind">
+            <div class="blind-label">Small Blind</div>
+            <div id="small-blind" class="blind-value">100</div>
+        </div>
+        <div class="blind">
+            <div class="blind-label">Big Blind</div>
+            <div id="big-blind" class="blind-value">200</div>
+        </div>
+    </div>
+    <div class="button-container">
+        <button onclick="startTimer()">スタート</button>
+        <button onclick="resetTimer()">リセット</button>
+        <button onclick="skipTime(10)">10秒スキップ</button>
+        <button onclick="skipTime(-10)">10秒戻る</button>
+    </div>
+    <a href="../index.html">Return to main page</a>
+
+    <script src="script.js"></script>
+</body>
+</html>
