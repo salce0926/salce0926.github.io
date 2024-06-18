@@ -1,0 +1,110 @@
+body {
+    background-color: #2c3e50;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    font-family: 'Arial', sans-serif;
+}
+
+.table {
+    background-color: #34495e;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    width: 80%;
+    max-width: 800px;
+}
+
+.cards-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    height: 140px; /* 高さを固定 */
+}
+
+.card {
+    width: 80px;
+    height: 120px;
+    margin: 0 5px;
+    background-size: cover;
+    transition: transform 0.5s, opacity 0.5s;
+    transform: translateY(-50px);
+    opacity: 0;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.card.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+button {
+    background-color: #e67e22;
+    color: white;
+    border: none;
+    padding: 15px 30px; /* ボタンを大きく */
+    margin: 10px;
+    font-size: 18px; /* フォントサイズを大きく */
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.3s;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+button:hover {
+    background-color: #d35400;
+    transform: scale(1.05);
+}
+
+button:active {
+    background-color: #c0392b;
+    transform: scale(1);
+}
+
+.player-container {
+    display: flex;
+    align-items: center;
+    justify-content: center; /* 中央揃えにするために追加 */
+    margin-bottom: 20px;
+}
+
+.hand-container {
+    color: white;
+    font-size: 18px;
+    margin-left: 10px;
+    padding: 10px;
+    background-color: #1abc9c;
+    border-radius: 5px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.3s;
+    text-align: center; /* 中央揃えにするために追加 */
+    width: 200px; /* ハンド表示の幅を固定 */
+}
+
+.hand-container:hover {
+    background-color: #16a085;
+}
+
+#result {
+    color: white;
+    font-size: 20px;
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #e74c3c;
+    border-radius: 5px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.3s;
+    max-width: 300px; /* 横幅を制限 */
+    margin-left: auto; /* 左右中央揃え */
+    margin-right: auto; /* 左右中央揃え */
+}
+
+#result:hover {
+    background-color: #c0392b;
+}
