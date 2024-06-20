@@ -27,24 +27,31 @@ let blinds = [
     // 追加のブラインドレベルをここに追加できます
 ];
 
-const defaultTime = 10 * 60; // 10分
-
 let currentLevel = 0;
 let timer;
-let timeLeft = defaultTime;
+let blindInterval = 10; // デフォルトのブラインド間隔は10分
+let timeLeft;
 
 function startTimer() {
+    const intervalInput = document.getElementById('blind-interval');
+    blindInterval = parseInt(intervalInput.value, 10) || 10;
+    timeLeft = blindInterval * 60;
+    
     if (timer) {
         clearInterval(timer);
     }
     timer = setInterval(updateTimer, 1000);
+    updateDisplay();
+    playSound('money');
 }
 
 function resetTimer() {
     clearInterval(timer);
     currentLevel = 0;
-    timeLeft = defaultTime;
-    updateDisplay();
+    timeLeft = blindInterval * 60;
+    document.getElementById('timer').textContent = '00:00';
+    document.getElementById('small-blind').textContent = '100';
+    document.getElementById('big-blind').textContent = '200';
 }
 
 function skipTime(seconds) {
@@ -56,8 +63,12 @@ function skipTime(seconds) {
 }
 
 function updateTimer() {
-    if (timeLeft > 0) {
+    if (timeLeft > 1) {
         timeLeft--;
+        console.log(timeLeft);
+        if (timeLeft <= 5 && timeLeft >= 1) {
+            playPonSound(timeLeft);
+        }
     } else {
         currentLevel++;
         if (currentLevel >= blinds.length) {
@@ -65,7 +76,8 @@ function updateTimer() {
             alert("全てのブラインドレベルが終了しました。");
             return;
         }
-        timeLeft = defaultTime;
+        playSound('pop');
+        timeLeft = blindInterval * 60;
     }
     updateDisplay();
 }
@@ -76,6 +88,34 @@ function updateDisplay() {
     document.getElementById('timer').textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     document.getElementById('small-blind').textContent = blinds[currentLevel].small;
     document.getElementById('big-blind').textContent = blinds[currentLevel].big;
+}
+
+function playSound(soundId) {
+    const sound = document.getElementById(soundId);
+    if (sound) {
+        sound.play();
+    }
+}
+
+function playPonSound(id) {
+    const soundId = `pon-${id % 2}`;
+    const sound = document.getElementById(soundId);
+    if (sound) {
+        sound.currentTime = 0;
+        sound.play();
+    }
+}
+
+function openPopup() {
+    document.getElementById('popup').style.display = 'flex';
+}
+
+function closePopup() {
+    document.getElementById('popup').style.display = 'none';
+    const intervalInput = document.getElementById('blind-interval');
+    blindInterval = parseInt(intervalInput.value, 10) || 10;
+    timeLeft = blindInterval * 60;
+    updateDisplay();
 }
 
 // ページが読み込まれた時にリセットを実行

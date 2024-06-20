@@ -8,7 +8,9 @@
 </head>
 <body>
     <h1>Poker Blind Timer</h1>
-    <div id="timer">00:00</div>
+    <div id="timer-container">
+        <div id="timer" onclick="openPopup()">00:00</div>
+    </div>
     <div id="blinds-container">
         <div class="blind">
             <div class="blind-label">Small Blind</div>
@@ -20,12 +22,30 @@
         </div>
     </div>
     <div class="button-container">
+        <button onclick="skipTime(-10)">←10秒</button>
         <button onclick="startTimer()">スタート</button>
         <button onclick="resetTimer()">リセット</button>
-        <button onclick="skipTime(10)">10秒スキップ</button>
-        <button onclick="skipTime(-10)">10秒戻る</button>
+        <button onclick="skipTime(10)">10秒→</button>
     </div>
-    <a href="../index.html">Return to main page</a>
+
+    <div id="popup" class="popup">
+        <div class="popup-content">
+            <label for="blind-interval">ブラインドが上がる間隔 (分):</label>
+            <select id="blind-interval" name="blind-interval">
+                <option value="1">1分</option>
+                <option value="3">3分</option>
+                <option value="5">5分</option>
+                <option value="10" selected>10分</option>
+                <option value="15">15分</option>
+            </select>
+            <button onclick="closePopup()">決定</button>
+        </div>
+    </div>
+
+    <audio id="pop" src="audio/pop.mp3"></audio>
+    <audio id="pon-0" src="audio/pon.mp3"></audio>
+    <audio id="pon-1" src="audio/pon.mp3"></audio>
+    <audio id="money" src="audio/money.mp3"></audio>
 
     <script src="script.js"></script>
 </body>
