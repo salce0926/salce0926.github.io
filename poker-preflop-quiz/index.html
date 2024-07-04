@@ -1,0 +1,28 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Hands</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Poker Hands</h1>
+        <div id="question-container">
+            <div id="question"></div>
+            <div id="options">
+                <button class="option" onclick="checkAnswer('A')">A</button>
+                <button class="option" onclick="checkAnswer('B')">B</button>
+                <button class="option" onclick="checkAnswer('C')">C</button>
+            </div>
+            <div id="result"></div>
+            <button id="next-button" onclick="nextQuestion()">Next</button>
+        </div>
+        <button id="show-hand-range" onclick="toggleHandRange()">Hand Range</button>
+        <div id="hand-range" class="hand-range" display="none"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
