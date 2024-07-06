@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hit & Blow</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+        }
+        #gameContainer {
+            text-align: center;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        #inputContainer {
+            margin: 20px 0;
+        }
+        input[type="text"] {
+            padding: 10px;
+            font-size: 1em;
+            width: 150px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            border: none;
+            border-radius: 4px;
+            background-color: #28a745;
+            color: white;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+        }
+        #playerAnswerDisplay {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        #restartContainer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <h1>Hit & Blow</h1>
+        <div id="playerAnswerDisplay">あなたの答え: <span id="playerAnswer"></span></div>
+        <div id="inputContainer">
+            <input type="text" id="guessInput" maxlength="4" placeholder="4桁の数字を入力">
+            <button id="submitBtn">推測</button>
+        </div>
+        <div id="results"></div>
+        <div id="restartContainer">
+            <button id="restartBtn" style="display:none;">もう一度遊ぶ</button>
+        </div>
+        <button onclick="location.href='../index.html'">Return to main page</button>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
