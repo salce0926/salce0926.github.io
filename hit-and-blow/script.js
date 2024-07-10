@@ -83,6 +83,7 @@ function resetGame() {
     possibleAnswers = generateAllPossibleAnswers();
     previousGuesses = [];
     document.getElementById('results').innerHTML = '';
+    document.getElementById('cpuProcess').innerHTML = '';
     document.getElementById('guessInput').value = '';
     document.getElementById('restartBtn').style.display = 'none';
     document.getElementById('inputContainer').style.display = 'block';
@@ -115,7 +116,14 @@ document.getElementById('submitBtn').addEventListener('click', () => {
 
     const { hits: cpuHits, blows: cpuBlows } = getHitsAndBlows(playerAnswer, cpuGuess);
     previousGuesses.push({ guess: cpuGuess, hits: cpuHits, blows: cpuBlows });
+
+    // 絞り込み前の可能性の数
+    const possibleAnswersCountBefore = possibleAnswers.length;
+
     possibleAnswers = filterAnswers(possibleAnswers, cpuGuess, cpuHits, cpuBlows);
+
+    // 絞り込まれた可能性の例を取得
+    const exampleAnswers = possibleAnswers.slice(0, 5).join(', ');
 
     const resultDiv = document.createElement('div');
     resultDiv.className = 'result';
@@ -123,16 +131,31 @@ document.getElementById('submitBtn').addEventListener('click', () => {
         <p>あなたの推測: ${playerGuess}, Hits: ${playerHits}, Blows: ${playerBlows}</p>
         <p>CPUの推測: ${cpuGuess}, Hits: ${cpuHits}, Blows: ${cpuBlows}</p>
     `;
-    document.getElementById('results').appendChild(resultDiv);
+    // 最新の結果を上に追加
+    const resultsContainer = document.getElementById('results');
+    resultsContainer.insertBefore(resultDiv, resultsContainer.firstChild);
 
-    if (playerHits === maxDigits) {
-        alert('おめでとうございます！ あなたの勝ちです。');
+    // CPUの絞り込み過程を表示
+    const cpuProcessDiv = document.createElement('div');
+    cpuProcessDiv.className = 'result';
+    cpuProcessDiv.innerHTML = `
+        <p>推測: ${cpuGuess}, Hits: ${cpuHits}, Blows: ${cpuBlows}</p>
+        <p>絞り込み前の可能性の数: ${possibleAnswersCountBefore}</p>
+        <p>絞り込み後の可能性の数: ${possibleAnswers.length}</p>
+        <p>絞り込まれた可能性の例: ${exampleAnswers}</p>
+    `;
+    const cpuProcessContainer = document.getElementById('cpuProcess');
+    cpuProcessContainer.insertBefore(cpuProcessDiv, cpuProcessContainer.firstChild);
+
+    if (playerHits === maxDigits || cpuHits === maxDigits) {
+        const winnerMessage = playerHits === maxDigits ? 'おめでとうございます！ あなたの勝ちです。' : '残念！ CPUの勝ちです。';
+        alert(winnerMessage);
         document.getElementById('restartBtn').style.display = 'block';
         document.getElementById('inputContainer').style.display = 'none';
-    } else if (cpuHits === maxDigits) {
-        alert('残念！ CPUの勝ちです。');
-        document.getElementById('restartBtn').style.display = 'block';
-        document.getElementById('inputContainer').style.display = 'none';
+        const cpuAnswerDiv = document.createElement('div');
+        cpuAnswerDiv.className = 'result';
+        cpuAnswerDiv.innerHTML = `<p>CPUの答えは: ${cpuAnswer}でした。</p>`;
+        document.getElementById('results').appendChild(cpuAnswerDiv);
     }
 
     guessInput.value = '';

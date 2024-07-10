@@ -21,6 +21,13 @@
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 80%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         #inputContainer {
             margin: 20px 0;
@@ -61,6 +68,17 @@
             display: flex;
             justify-content: center;
         }
+        #results, #cpuProcess {
+            flex: 1;
+            overflow-y: auto;
+            width: 100%;
+            max-height: 200px;
+        }
+        #cpuProcessContainer {
+            margin-top: 20px;
+            text-align: left;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -72,6 +90,10 @@
             <button id="submitBtn">推測</button>
         </div>
         <div id="results"></div>
+        <div id="cpuProcessContainer">
+            <h3>CPUの推測過程</h3>
+            <div id="cpuProcess"></div>
+        </div>
         <div id="restartContainer">
             <button id="restartBtn" style="display:none;">もう一度遊ぶ</button>
         </div>
