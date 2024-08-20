@@ -1,0 +1,155 @@
+/* style.css */
+
+/* 全体のレイアウトを中央に配置 */
+body {
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #faf8ef;
+}
+
+.container {
+    text-align: center;
+}
+
+h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+}
+
+#game-board {
+    display: grid;
+    grid-template-columns: repeat(4, 100px);
+    grid-template-rows: repeat(4, 100px);
+    gap: 10px;
+    background-color: #bbada0;
+    padding: 10px;
+    border-radius: 10px;
+    margin-top: 20px;
+}
+
+.tile {
+    width: 100px;
+    height: 100px;
+    background-color: #cdc1b4;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2em;
+    font-weight: bold;
+    border-radius: 5px;
+    color: #776e65;
+}
+
+/* タイルの色とスタイル */
+.tile[data-value="2"] {
+    background-color: #eee4da;
+}
+
+.tile[data-value="4"] {
+    background-color: #ede0c8;
+}
+
+.tile[data-value="8"] {
+    background-color: #f2b179;
+    color: #f9f6f2;
+}
+
+.tile[data-value="16"] {
+    background-color: #f59563;
+    color: #f9f6f2;
+}
+
+.tile[data-value="32"] {
+    background-color: #f67c5f;
+    color: #f9f6f2;
+}
+
+.tile[data-value="64"] {
+    background-color: #f65e3b;
+    color: #f9f6f2;
+}
+
+.tile[data-value="128"] {
+    background-color: #edcf72;
+    color: #f9f6f2;
+}
+
+.tile[data-value="256"] {
+    background-color: #edcc61;
+    color: #f9f6f2;
+}
+
+.tile[data-value="512"] {
+    background-color: #edc850;
+    color: #f9f6f2;
+}
+
+.tile[data-value="1024"] {
+    background-color: #edc53f;
+    color: #f9f6f2;
+}
+
+.tile[data-value="2048"] {
+    background-color: #edc22e;
+    color: #f9f6f2;
+}
+
+.tile[data-value="4096"] {
+    background-color: #edc850; /* 明るいゴールド */
+    color: #f9f6f2;
+}
+
+.tile[data-value="8192"] {
+    background-color: #edc53f; /* 濃いゴールド */
+    color: #f9f6f2;
+}
+
+.tile[data-value="16384"] {
+    background-color: #edc22e; /* 黄金色 */
+    color: #f9f6f2;
+}
+
+.tile[data-value="32768"] {
+    background-color: #edb913; /* 暗い黄金色 */
+    color: #f9f6f2;
+}
+
+.tile[data-value="65536"] {
+    background-color: #edaa10; /* ダークオレンジ */
+    color: #f9f6f2;
+}
+
+.tile[data-value="131072"] {
+    background-color: #ed9c05; /* 濃いダークオレンジ */
+    color: #f9f6f2;
+}
+
+/* スコア表示 */
+#score {
+    font-size: 1.5em;
+    margin-bottom: 10px;
+    padding: 10px;
+    background-color: #bbada0;
+    color: #ffffff;
+    border-radius: 5px;
+}
+
+/* Undoボタン */
+#undo-button {
+    padding: 10px 20px;
+    font-size: 1em;
+    color: #ffffff;
+    background-color: #8f7a66;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+#undo-button:hover {
+    background-color: #a58c72;
+}
