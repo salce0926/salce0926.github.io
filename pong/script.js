@@ -1,6 +1,10 @@
 const canvas = document.getElementById("gameCanvas");
 const context = canvas.getContext("2d");
 
+// スクリーンサイズに合わせてキャンバスのサイズを設定
+canvas.width = window.innerWidth < 800 ? window.innerWidth : 800;  // 最大幅800px
+canvas.height = window.innerHeight < 400 ? window.innerHeight : 400; // 最大高さ400px
+
 // Paddle settings
 const paddleWidth = 10;
 const paddleHeight = 100;
@@ -171,6 +175,30 @@ function gameLoop() {
 
 // Mouse Movement Listener
 canvas.addEventListener("mousemove", updatePaddle);
+
+// Touch Events
+canvas.addEventListener("touchstart", startTouch, false);
+canvas.addEventListener("touchmove", moveTouch, false);
+canvas.addEventListener("touchend", endTouch, false);
+
+function startTouch(event) {
+  isTouching = true;
+  moveTouch(event);
+}
+
+function moveTouch(event) {
+  if (!isTouching) return;
+  const touch = event.touches[0];
+  const touchY = touch.clientY - canvas.getBoundingClientRect().top;
+  paddleY = touchY - paddleHeight / 2;
+  if (paddleY < 0) paddleY = 0;
+  if (paddleY + paddleHeight > canvas.height) paddleY = canvas.height - paddleHeight;
+  event.preventDefault();
+}
+
+function endTouch() {
+  isTouching = false;
+}
 
 // Start the game
 gameLoop();

@@ -7,11 +7,16 @@ body {
     height: 100vh;
     margin: 0;
     background-color: #000;
+    overflow: hidden; /* 画面をはみ出さないようにする */
   }
   
   canvas {
     border: 2px solid #fff;
     background-color: #222;
+    width: 100%; /* 幅を画面に合わせる */
+    height: auto; /* 高さは自動調整（アスペクト比を維持） */
+    max-width: 800px; /* 最大幅 */
+    max-height: 400px; /* 最大高さ */
   }
 
   button {
