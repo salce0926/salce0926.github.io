@@ -1,0 +1,23 @@
+/* style.css */
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column; /* 要素を縦並びに */
+    height: 100vh;
+    margin: 0;
+    background-color: #000;
+  }
+  
+  canvas {
+    border: 2px solid #fff;
+    background-color: #222;
+  }
+
+  button {
+    background-color: black;
+    color: white;
+    border: none;
+    font-size: 18px; /* フォントサイズを大きく */
+    cursor: pointer;
+}
