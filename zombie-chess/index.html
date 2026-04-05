@@ -276,15 +276,51 @@ function checkWinner(b) {
 function cpuZombie(b) {
   const moves = allMovesFor(b, ZOMBIE_TURN);
   if (!moves.length) return null;
+
   let sr = null, sc = null;
-  const defCols = new Set();
+  const dogs = [];
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     if (b[r][c] === SHERIFF) { sr = r; sc = c; }
-    if (b[r][c] === DOG || b[r][c] === SHERIFF) defCols.add(c);
+    if (b[r][c] === DOG) dogs.push([r, c]);
   }
-  const score = ([,[dr,dc]]) =>
-    dr * 1000 + (defCols.has(dc) ? 0 : 600) + (sr !== null ? Math.abs(dc - sc) * 8 : 0);
-  return moves.sort((a,b) => score(b) - score(a))[0];
+
+  const cheb = ([ar, ac], [br, bc]) => Math.max(Math.abs(ar-br), Math.abs(ac-bc));
+  const defenders = (sr !== null ? [[sr, sc]] : []).concat(dogs);
+
+  // (nr, nc) に進んだゾンビを町到達前に止められる守備駒の数
+  function interceptorCount(nr, nc) {
+    const steps = TOWN_ROW - nr;
+    if (steps <= 0) return 0;
+    let count = 0;
+    for (const [dr, dc] of defenders) {
+      for (let k = 1; k <= steps; k++) {
+        if (cheb([dr, dc], [nr + k, nc]) <= k) { count++; break; }
+      }
+    }
+    return count;
+  }
+
+  const scored = moves.map(([[zr, zc], [nr, nc]]) => {
+    const ic = interceptorCount(nr, nc);
+    let score = 0;
+
+    if (ic === 0) score += 100000;                                    // 誰も止められない → 最優先
+    score -= ic * 2000;                                               // 阻止できる守備駒が少ない列を好む
+    score += nr * 300;                                                // 前進ほど良い
+    if (!defenders.some(([, dc]) => dc === nc)) score += 400;        // 守備なし列を好む
+    if (sr !== null) score += Math.abs(nc - sc) * 15;                // 保安官から遠い列
+
+    // 移動前より阻止できる守備駒が減るなら加点
+    const prevIc = interceptorCount(zr, zc);
+    if (ic < prevIc) score += (prevIc - ic) * 300;
+
+    score += Math.random() * 80;  // ランダム性（ゲームに変化をつける）
+
+    return { move: [[zr, zc], [nr, nc]], score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].move;
 }
 
 function interceptSteps(fr, fc, zr, zc) {
@@ -334,11 +370,23 @@ function cpuSheriff(b) {
   }
 
   const cheb = ([ar,ac], [br,bc]) => Math.max(Math.abs(ar-br), Math.abs(ac-bc));
-  const hasMove = (moves, r, c) => moves.some(([mr,mc]) => mr===r && mc===c);
+  const defenders = (sr!==null ? [[sr,sc]] : []).concat(dogs);
 
   const blockingDogs = new Set();
   for (const [zr,zc] of zombies) {
     if (zr+1 < ROWS && b[zr+1][zc] === DOG) blockingDogs.add(`${zr+1},${zc}`);
+  }
+
+  function interceptorCount(zr, zc) {
+    const steps = TOWN_ROW - zr;
+    if (steps <= 0) return 0;
+    let count = 0;
+    for (const [dr,dc] of defenders) {
+      for (let k = 1; k <= steps; k++) {
+        if (cheb([dr,dc],[zr+k,zc]) <= k) { count++; break; }
+      }
+    }
+    return count;
   }
 
   function sheriffCanCatch(zr, zc) {
@@ -352,26 +400,44 @@ function cpuSheriff(b) {
 
   function noOneCanStop(zr, zc) {
     if (zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF)) return false;
-    const defenders = (sr!==null ? [[sr,sc]] : []).concat(dogs);
     const steps = TOWN_ROW - zr;
     for (const [dr,dc] of defenders) {
       for (let k = 1; k <= steps; k++) {
-        if (cheb([dr,dc], [zr+k, zc]) <= k) return false;
+        if (cheb([dr,dc],[zr+k,zc]) <= k) return false;
       }
     }
     return true;
   }
 
-  // 1. 即負け防止
-  const sorted_z = [...zombies].sort((a,x) => x[0]-a[0]);
-  for (const [zr,zc] of sorted_z) {
+  // 犬をゾンビ(zr,zc)前にデプロイする最善手。なければnull。
+  function deployDog(zr, zc, useBlocking=false) {
+    const bp = [zr+1, zc];
+    if (bp[0] >= ROWS || b[bp[0]][bp[1]] !== EMPTY) return null;
+    const cands = dogs.filter(d => useBlocking || !blockingDogs.has(`${d[0]},${d[1]}`));
+    cands.sort((a,x) => cheb(a,bp)-cheb(x,bp));
+    for (const [dr,dc] of cands) {
+      const dm = getMoves(b, dr, dc);
+      if (dm.some(([r,c]) => r===bp[0]&&c===bp[1])) return [[dr,dc],bp];
+      if (dm.length) {
+        const ct = [TOWN_ROW, zc];
+        dm.sort((a,x) => (cheb(a,ct)*100+Math.abs(a[1]-zc))-(cheb(x,ct)*100+Math.abs(x[1]-zc)));
+        return [[dr,dc], dm[0]];
+      }
+    }
+    return null;
+  }
+
+  const sortedZ = [...zombies].sort((a,x) => x[0]-a[0]);
+
+  // 1. 即負け防止 (row5)
+  for (const [zr,zc] of sortedZ) {
     if (zr < TOWN_ROW-1) break;
-    if (sr!==null && hasMove(getMoves(b,sr,sc), zr, zc)) return [[sr,sc],[zr,zc]];
+    if (sr!==null && getMoves(b,sr,sc).some(([r,c]) => r===zr&&c===zc)) return [[sr,sc],[zr,zc]];
     const block = [TOWN_ROW, zc];
     for (const [dr,dc] of [...dogs].sort((a,x) => cheb(a,block)-cheb(x,block))) {
-      if (hasMove(getMoves(b,dr,dc), block[0], block[1])) return [[dr,dc],block];
+      if (getMoves(b,dr,dc).some(([r,c]) => r===block[0]&&c===block[1])) return [[dr,dc],block];
     }
-    if (sr!==null && hasMove(getMoves(b,sr,sc), block[0], block[1])) return [[sr,sc],block];
+    if (sr!==null && getMoves(b,sr,sc).some(([r,c]) => r===block[0]&&c===block[1])) return [[sr,sc],block];
   }
 
   // 2. 保安官が隣接ゾンビを即捕縛
@@ -380,7 +446,47 @@ function cpuSheriff(b) {
     if (caps.length) { caps.sort((a,x) => x[0]-a[0]); return [[sr,sc],caps[0]]; }
   }
 
-  // 3a. 前進中(row>=2)で保安官が届かない → 自由な犬を展開
+  // 3. ic=0（誰も止められない）ゾンビへ緊急対応 (row >= 1)
+  const critical = zombies.filter(([zr,zc]) =>
+    zr >= 1
+    && !(zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF))
+    && noOneCanStop(zr, zc)
+  ).sort((a,x) => x[0]-a[0]);
+
+  for (const [zr,zc] of critical) {
+    const mv = deployDog(zr, zc, false);
+    if (mv) return mv;
+    const bp = [zr+1, zc];
+    if (sr!==null && getMoves(b,sr,sc).some(([r,c]) => r===bp[0]&&c===bp[1])) return [[sr,sc],bp];
+    const mv2 = deployDog(zr, zc, true);
+    if (mv2) return mv2;
+  }
+
+  // 4. 保安官だけが阻止役のゾンビ → 犬に交代させて保安官を解放
+  if (sr!==null) {
+    const freeDogs = dogs.filter(d => !blockingDogs.has(`${d[0]},${d[1]}`));
+    const sheriffOnly = zombies.filter(([zr,zc]) =>
+      zr >= 1
+      && !(zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF))
+      && sheriffCanCatch(zr, zc)
+      && interceptorCount(zr, zc) === 1
+    ).sort((a,x) => x[0]-a[0]);
+    for (const [zr,zc] of sheriffOnly) {
+      const bp = [zr+1, zc];
+      if (bp[0] >= ROWS || b[bp[0]][bp[1]] !== EMPTY) continue;
+      for (const [dr,dc] of [...freeDogs].sort((a,x) => cheb(a,bp)-cheb(x,bp))) {
+        const dm = getMoves(b, dr, dc);
+        if (dm.some(([r,c]) => r===bp[0]&&c===bp[1])) return [[dr,dc],bp];
+        if (dm.length) {
+          const ct = [TOWN_ROW, zc];
+          dm.sort((a,x) => (cheb(a,ct)*100+Math.abs(a[1]-zc))-(cheb(x,ct)*100+Math.abs(x[1]-zc)));
+          return [[dr,dc], dm[0]];
+        }
+      }
+    }
+  }
+
+  // 5. row>=2で保安官が届かない → 自由な犬を展開
   const unblockedAdv = zombies.filter(([zr,zc]) =>
     zr >= 2
     && !(zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF))
@@ -395,43 +501,24 @@ function cpuSheriff(b) {
     const cands = [...freeDogList].sort((a,x) => cheb(a,bp)-cheb(x,bp));
     for (const [dr,dc] of cands) {
       const dm = getMoves(b, dr, dc);
-      if (hasMove(dm, bp[0], bp[1])) return [[dr,dc], bp];
+      if (dm.some(([r,c]) => r===bp[0]&&c===bp[1])) return [[dr,dc], bp];
       if (dm.length) {
-        const colTarget = [TOWN_ROW, zc];
-        dm.sort((a,x) => {
-          const da = cheb(a, colTarget)*100 + Math.abs(a[1]-zc);
-          const dx = cheb(x, colTarget)*100 + Math.abs(x[1]-zc);
-          return da - dx;
-        });
+        const ct = [TOWN_ROW, zc];
+        dm.sort((a,x) => (cheb(a,ct)*100+Math.abs(a[1]-zc))-(cheb(x,ct)*100+Math.abs(x[1]-zc)));
         return [[dr,dc], dm[0]];
       }
     }
     break;
   }
 
-  // 3b. 真の危機 → ブロック中の犬も使う
+  // 6. 真の危機 → ブロック中の犬も使う
   for (const [zr,zc] of unblockedAdv) {
     if (!noOneCanStop(zr, zc)) continue;
-    const bp = [zr+1, zc];
-    if (bp[0] >= ROWS || b[bp[0]][bp[1]] !== EMPTY) continue;
-    const busyDogs = dogs.filter(d => blockingDogs.has(`${d[0]},${d[1]}`))
-      .sort((a,x) => cheb(a,bp)-cheb(x,bp));
-    for (const [dr,dc] of busyDogs) {
-      const dm = getMoves(b, dr, dc);
-      if (hasMove(dm, bp[0], bp[1])) return [[dr,dc], bp];
-      if (dm.length) {
-        const colTarget = [TOWN_ROW, zc];
-        dm.sort((a,x) => {
-          const da = cheb(a,colTarget)*100 + Math.abs(a[1]-zc);
-          const dx = cheb(x,colTarget)*100 + Math.abs(x[1]-zc);
-          return da - dx;
-        });
-        return [[dr,dc], dm[0]];
-      }
-    }
+    const mv = deployDog(zr, zc, true);
+    if (mv) return mv;
   }
 
-  // 4. 保安官: ゾンビを捕縛しに前進
+  // 7. 保安官: ゾンビを捕縛しに前進
   if (sr!==null) {
     const pinned = zombies.filter(([zr,zc]) => zr+1 < ROWS && b[zr+1][zc]===DOG);
     const advHuntable = zombies.filter(([zr,zc]) =>
@@ -440,7 +527,6 @@ function cpuSheriff(b) {
       && sheriffCanCatch(zr, zc)
     );
     const row0Huntable = zombies.filter(([zr]) => zr===0 && sheriffCanCatch(zr, 0));
-
     const huntList = [
       ...pinned.sort((a,x) => x[0]-a[0] || cheb([sr,sc],a)-cheb([sr,sc],x)),
       ...advHuntable.sort((a,x) => x[0]-a[0] || cheb([sr,sc],a)-cheb([sr,sc],x)),
@@ -450,18 +536,35 @@ function cpuSheriff(b) {
       const [tzr,tzc] = huntList[0];
       const sm = getMoves(b, sr, sc);
       if (sm.length) {
-        sm.sort((a,x) => {
-          const da = cheb(a,[tzr,tzc])*100 + Math.abs(a[0]-tzr);
-          const dx = cheb(x,[tzr,tzc])*100 + Math.abs(x[0]-tzr);
-          return da - dx;
-        });
+        sm.sort((a,x) => (cheb(a,[tzr,tzc])*100+Math.abs(a[0]-tzr))-(cheb(x,[tzr,tzc])*100+Math.abs(x[0]-tzr)));
         return [[sr,sc], sm[0]];
       }
     }
   }
 
-  // 5. フォールバック
-  return allMoves.sort((a,x) => evalPos(applyMove(b,x[0],x[1])) - evalPos(applyMove(b,a[0],a[1])))[0];
+  // 8. フォールバック: カバレッジスコアで最善手
+  function coverageScore(move) {
+    const nb = applyMove(b, move[0], move[1]);
+    const nd = [], nz = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      if (nb[r][c] === ZOMBIE) nz.push([r,c]);
+      else if (nb[r][c] === DOG || nb[r][c] === SHERIFF) nd.push([r,c]);
+    }
+    let u0 = 0, u1 = 0;
+    for (const [zr,zc] of nz) {
+      const steps = TOWN_ROW - zr;
+      if (steps <= 0) continue;
+      let ic = 0;
+      for (const [dr,dc] of nd) {
+        for (let k = 1; k <= steps; k++) {
+          if (cheb([dr,dc],[zr+k,zc]) <= k) { ic++; break; }
+        }
+      }
+      if (ic === 0) u0++; else if (ic === 1) u1++;
+    }
+    return -u0*10000 - u1*1000 + evalPos(nb);
+  }
+  return allMoves.sort((a,x) => coverageScore(x) - coverageScore(a))[0];
 }
 
 // ===== UI =====
