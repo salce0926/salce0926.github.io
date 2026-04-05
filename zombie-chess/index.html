@@ -443,7 +443,23 @@ function cpuSheriff(b) {
   // 2. 保安官が隣接ゾンビを即捕縛
   if (sr!==null) {
     const caps = getMoves(b,sr,sc).filter(([r,c]) => b[r][c]===ZOMBIE);
-    if (caps.length) { caps.sort((a,x) => x[0]-a[0]); return [[sr,sc],caps[0]]; }
+    if (caps.length) {
+      caps.sort((a,x) => x[0]-a[0]);
+      const [tr,tc] = caps[0];
+      const targetIsPinned = tr+1 < ROWS && (b[tr+1][tc]===DOG || b[tr+1][tc]===SHERIFF);
+      if (targetIsPinned) {
+        // ピン済みゾンビ捕縛より、ic=0緊急事態（犬展開）を優先
+        const hasIc0 = zombies.some(([zr,zc]) =>
+          zr >= 1
+          && !(zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF))
+          && noOneCanStop(zr, zc)
+        );
+        if (!hasIc0) return [[sr,sc], caps[0]];
+        // ic=0がある場合はスキップ → step 3で犬を展開
+      } else {
+        return [[sr,sc], caps[0]];
+      }
+    }
   }
 
   // 3. ic=0（誰も止められない）ゾンビへ緊急対応 (row >= 1)
