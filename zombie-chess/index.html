@@ -7,7 +7,6 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* セルサイズ: 12列(盤面11+ラベル1)が画面に収まるよう自動スケール */
   :root { --cell: min(52px, calc((100vw - 44px) / 12)); }
 
   body { background: #1a1a2e; color: #eee; font-family: 'Helvetica Neue', sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 16px; }
@@ -20,7 +19,7 @@
     padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer;
     font-size: clamp(0.75rem, 2.2vw, 0.9rem); font-weight: bold;
     transition: opacity 0.15s; touch-action: manipulation;
-    min-height: 44px; /* タップしやすいサイズ */
+    min-height: 44px;
   }
   button:hover { opacity: 0.85; }
   #btnNew { background: #4caf50; color: #fff; }
@@ -31,6 +30,35 @@
   .mode-btn:hover { background: #445; color: #ddd; }
   .mode-btn.active:hover { background: #c8aa40; }
 
+  /* オンラインパネル */
+  #online-panel {
+    background: #1a2233; border: 1px solid #3a4a6a; border-radius: 10px;
+    padding: 16px 20px; margin-bottom: 12px;
+    max-width: 420px; width: 100%; text-align: center;
+  }
+  #online-panel h3 { color: #e0c060; margin-bottom: 12px; font-size: 1rem; }
+  .o-role-btns { display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; }
+  .o-role-btns button { background: #223; color: #aaa; border: 1px solid #446; flex: 1; max-width: 170px; }
+  .o-role-btns button.active { background: #e0c060; color: #1a1a2e; border-color: #e0c060; }
+  .o-or { color: #555; font-size: 0.8rem; margin: 10px 0; }
+  #join-code {
+    background: #112; border: 1px solid #446; color: #eee;
+    padding: 9px 12px; border-radius: 6px; font-size: 1.1rem;
+    width: 110px; text-transform: uppercase; letter-spacing: 4px;
+    text-align: center; min-height: 44px;
+  }
+  #room-code-display {
+    background: #0d180d; border: 1px solid #2a4a2a; border-radius: 8px;
+    padding: 14px; margin-top: 8px;
+  }
+  #room-code-big {
+    font-size: 2.4rem; letter-spacing: 10px; color: #6f6; font-weight: bold;
+    font-family: monospace; margin-bottom: 8px;
+  }
+  .o-msg { color: #adf; font-size: 0.85rem; margin-top: 8px; min-height: 1.2em; }
+  .o-err { color: #f88; font-size: 0.85rem; margin-top: 8px; }
+  .o-small-btn { background: #223; color: #aaa; border: 1px solid #446; font-size: 0.78rem; padding: 6px 14px; min-height: 36px; }
+
   #board-wrap { position: relative; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
   table { border-collapse: collapse; }
   td {
@@ -38,16 +66,15 @@
     text-align: center; vertical-align: middle;
     border: 1px solid #444; cursor: pointer; position: relative;
     transition: background 0.1s;
-    font-size: 0; /* children handle size */
-    touch-action: manipulation; /* ダブルタップズーム防止 */
+    font-size: 0;
+    touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
-  /* row colors */
   .row-graveyard { background: #1a0a2e; }
   .row-mid       { background: #1a2a1e; }
   .row-town      { background: #2e1a0a; }
 
-  @media (hover: hover) { td:hover { filter: brightness(1.3); } } /* マウスのみ */
+  @media (hover: hover) { td:hover { filter: brightness(1.3); } }
   td.selected { outline: 3px solid #fff; outline-offset: -3px; }
   td.valid-move { background: rgba(100,200,255,0.25) !important; }
   td.valid-move::after { content: '●'; color: rgba(100,200,255,0.5); font-size: calc(var(--cell) * 0.38); }
@@ -91,11 +118,46 @@
 <div id="controls">
   <button id="btnNew" onclick="newGame()">▶ 新規ゲーム</button>
   <div id="mode-group">
-    <div id="mode-label">対戦モード（いつでも切替可）</div>
+    <div id="mode-label">対戦モード</div>
     <button class="mode-btn active" id="mode-hvh" onclick="setMode('hvh')">人間 vs 人間</button>
     <button class="mode-btn" id="mode-hvc" onclick="setMode('hvc')">人間(Z) vs CPU(保)</button>
     <button class="mode-btn" id="mode-cvh" onclick="setMode('cvh')">CPU(Z) vs 人間(保)</button>
     <button class="mode-btn" id="mode-cvc" onclick="setMode('cvc')">CPU vs CPU</button>
+    <button class="mode-btn" id="mode-online" onclick="setMode('online')">🌐 オンライン</button>
+  </div>
+</div>
+
+<!-- オンライン対戦パネル -->
+<div id="online-panel" style="display:none;">
+  <h3>🌐 オンライン対戦</h3>
+
+  <div id="online-setup">
+    <div style="color:#999;font-size:0.82rem;margin-bottom:10px;">あなたが担当する役割を選んでください</div>
+    <div class="o-role-btns">
+      <button id="role-btn-zombie" onclick="setOnlineRole('zombie')">🧟 ゾンビ担当</button>
+      <button id="role-btn-sheriff" onclick="setOnlineRole('sheriff')">🤠 保安官担当</button>
+    </div>
+
+    <button onclick="createOnlineRoom()" style="background:#2e7d32;color:#fff;width:160px;">🏠 部屋を作る</button>
+
+    <div class="o-or">— または部屋に入る —</div>
+
+    <div style="display:flex;gap:8px;justify-content:center;align-items:center;">
+      <input id="join-code" placeholder="XXXXXX" maxlength="6">
+      <button onclick="joinOnlineRoom()" style="background:#1565c0;color:#fff;">入室</button>
+    </div>
+
+    <div id="online-msg" class="o-msg"></div>
+  </div>
+
+  <div id="online-waiting" style="display:none;">
+    <div id="room-code-display">
+      <div style="color:#888;font-size:0.78rem;margin-bottom:4px;">ルームコード（相手に教えてください）</div>
+      <div id="room-code-big"></div>
+      <button class="o-small-btn" onclick="copyRoomLink()">🔗 リンクをコピー</button>
+    </div>
+    <div id="waiting-msg" class="o-msg">⏳ 相手の入室を待っています...</div>
+    <button class="o-small-btn" onclick="cancelOnlineRoom()" style="margin-top:10px;">キャンセル</button>
   </div>
 </div>
 
@@ -117,16 +179,37 @@
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
 <script>
 // ===== 定数 =====
 const ROWS = 7, COLS = 11, TOWN_ROW = 6;
 const EMPTY = '.', ZOMBIE = 'Z', DOG = 'D', SHERIFF = 'S';
 const ZOMBIE_TURN = 'zombie', SHERIFF_TURN = 'sheriff';
 
-// ===== 状態 =====
+// ===== ゲーム状態 =====
 let board, turn, selected, validMoves, gameOver, turnCount, lastMove;
 let mode = 'hvh';
 let cpuTimerId = null;
+
+// ===== オンライン状態 =====
+let onlineMode = false;
+let myRole = null;            // 'zombie' | 'sheriff'
+let roomId = null;
+let onlineSelectedRole = 'zombie';
+
+// ===== Firebase =====
+const firebaseConfig = {
+  apiKey: "AIzaSyC5nwYJpUUPdddcGQRWKo_q49M_hyDb7GU",
+  authDomain: "zombie-chess-67e05.firebaseapp.com",
+  databaseURL: "https://zombie-chess-67e05-default-rtdb.firebaseio.com",
+  projectId: "zombie-chess-67e05",
+  storageBucket: "zombie-chess-67e05.firebasestorage.app",
+  messagingSenderId: "183868915156",
+  appId: "1:183868915156:web:4d2bc644bada651f536a41"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
 // ===== ゲームロジック =====
 function createBoard() {
@@ -253,13 +336,11 @@ function cpuSheriff(b) {
   const cheb = ([ar,ac], [br,bc]) => Math.max(Math.abs(ar-br), Math.abs(ac-bc));
   const hasMove = (moves, r, c) => moves.some(([mr,mc]) => mr===r && mc===c);
 
-  // 犬がブロック中かどうか記録
   const blockingDogs = new Set();
   for (const [zr,zc] of zombies) {
     if (zr+1 < ROWS && b[zr+1][zc] === DOG) blockingDogs.add(`${zr+1},${zc}`);
   }
 
-  // 保安官がゾンビ(zr,zc)を町到達前に捕縛できるか
   function sheriffCanCatch(zr, zc) {
     if (sr === null) return false;
     const steps = TOWN_ROW - zr;
@@ -269,7 +350,6 @@ function cpuSheriff(b) {
     return false;
   }
 
-  // 全守備駒が間に合わない（真の危機）か
   function noOneCanStop(zr, zc) {
     if (zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF)) return false;
     const defenders = (sr!==null ? [[sr,sc]] : []).concat(dogs);
@@ -282,7 +362,7 @@ function cpuSheriff(b) {
     return true;
   }
 
-  // ---- 1. 即負け防止: row5のゾンビ（次で町到達） ----
+  // 1. 即負け防止
   const sorted_z = [...zombies].sort((a,x) => x[0]-a[0]);
   for (const [zr,zc] of sorted_z) {
     if (zr < TOWN_ROW-1) break;
@@ -294,13 +374,13 @@ function cpuSheriff(b) {
     if (sr!==null && hasMove(getMoves(b,sr,sc), block[0], block[1])) return [[sr,sc],block];
   }
 
-  // ---- 2. 保安官が隣接ゾンビを即捕縛 ----
+  // 2. 保安官が隣接ゾンビを即捕縛
   if (sr!==null) {
     const caps = getMoves(b,sr,sc).filter(([r,c]) => b[r][c]===ZOMBIE);
     if (caps.length) { caps.sort((a,x) => x[0]-a[0]); return [[sr,sc],caps[0]]; }
   }
 
-  // ---- 3a. 前進中(row>=2)で保安官が届かない → 自由な犬を展開 ----
+  // 3a. 前進中(row>=2)で保安官が届かない → 自由な犬を展開
   const unblockedAdv = zombies.filter(([zr,zc]) =>
     zr >= 2
     && !(zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF))
@@ -317,7 +397,6 @@ function cpuSheriff(b) {
       const dm = getMoves(b, dr, dc);
       if (hasMove(dm, bp[0], bp[1])) return [[dr,dc], bp];
       if (dm.length) {
-        // 同じ列に入ることを最優先（列に入れば次の手でブロックできる）
         const colTarget = [TOWN_ROW, zc];
         dm.sort((a,x) => {
           const da = cheb(a, colTarget)*100 + Math.abs(a[1]-zc);
@@ -327,10 +406,10 @@ function cpuSheriff(b) {
         return [[dr,dc], dm[0]];
       }
     }
-    break; // 自由な犬がいない場合は3bへ
+    break;
   }
 
-  // ---- 3b. 真の危機 → ブロック中の犬も使う ----
+  // 3b. 真の危機 → ブロック中の犬も使う
   for (const [zr,zc] of unblockedAdv) {
     if (!noOneCanStop(zr, zc)) continue;
     const bp = [zr+1, zc];
@@ -352,17 +431,14 @@ function cpuSheriff(b) {
     }
   }
 
-  // ---- 4. 保安官: ゾンビを捕縛しに前進 ----
+  // 4. 保安官: ゾンビを捕縛しに前進
   if (sr!==null) {
-    // ピン済み（犬が釘付け）: 距離に関わらず全て対象（犬を解放するため）
     const pinned = zombies.filter(([zr,zc]) => zr+1 < ROWS && b[zr+1][zc]===DOG);
-    // 前進中で保安官が間に合う（row>0）
     const advHuntable = zombies.filter(([zr,zc]) =>
       zr > 0
       && !(zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF))
       && sheriffCanCatch(zr, zc)
     );
-    // row0（最後の手段）
     const row0Huntable = zombies.filter(([zr]) => zr===0 && sheriffCanCatch(zr, 0));
 
     const huntList = [
@@ -374,7 +450,6 @@ function cpuSheriff(b) {
       const [tzr,tzc] = huntList[0];
       const sm = getMoves(b, sr, sc);
       if (sm.length) {
-        // 同cheb距離なら目標rowに近い方を優先（row0やrow6に引き寄せられない）
         sm.sort((a,x) => {
           const da = cheb(a,[tzr,tzc])*100 + Math.abs(a[0]-tzr);
           const dx = cheb(x,[tzr,tzc])*100 + Math.abs(x[0]-tzr);
@@ -385,29 +460,46 @@ function cpuSheriff(b) {
     }
   }
 
-  // ---- 5. フォールバック ----
+  // 5. フォールバック
   return allMoves.sort((a,x) => evalPos(applyMove(b,x[0],x[1])) - evalPos(applyMove(b,a[0],a[1])))[0];
 }
 
 // ===== UI =====
 function setMode(m) {
   mode = m;
-  ['hvh','hvc','cvh','cvc'].forEach(k => document.getElementById('mode-'+k).classList.toggle('active', k===m));
+  ['hvh','hvc','cvh','cvc','online'].forEach(k => {
+    const btn = document.getElementById('mode-'+k);
+    if (btn) btn.classList.toggle('active', k===m);
+  });
+  if (onlineMode && m !== 'online') exitOnlineMode();
   newGame();
 }
 
 function newGame() {
   if (cpuTimerId) { clearTimeout(cpuTimerId); cpuTimerId = null; }
+  if (onlineMode) exitOnlineMode();
   board = createBoard();
   turn = ZOMBIE_TURN;
   selected = null; validMoves = []; gameOver = false; turnCount = 0; lastMove = null;
   document.getElementById('winner-overlay').classList.remove('show');
+
+  if (mode === 'online') {
+    document.getElementById('online-panel').style.display = 'block';
+    document.getElementById('online-setup').style.display = 'block';
+    document.getElementById('online-waiting').style.display = 'none';
+    document.getElementById('status').textContent = '役割を選んで部屋を作るか入室してください';
+    renderBoard();
+    return;
+  }
+
+  document.getElementById('online-panel').style.display = 'none';
   renderBoard();
   updateStatus();
   scheduleIfCpu();
 }
 
 function isCpuTurn() {
+  if (onlineMode) return false;
   if (mode === 'cvc') return true;
   if (mode === 'hvc' && turn === SHERIFF_TURN) return true;
   if (mode === 'cvh' && turn === ZOMBIE_TURN) return true;
@@ -431,8 +523,22 @@ function execMove(src, dst) {
   lastMove = [src, dst];
   turnCount++;
   const winner = checkWinner(board);
-  if (winner) { showWinner(winner); return; }
-  endTurn();
+  if (winner) {
+    if (onlineMode) writeToFirebase(winner, null);
+    showWinner(winner);
+    return;
+  }
+  if (onlineMode) {
+    let nextTurn = turn === ZOMBIE_TURN ? SHERIFF_TURN : ZOMBIE_TURN;
+    if (!allMovesFor(board, nextTurn).length) nextTurn = turn;
+    writeToFirebase(null, nextTurn);
+    turn = nextTurn;
+    selected = null; validMoves = [];
+    renderBoard();
+    updateStatus();
+  } else {
+    endTurn();
+  }
 }
 
 function endTurn() {
@@ -448,7 +554,12 @@ function endTurn() {
 }
 
 function onCellClick(r, c) {
-  if (gameOver || isCpuTurn()) return;
+  if (gameOver) return;
+  if (onlineMode) {
+    if (turn !== (myRole === 'zombie' ? ZOMBIE_TURN : SHERIFF_TURN)) return;
+  } else {
+    if (isCpuTurn()) return;
+  }
   const piece = board[r][c];
 
   if (selected) {
@@ -468,7 +579,6 @@ function onCellClick(r, c) {
 function renderBoard() {
   const tbl = document.getElementById('board');
   tbl.innerHTML = '';
-  // 列ヘッダー
   const hdr = document.createElement('tr');
   hdr.appendChild(Object.assign(document.createElement('td'), {className:'edge-label'}));
   for (let c = 0; c < COLS; c++) {
@@ -480,7 +590,6 @@ function renderBoard() {
 
   for (let r = 0; r < ROWS; r++) {
     const tr = document.createElement('tr');
-    // 行ラベル
     const rl = document.createElement('td');
     rl.className = 'edge-label'; rl.textContent = r;
     tr.appendChild(rl);
@@ -510,8 +619,14 @@ function renderBoard() {
 function updateStatus() {
   const zc = countPiece(board, ZOMBIE);
   const who = turn === ZOMBIE_TURN ? '🧟 ゾンビのターン' : '🤠 保安官のターン';
-  const cpuMark = isCpuTurn() ? '（CPU思考中…）' : '';
-  document.getElementById('status').textContent = `${who} ${cpuMark}  ｜  残りゾンビ: ${zc}体  ｜  ${turnCount}手目`;
+  let extra = '';
+  if (onlineMode) {
+    const isMyT = turn === (myRole === 'zombie' ? ZOMBIE_TURN : SHERIFF_TURN);
+    extra = isMyT ? '（あなたのターン）' : '（相手のターン...）';
+  } else {
+    extra = isCpuTurn() ? '（CPU思考中…）' : '';
+  }
+  document.getElementById('status').textContent = `${who} ${extra}  ｜  残りゾンビ: ${zc}体  ｜  ${turnCount}手目`;
 }
 
 function showWinner(winner) {
@@ -519,12 +634,200 @@ function showWinner(winner) {
   renderBoard();
   const isZombie = winner === ZOMBIE_TURN;
   document.getElementById('winner-title').textContent = isZombie ? '🧟 ゾンビの勝ち！' : '🤠 保安官の勝ち！';
-  document.getElementById('winner-sub').textContent = isZombie ? `町に侵入されました！（${turnCount}手）` : `全ゾンビを撃退しました！（${turnCount}手）`;
+  let sub = isZombie ? `町に侵入されました！（${turnCount}手）` : `全ゾンビを撃退しました！（${turnCount}手）`;
+  if (onlineMode) {
+    const iWon = (winner === ZOMBIE_TURN && myRole === 'zombie') || (winner === SHERIFF_TURN && myRole === 'sheriff');
+    sub = (iWon ? '🎉 あなたの勝ち！  ' : '💀 あなたの負け...  ') + sub;
+  }
+  document.getElementById('winner-sub').textContent = sub;
   document.getElementById('winner-overlay').classList.add('show');
 }
 
-// 初期化
-newGame();
+// ===== Firebase / オンライン =====
+function boardToStr(b) {
+  return b.map(row => row.join('')).join('');
+}
+
+function strToBoard(s) {
+  const b = [];
+  for (let r = 0; r < ROWS; r++) b.push(Array.from(s.slice(r*COLS, (r+1)*COLS)));
+  return b;
+}
+
+function generateRoomId() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let id = '';
+  for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)];
+  return id;
+}
+
+function setOnlineRole(role) {
+  onlineSelectedRole = role;
+  document.getElementById('role-btn-zombie').classList.toggle('active', role === 'zombie');
+  document.getElementById('role-btn-sheriff').classList.toggle('active', role === 'sheriff');
+}
+
+async function createOnlineRoom() {
+  const id = generateRoomId();
+  try {
+    await db.ref(`rooms/${id}`).set({
+      board: boardToStr(createBoard()),
+      turn: ZOMBIE_TURN,
+      turnCount: 0,
+      lastMove: null,
+      status: 'waiting',
+      winner: null,
+      creatorRole: onlineSelectedRole
+    });
+    roomId = id;
+    myRole = onlineSelectedRole;
+
+    document.getElementById('online-setup').style.display = 'none';
+    document.getElementById('online-waiting').style.display = 'block';
+    document.getElementById('room-code-big').textContent = id;
+    history.replaceState(null, '', `?room=${id}`);
+
+    listenRoom(id);
+  } catch (e) {
+    showOnlineMsg('エラー: ' + e.message, true);
+  }
+}
+
+async function joinOnlineRoom() {
+  const code = (document.getElementById('join-code').value || '').trim().toUpperCase();
+  if (code.length < 4) { showOnlineMsg('ルームコードを入力してください', true); return; }
+  try {
+    const snap = await db.ref(`rooms/${code}`).get();
+    if (!snap.exists()) { showOnlineMsg('部屋が見つかりません', true); return; }
+    const data = snap.val();
+    if (data.status !== 'waiting') { showOnlineMsg('この部屋はすでに満員か終了しています', true); return; }
+
+    roomId = code;
+    myRole = data.creatorRole === 'zombie' ? 'sheriff' : 'zombie';
+    showOnlineMsg(`${myRole === 'zombie' ? '🧟 ゾンビ' : '🤠 保安官'}担当で入室しています...`);
+
+    listenRoom(code);
+    await db.ref(`rooms/${code}/status`).set('playing');
+  } catch (e) {
+    showOnlineMsg('エラー: ' + e.message, true);
+  }
+}
+
+function listenRoom(id) {
+  db.ref(`rooms/${id}`).on('value', snap => {
+    const data = snap.val();
+    if (!data) return;
+    if (!onlineMode) {
+      if (data.status === 'playing') startOnlineGame(data);
+    } else {
+      handleRemoteUpdate(data);
+    }
+  });
+}
+
+function startOnlineGame(data) {
+  onlineMode = true;
+  if (cpuTimerId) { clearTimeout(cpuTimerId); cpuTimerId = null; }
+  board = strToBoard(data.board);
+  turn = data.turn;
+  turnCount = data.turnCount || 0;
+  lastMove = null;
+  gameOver = false;
+  selected = null; validMoves = [];
+  document.getElementById('online-panel').style.display = 'none';
+  document.getElementById('winner-overlay').classList.remove('show');
+  renderBoard();
+  updateStatus();
+}
+
+function handleRemoteUpdate(data) {
+  if (gameOver) return;
+  if (data.winner) {
+    board = strToBoard(data.board);
+    renderBoard();
+    showWinner(data.winner);
+    return;
+  }
+  if (data.turnCount > turnCount) {
+    board = strToBoard(data.board);
+    turn = data.turn;
+    turnCount = data.turnCount;
+    lastMove = data.lastMove ? [
+      [data.lastMove.src.r, data.lastMove.src.c],
+      [data.lastMove.dst.r, data.lastMove.dst.c]
+    ] : null;
+    selected = null; validMoves = [];
+    renderBoard();
+    updateStatus();
+  }
+}
+
+function writeToFirebase(winner, nextTurn) {
+  if (!roomId) return;
+  db.ref(`rooms/${roomId}`).update({
+    board: boardToStr(board),
+    turn: nextTurn !== null ? nextTurn : turn,
+    turnCount: turnCount,
+    lastMove: lastMove ? {
+      src: { r: lastMove[0][0], c: lastMove[0][1] },
+      dst: { r: lastMove[1][0], c: lastMove[1][1] }
+    } : null,
+    winner: winner || null,
+    status: winner ? 'finished' : 'playing'
+  });
+}
+
+function cancelOnlineRoom() {
+  if (roomId) {
+    db.ref(`rooms/${roomId}`).off();
+    db.ref(`rooms/${roomId}/status`).set('cancelled');
+  }
+  roomId = null; myRole = null;
+  history.replaceState(null, '', location.pathname);
+  document.getElementById('online-setup').style.display = 'block';
+  document.getElementById('online-waiting').style.display = 'none';
+  showOnlineMsg('');
+}
+
+function exitOnlineMode() {
+  if (roomId) db.ref(`rooms/${roomId}`).off();
+  onlineMode = false; myRole = null; roomId = null;
+  history.replaceState(null, '', location.pathname);
+}
+
+function copyRoomLink() {
+  const code = document.getElementById('room-code-big').textContent;
+  const url = `${location.origin}${location.pathname}?room=${code}`;
+  const doFallback = () => {
+    const tmp = document.createElement('textarea');
+    tmp.value = url; document.body.appendChild(tmp);
+    tmp.select(); document.execCommand('copy');
+    document.body.removeChild(tmp);
+  };
+  (navigator.clipboard ? navigator.clipboard.writeText(url).catch(doFallback) : Promise.resolve(doFallback()))
+    .then(() => {
+      const el = document.getElementById('waiting-msg');
+      const orig = el.textContent;
+      el.textContent = '✅ リンクをコピーしました！';
+      setTimeout(() => { el.textContent = orig; }, 2000);
+    });
+}
+
+function showOnlineMsg(msg, isErr = false) {
+  const el = document.getElementById('online-msg');
+  if (el) { el.textContent = msg; el.className = isErr ? 'o-err' : 'o-msg'; }
+}
+
+// ===== 初期化 =====
+setOnlineRole('zombie');
+const _urlRoom = new URLSearchParams(location.search).get('room');
+if (_urlRoom) {
+  setMode('online');
+  document.getElementById('join-code').value = _urlRoom.toUpperCase();
+  showOnlineMsg('ルームコードが入力されました。入室ボタンを押してください。');
+} else {
+  newGame();
+}
 </script>
 </body>
 </html>
