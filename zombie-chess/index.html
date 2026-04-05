@@ -600,9 +600,27 @@ function cpuSheriff(b) {
       && sheriffCanCatch(zr, zc)
     );
     const row0Huntable = zombies.filter(([zr]) => zr===0 && sheriffCanCatch(zr, 0));
+
+    // 前進中ゾンビを緊急度で分類:
+    // urgent = ic<=1 かつ 自由な犬が直接ブロックできない → 保安官が唯一の頼り → ピン済みより優先
+    const freeDogsStep7 = dogs.filter(d => !blockingDogs.has(`${d[0]},${d[1]}`));
+    const urgentAdv = [], deferredAdv = [];
+    for (const [zr,zc] of advHuntable) {
+      if (interceptorCount(zr, zc) <= 1) {
+        const bp = [zr+1, zc];
+        const dogCanBlock = bp[0] < ROWS && b[bp[0]][bp[1]] === EMPTY
+          && freeDogsStep7.some(([dr,dc]) => getMoves(b,dr,dc).some(([r,c]) => r===bp[0]&&c===bp[1]));
+        if (!dogCanBlock) urgentAdv.push([zr,zc]);
+        else deferredAdv.push([zr,zc]);
+      } else {
+        deferredAdv.push([zr,zc]);
+      }
+    }
+
     const huntList = [
+      ...urgentAdv.sort((a,x) => x[0]-a[0] || cheb([sr,sc],a)-cheb([sr,sc],x)),
       ...pinned.sort((a,x) => x[0]-a[0] || cheb([sr,sc],a)-cheb([sr,sc],x)),
-      ...advHuntable.sort((a,x) => x[0]-a[0] || cheb([sr,sc],a)-cheb([sr,sc],x)),
+      ...deferredAdv.sort((a,x) => x[0]-a[0] || cheb([sr,sc],a)-cheb([sr,sc],x)),
       ...row0Huntable.sort((a,x) => cheb([sr,sc],a)-cheb([sr,sc],x))
     ];
     if (huntList.length) {
