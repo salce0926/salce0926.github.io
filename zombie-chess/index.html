@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ゾンビチェス</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* セルサイズ: 12列(盤面11+ラベル1)が画面に収まるよう自動スケール */
+  :root { --cell: min(52px, calc((100vw - 44px) / 12)); }
+
+  body { background: #1a1a2e; color: #eee; font-family: 'Helvetica Neue', sans-serif; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 16px; }
+  h1 { font-size: clamp(1.2rem, 4vw, 1.8rem); margin-bottom: 6px; letter-spacing: 2px; color: #e0c060; }
+  #status { font-size: clamp(0.8rem, 2.5vw, 1.1rem); margin-bottom: 10px; min-height: 1.6em; color: #adf; text-align: center; }
+  #info { font-size: clamp(0.7rem, 2vw, 0.85rem); color: #888; margin-bottom: 10px; }
+
+  #controls { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  button {
+    padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer;
+    font-size: clamp(0.75rem, 2.2vw, 0.9rem); font-weight: bold;
+    transition: opacity 0.15s; touch-action: manipulation;
+    min-height: 44px; /* タップしやすいサイズ */
+  }
+  button:hover { opacity: 0.85; }
+  #btnNew { background: #4caf50; color: #fff; }
+  #mode-group { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; }
+  #mode-label { font-size: 0.7rem; color: #888; width: 100%; text-align: center; }
+  .mode-btn { background: #334; color: #aaa; border: 1px solid #556; }
+  .mode-btn.active { background: #e0c060; color: #1a1a2e; border-color: #e0c060; }
+  .mode-btn:hover { background: #445; color: #ddd; }
+  .mode-btn.active:hover { background: #c8aa40; }
+
+  #board-wrap { position: relative; overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+  table { border-collapse: collapse; }
+  td {
+    width: var(--cell); height: var(--cell);
+    text-align: center; vertical-align: middle;
+    border: 1px solid #444; cursor: pointer; position: relative;
+    transition: background 0.1s;
+    font-size: 0; /* children handle size */
+    touch-action: manipulation; /* ダブルタップズーム防止 */
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* row colors */
+  .row-graveyard { background: #1a0a2e; }
+  .row-mid       { background: #1a2a1e; }
+  .row-town      { background: #2e1a0a; }
+
+  @media (hover: hover) { td:hover { filter: brightness(1.3); } } /* マウスのみ */
+  td.selected { outline: 3px solid #fff; outline-offset: -3px; }
+  td.valid-move { background: rgba(100,200,255,0.25) !important; }
+  td.valid-move::after { content: '●'; color: rgba(100,200,255,0.5); font-size: calc(var(--cell) * 0.38); }
+  td.last-move { outline: 2px solid #e0c060; outline-offset: -2px; }
+
+  .piece {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: calc(var(--cell) * 0.73); height: calc(var(--cell) * 0.73);
+    border-radius: 50%;
+    font-size: max(10px, calc(var(--cell) * 0.33));
+    font-weight: bold; line-height: 1; pointer-events: none; user-select: none;
+  }
+  .piece-Z { background: #8B0000; color: #ff9999; border: 2px solid #cc3333; }
+  .piece-D { background: #5a3a1a; color: #f0c080; border: 2px solid #8B6040; }
+  .piece-S { background: #8B7000; color: #ffe080; border: 2px solid #d4aa00; }
+
+  .edge-label {
+    font-size: max(8px, calc(var(--cell) * 0.2));
+    color: #888; text-align: center; padding: 2px 0;
+  }
+
+  #winner-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75); align-items: center; justify-content: center; z-index: 10;
+  }
+  #winner-overlay.show { display: flex; }
+  #winner-box { background: #222; border: 2px solid #e0c060; border-radius: 12px; padding: clamp(20px, 6vw, 40px); text-align: center; margin: 16px; }
+  #winner-box h2 { font-size: clamp(1.4rem, 5vw, 2rem); margin-bottom: 12px; }
+  #winner-box p  { color: #aaa; margin-bottom: 20px; font-size: clamp(0.85rem, 3vw, 1rem); }
+  #winner-box button { background: #e0c060; color: #1a1a2e; font-size: 1rem; padding: 10px 28px; }
+
+  #legend { display: flex; gap: clamp(8px, 3vw, 18px); margin-top: 12px; font-size: clamp(0.7rem, 2vw, 0.8rem); color: #888; flex-wrap: wrap; justify-content: center; }
+  #legend span { display: flex; align-items: center; gap: 4px; }
+</style>
+</head>
+<body>
+<h1>🧟 ゾンビチェス</h1>
+<div id="status">モードを選んでください</div>
+<div id="info">Z=ゾンビ(11体)　D=犬(4匹)　S=保安官(1人)</div>
+
+<div id="controls">
+  <button id="btnNew" onclick="newGame()">▶ 新規ゲーム</button>
+  <div id="mode-group">
+    <div id="mode-label">対戦モード（いつでも切替可）</div>
+    <button class="mode-btn active" id="mode-hvh" onclick="setMode('hvh')">人間 vs 人間</button>
+    <button class="mode-btn" id="mode-hvc" onclick="setMode('hvc')">人間(Z) vs CPU(保)</button>
+    <button class="mode-btn" id="mode-cvh" onclick="setMode('cvh')">CPU(Z) vs 人間(保)</button>
+    <button class="mode-btn" id="mode-cvc" onclick="setMode('cvc')">CPU vs CPU</button>
+  </div>
+</div>
+
+<div id="board-wrap">
+  <table id="board"></table>
+</div>
+
+<div id="legend">
+  <span><span class="piece piece-Z">Z</span> ゾンビ：前へ1マス</span>
+  <span><span class="piece piece-D">D</span> 犬：全方向自由移動</span>
+  <span><span class="piece piece-S">S</span> 保安官：隣1マス・捕縛可</span>
+</div>
+
+<div id="winner-overlay">
+  <div id="winner-box">
+    <h2 id="winner-title"></h2>
+    <p id="winner-sub"></p>
+    <button onclick="newGame()">もう一度</button>
+  </div>
+</div>
+
+<script>
+// ===== 定数 =====
+const ROWS = 7, COLS = 11, TOWN_ROW = 6;
+const EMPTY = '.', ZOMBIE = 'Z', DOG = 'D', SHERIFF = 'S';
+const ZOMBIE_TURN = 'zombie', SHERIFF_TURN = 'sheriff';
+
+// ===== 状態 =====
+let board, turn, selected, validMoves, gameOver, turnCount, lastMove;
+let mode = 'hvh';
+let cpuTimerId = null;
+
+// ===== ゲームロジック =====
+function createBoard() {
+  const b = Array.from({length: ROWS}, () => Array(COLS).fill(EMPTY));
+  for (let c = 0; c < COLS; c++) b[0][c] = ZOMBIE;
+  b[5][5] = SHERIFF;
+  b[5][3] = DOG; b[5][4] = DOG; b[5][6] = DOG; b[5][7] = DOG;
+  return b;
+}
+
+function getMoves(b, r, c) {
+  const piece = b[r][c], moves = [];
+  if (piece === ZOMBIE) {
+    if (r + 1 < ROWS && b[r+1][c] === EMPTY) moves.push([r+1, c]);
+  } else if (piece === DOG) {
+    for (const [dr, dc] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {
+      let nr = r+dr, nc = c+dc;
+      while (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+        if (b[nr][nc] === EMPTY) { moves.push([nr, nc]); nr += dr; nc += dc; }
+        else break;
+      }
+    }
+  } else if (piece === SHERIFF) {
+    for (const [dr, dc] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {
+      const nr = r+dr, nc = c+dc;
+      if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && (b[nr][nc] === EMPTY || b[nr][nc] === ZOMBIE))
+        moves.push([nr, nc]);
+    }
+  }
+  return moves;
+}
+
+function allMovesFor(b, side) {
+  const result = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const p = b[r][c];
+    if (side === ZOMBIE_TURN && p === ZOMBIE) for (const d of getMoves(b,r,c)) result.push([[r,c],d]);
+    if (side === SHERIFF_TURN && (p === DOG || p === SHERIFF)) for (const d of getMoves(b,r,c)) result.push([[r,c],d]);
+  }
+  return result;
+}
+
+function applyMove(b, src, dst) {
+  const nb = b.map(row => [...row]);
+  nb[dst[0]][dst[1]] = nb[src[0]][src[1]];
+  nb[src[0]][src[1]] = EMPTY;
+  return nb;
+}
+
+function countPiece(b, p) {
+  let n = 0;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (b[r][c] === p) n++;
+  return n;
+}
+
+function checkWinner(b) {
+  for (let c = 0; c < COLS; c++) if (b[TOWN_ROW][c] === ZOMBIE) return ZOMBIE_TURN;
+  if (countPiece(b, ZOMBIE) === 0) return SHERIFF_TURN;
+  if (allMovesFor(b, ZOMBIE_TURN).length === 0) return SHERIFF_TURN;
+  return null;
+}
+
+// ===== AI =====
+function cpuZombie(b) {
+  const moves = allMovesFor(b, ZOMBIE_TURN);
+  if (!moves.length) return null;
+  let sr = null, sc = null;
+  const defCols = new Set();
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (b[r][c] === SHERIFF) { sr = r; sc = c; }
+    if (b[r][c] === DOG || b[r][c] === SHERIFF) defCols.add(c);
+  }
+  const score = ([,[dr,dc]]) =>
+    dr * 1000 + (defCols.has(dc) ? 0 : 600) + (sr !== null ? Math.abs(dc - sc) * 8 : 0);
+  return moves.sort((a,b) => score(b) - score(a))[0];
+}
+
+function interceptSteps(fr, fc, zr, zc) {
+  return Math.max(Math.abs(fr - (zr+1)), Math.abs(fc - zc));
+}
+
+function zombieThreat(b, zr, zc, sr, sc, dogs) {
+  const s2w = TOWN_ROW - zr;
+  if (s2w <= 0) return 99999;
+  const defs = (sr !== null ? [[sr,sc]] : []).concat(dogs);
+  if (!defs.length) return s2w * 200;
+  const mi = Math.min(...defs.map(([dr,dc]) => interceptSteps(dr,dc,zr,zc)));
+  return mi >= s2w ? (s2w+1)*150 + s2w*10 : zr*8;
+}
+
+function evalPos(b) {
+  const zombies = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (b[r][c] === ZOMBIE) zombies.push([r,c]);
+  if (!zombies.length) return 100000;
+  for (const [r,c] of zombies) if (r === TOWN_ROW) return -100000;
+  let sr=null, sc=null; const dogs=[];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (b[r][c] === SHERIFF) { sr=r; sc=c; }
+    else if (b[r][c] === DOG) dogs.push([r,c]);
+  }
+  let score = (11 - zombies.length) * 300;
+  for (const [zr,zc] of zombies) {
+    const blocked = zr+1 < ROWS && (b[zr+1][zc] === DOG || b[zr+1][zc] === SHERIFF);
+    score += blocked ? 120 : -zombieThreat(b, zr, zc, sr, sc, dogs);
+  }
+  return score;
+}
+
+function cpuSheriff(b) {
+  const allMoves = allMovesFor(b, SHERIFF_TURN);
+  if (!allMoves.length) return null;
+
+  const zombies = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (b[r][c] === ZOMBIE) zombies.push([r,c]);
+  if (!zombies.length) return null;
+
+  let sr=null, sc=null;
+  const dogs = [];
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (b[r][c] === SHERIFF) { sr=r; sc=c; }
+    else if (b[r][c] === DOG) dogs.push([r,c]);
+  }
+
+  const cheb = ([ar,ac], [br,bc]) => Math.max(Math.abs(ar-br), Math.abs(ac-bc));
+  const hasMove = (moves, r, c) => moves.some(([mr,mc]) => mr===r && mc===c);
+
+  // 犬がブロック中かどうか記録
+  const blockingDogs = new Set();
+  for (const [zr,zc] of zombies) {
+    if (zr+1 < ROWS && b[zr+1][zc] === DOG) blockingDogs.add(`${zr+1},${zc}`);
+  }
+
+  // 保安官がゾンビ(zr,zc)を町到達前に捕縛できるか
+  function sheriffCanCatch(zr, zc) {
+    if (sr === null) return false;
+    const steps = TOWN_ROW - zr;
+    for (let k = 1; k <= steps; k++) {
+      if (cheb([sr,sc], [zr+k, zc]) <= k) return true;
+    }
+    return false;
+  }
+
+  // 全守備駒が間に合わない（真の危機）か
+  function noOneCanStop(zr, zc) {
+    if (zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF)) return false;
+    const defenders = (sr!==null ? [[sr,sc]] : []).concat(dogs);
+    const steps = TOWN_ROW - zr;
+    for (const [dr,dc] of defenders) {
+      for (let k = 1; k <= steps; k++) {
+        if (cheb([dr,dc], [zr+k, zc]) <= k) return false;
+      }
+    }
+    return true;
+  }
+
+  // ---- 1. 即負け防止: row5のゾンビ（次で町到達） ----
+  const sorted_z = [...zombies].sort((a,x) => x[0]-a[0]);
+  for (const [zr,zc] of sorted_z) {
+    if (zr < TOWN_ROW-1) break;
+    if (sr!==null && hasMove(getMoves(b,sr,sc), zr, zc)) return [[sr,sc],[zr,zc]];
+    const block = [TOWN_ROW, zc];
+    for (const [dr,dc] of [...dogs].sort((a,x) => cheb(a,block)-cheb(x,block))) {
+      if (hasMove(getMoves(b,dr,dc), block[0], block[1])) return [[dr,dc],block];
+    }
+    if (sr!==null && hasMove(getMoves(b,sr,sc), block[0], block[1])) return [[sr,sc],block];
+  }
+
+  // ---- 2. 保安官が隣接ゾンビを即捕縛 ----
+  if (sr!==null) {
+    const caps = getMoves(b,sr,sc).filter(([r,c]) => b[r][c]===ZOMBIE);
+    if (caps.length) { caps.sort((a,x) => x[0]-a[0]); return [[sr,sc],caps[0]]; }
+  }
+
+  // ---- 3a. 前進中(row>=2)で保安官が届かない → 自由な犬を展開 ----
+  const unblockedAdv = zombies.filter(([zr,zc]) =>
+    zr >= 2
+    && !(zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF))
+    && !sheriffCanCatch(zr, zc)
+  ).sort((a,x) => x[0]-a[0]);
+
+  const freeDogList = dogs.filter(d => !blockingDogs.has(`${d[0]},${d[1]}`));
+
+  for (const [zr,zc] of unblockedAdv) {
+    const bp = [zr+1, zc];
+    if (bp[0] >= ROWS || b[bp[0]][bp[1]] !== EMPTY) continue;
+    const cands = [...freeDogList].sort((a,x) => cheb(a,bp)-cheb(x,bp));
+    for (const [dr,dc] of cands) {
+      const dm = getMoves(b, dr, dc);
+      if (hasMove(dm, bp[0], bp[1])) return [[dr,dc], bp];
+      if (dm.length) {
+        // 同じ列に入ることを最優先（列に入れば次の手でブロックできる）
+        const colTarget = [TOWN_ROW, zc];
+        dm.sort((a,x) => {
+          const da = cheb(a, colTarget)*100 + Math.abs(a[1]-zc);
+          const dx = cheb(x, colTarget)*100 + Math.abs(x[1]-zc);
+          return da - dx;
+        });
+        return [[dr,dc], dm[0]];
+      }
+    }
+    break; // 自由な犬がいない場合は3bへ
+  }
+
+  // ---- 3b. 真の危機 → ブロック中の犬も使う ----
+  for (const [zr,zc] of unblockedAdv) {
+    if (!noOneCanStop(zr, zc)) continue;
+    const bp = [zr+1, zc];
+    if (bp[0] >= ROWS || b[bp[0]][bp[1]] !== EMPTY) continue;
+    const busyDogs = dogs.filter(d => blockingDogs.has(`${d[0]},${d[1]}`))
+      .sort((a,x) => cheb(a,bp)-cheb(x,bp));
+    for (const [dr,dc] of busyDogs) {
+      const dm = getMoves(b, dr, dc);
+      if (hasMove(dm, bp[0], bp[1])) return [[dr,dc], bp];
+      if (dm.length) {
+        const colTarget = [TOWN_ROW, zc];
+        dm.sort((a,x) => {
+          const da = cheb(a,colTarget)*100 + Math.abs(a[1]-zc);
+          const dx = cheb(x,colTarget)*100 + Math.abs(x[1]-zc);
+          return da - dx;
+        });
+        return [[dr,dc], dm[0]];
+      }
+    }
+  }
+
+  // ---- 4. 保安官: ゾンビを捕縛しに前進 ----
+  if (sr!==null) {
+    // ピン済み（犬が釘付け）: 距離に関わらず全て対象（犬を解放するため）
+    const pinned = zombies.filter(([zr,zc]) => zr+1 < ROWS && b[zr+1][zc]===DOG);
+    // 前進中で保安官が間に合う（row>0）
+    const advHuntable = zombies.filter(([zr,zc]) =>
+      zr > 0
+      && !(zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF))
+      && sheriffCanCatch(zr, zc)
+    );
+    // row0（最後の手段）
+    const row0Huntable = zombies.filter(([zr]) => zr===0 && sheriffCanCatch(zr, 0));
+
+    const huntList = [
+      ...pinned.sort((a,x) => x[0]-a[0] || cheb([sr,sc],a)-cheb([sr,sc],x)),
+      ...advHuntable.sort((a,x) => x[0]-a[0] || cheb([sr,sc],a)-cheb([sr,sc],x)),
+      ...row0Huntable.sort((a,x) => cheb([sr,sc],a)-cheb([sr,sc],x))
+    ];
+    if (huntList.length) {
+      const [tzr,tzc] = huntList[0];
+      const sm = getMoves(b, sr, sc);
+      if (sm.length) {
+        // 同cheb距離なら目標rowに近い方を優先（row0やrow6に引き寄せられない）
+        sm.sort((a,x) => {
+          const da = cheb(a,[tzr,tzc])*100 + Math.abs(a[0]-tzr);
+          const dx = cheb(x,[tzr,tzc])*100 + Math.abs(x[0]-tzr);
+          return da - dx;
+        });
+        return [[sr,sc], sm[0]];
+      }
+    }
+  }
+
+  // ---- 5. フォールバック ----
+  return allMoves.sort((a,x) => evalPos(applyMove(b,x[0],x[1])) - evalPos(applyMove(b,a[0],a[1])))[0];
+}
+
+// ===== UI =====
+function setMode(m) {
+  mode = m;
+  ['hvh','hvc','cvh','cvc'].forEach(k => document.getElementById('mode-'+k).classList.toggle('active', k===m));
+  newGame();
+}
+
+function newGame() {
+  if (cpuTimerId) { clearTimeout(cpuTimerId); cpuTimerId = null; }
+  board = createBoard();
+  turn = ZOMBIE_TURN;
+  selected = null; validMoves = []; gameOver = false; turnCount = 0; lastMove = null;
+  document.getElementById('winner-overlay').classList.remove('show');
+  renderBoard();
+  updateStatus();
+  scheduleIfCpu();
+}
+
+function isCpuTurn() {
+  if (mode === 'cvc') return true;
+  if (mode === 'hvc' && turn === SHERIFF_TURN) return true;
+  if (mode === 'cvh' && turn === ZOMBIE_TURN) return true;
+  return false;
+}
+
+function scheduleIfCpu() {
+  if (gameOver || !isCpuTurn()) return;
+  cpuTimerId = setTimeout(doCpuMove, mode === 'cvc' ? 400 : 300);
+}
+
+function doCpuMove() {
+  if (gameOver) return;
+  const move = turn === ZOMBIE_TURN ? cpuZombie(board) : cpuSheriff(board);
+  if (move) execMove(move[0], move[1]);
+  else endTurn();
+}
+
+function execMove(src, dst) {
+  board = applyMove(board, src, dst);
+  lastMove = [src, dst];
+  turnCount++;
+  const winner = checkWinner(board);
+  if (winner) { showWinner(winner); return; }
+  endTurn();
+}
+
+function endTurn() {
+  turn = turn === ZOMBIE_TURN ? SHERIFF_TURN : ZOMBIE_TURN;
+  selected = null; validMoves = [];
+  const moves = allMovesFor(board, turn);
+  if (!moves.length) {
+    turn = turn === ZOMBIE_TURN ? SHERIFF_TURN : ZOMBIE_TURN;
+  }
+  renderBoard();
+  updateStatus();
+  scheduleIfCpu();
+}
+
+function onCellClick(r, c) {
+  if (gameOver || isCpuTurn()) return;
+  const piece = board[r][c];
+
+  if (selected) {
+    const isValid = validMoves.some(([vr,vc])=>vr===r&&vc===c);
+    if (isValid) { execMove(selected, [r,c]); return; }
+    selected = null; validMoves = [];
+  }
+
+  const myPiece = turn === ZOMBIE_TURN ? (p => p === ZOMBIE) : (p => p === DOG || p === SHERIFF);
+  if (myPiece(piece)) {
+    selected = [r, c];
+    validMoves = getMoves(board, r, c);
+  }
+  renderBoard();
+}
+
+function renderBoard() {
+  const tbl = document.getElementById('board');
+  tbl.innerHTML = '';
+  // 列ヘッダー
+  const hdr = document.createElement('tr');
+  hdr.appendChild(Object.assign(document.createElement('td'), {className:'edge-label'}));
+  for (let c = 0; c < COLS; c++) {
+    const th = document.createElement('td');
+    th.className = 'edge-label'; th.textContent = c;
+    hdr.appendChild(th);
+  }
+  tbl.appendChild(hdr);
+
+  for (let r = 0; r < ROWS; r++) {
+    const tr = document.createElement('tr');
+    // 行ラベル
+    const rl = document.createElement('td');
+    rl.className = 'edge-label'; rl.textContent = r;
+    tr.appendChild(rl);
+
+    for (let c = 0; c < COLS; c++) {
+      const td = document.createElement('td');
+      const rowClass = r===0 ? 'row-graveyard' : r===TOWN_ROW ? 'row-town' : 'row-mid';
+      td.className = rowClass;
+      if (selected && selected[0]===r && selected[1]===c) td.classList.add('selected');
+      if (validMoves.some(([vr,vc])=>vr===r&&vc===c)) td.classList.add('valid-move');
+      if (lastMove && ((lastMove[0][0]===r&&lastMove[0][1]===c)||(lastMove[1][0]===r&&lastMove[1][1]===c))) td.classList.add('last-move');
+
+      const p = board[r][c];
+      if (p !== EMPTY) {
+        const span = document.createElement('span');
+        span.className = `piece piece-${p}`;
+        span.textContent = p;
+        td.appendChild(span);
+      }
+      td.onclick = () => onCellClick(r, c);
+      tr.appendChild(td);
+    }
+    tbl.appendChild(tr);
+  }
+}
+
+function updateStatus() {
+  const zc = countPiece(board, ZOMBIE);
+  const who = turn === ZOMBIE_TURN ? '🧟 ゾンビのターン' : '🤠 保安官のターン';
+  const cpuMark = isCpuTurn() ? '（CPU思考中…）' : '';
+  document.getElementById('status').textContent = `${who} ${cpuMark}  ｜  残りゾンビ: ${zc}体  ｜  ${turnCount}手目`;
+}
+
+function showWinner(winner) {
+  gameOver = true;
+  renderBoard();
+  const isZombie = winner === ZOMBIE_TURN;
+  document.getElementById('winner-title').textContent = isZombie ? '🧟 ゾンビの勝ち！' : '🤠 保安官の勝ち！';
+  document.getElementById('winner-sub').textContent = isZombie ? `町に侵入されました！（${turnCount}手）` : `全ゾンビを撃退しました！（${turnCount}手）`;
+  document.getElementById('winner-overlay').classList.add('show');
+}
+
+// 初期化
+newGame();
+</script>
+</body>
+</html>
