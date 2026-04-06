@@ -287,40 +287,57 @@ function cpuZombie(b) {
   const cheb = ([ar, ac], [br, bc]) => Math.max(Math.abs(ar-br), Math.abs(ac-bc));
   const defenders = (sr !== null ? [[sr, sc]] : []).concat(dogs);
 
-  // (nr, nc) に進んだゾンビを町到達前に止められる守備駒の数
-  function interceptorCount(nr, nc) {
+  function interceptorCountCur(nr, nc) {
     const steps = TOWN_ROW - nr;
     if (steps <= 0) return 0;
-    let count = 0;
+    let cnt = 0;
     for (const [dr, dc] of defenders) {
       for (let k = 1; k <= steps; k++) {
-        if (cheb([dr, dc], [nr + k, nc]) <= k) { count++; break; }
+        if (cheb([dr, dc], [nr + k, nc]) <= k) { cnt++; break; }
       }
     }
-    return count;
+    return cnt;
   }
 
-  const scored = moves.map(([[zr, zc], [nr, nc]]) => {
-    const ic = interceptorCount(nr, nc);
+  // 1. 即勝ち手チェック: このターンに ic=0 になる手
+  const ic0moves = moves.filter(([, [nr, nc]]) => interceptorCountCur(nr, nc) === 0);
+  if (ic0moves.length) {
+    ic0moves.sort(([, [ar]], [, [br]]) => br - ar);
+    return ic0moves[0];
+  }
+
+  // 2. 1手先読み: ゾンビ手→保安官最善応手後の盤面評価
+  function scoreAfterSheriff(move) {
+    let nb = applyMove(b, move[0], move[1]);
+    const smv = cpuSheriff(nb);
+    if (smv) nb = applyMove(nb, smv[0], smv[1]);
+
+    const nd = [], nz = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      if (nb[r][c] === ZOMBIE) nz.push([r, c]);
+      else if (nb[r][c] === DOG || nb[r][c] === SHERIFF) nd.push([r, c]);
+    }
+
+    if (!nz.length) return -200000;
+
     let score = 0;
+    for (const [nzr, nzc] of nz) {
+      if (nzr === TOWN_ROW) return 200000;
+      const steps = TOWN_ROW - nzr;
+      const ic = nd.filter(([dr, dc]) =>
+        Array.from({length: steps}, (_, i) => i + 1)
+          .some(k => cheb([dr, dc], [nzr + k, nzc]) <= k)
+      ).length;
+      if (ic === 0) score += 8000;
+      else if (ic === 1) score += 2000;
+      score += nzr * 150;
+    }
+    score += Math.random() * 60;
+    return score;
+  }
 
-    if (ic === 0) score += 100000;                                    // 誰も止められない → 最優先
-    score -= ic * 2000;                                               // 阻止できる守備駒が少ない列を好む
-    score += nr * 300;                                                // 前進ほど良い
-    if (!defenders.some(([, dc]) => dc === nc)) score += 400;        // 守備なし列を好む
-    if (sr !== null) score += Math.abs(nc - sc) * 15;                // 保安官から遠い列
-
-    // 移動前より阻止できる守備駒が減るなら加点
-    const prevIc = interceptorCount(zr, zc);
-    if (ic < prevIc) score += (prevIc - ic) * 300;
-
-    score += Math.random() * 80;  // ランダム性（ゲームに変化をつける）
-
-    return { move: [[zr, zc], [nr, nc]], score };
-  });
-
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0].move;
+  moves.sort((a, b) => scoreAfterSheriff(b) - scoreAfterSheriff(a));
+  return moves[0];
 }
 
 function interceptSteps(fr, fc, zr, zc) {
