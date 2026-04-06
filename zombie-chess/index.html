@@ -457,6 +457,27 @@ function cpuSheriff(b) {
     if (sr!==null && getMoves(b,sr,sc).some(([r,c]) => r===block[0]&&c===block[1])) return [[sr,sc],block];
   }
 
+  // 1.5. 2手後にic=0になるゾンビ(row>=2) → Step2より優先して犬を直接展開
+  for (const [zr2,zc2] of [...zombies].sort((a,x) => x[0]-a[0])) {
+    if (zr2 < 2) break;
+    if (zr2+1 < ROWS && (b[zr2+1][zc2]===DOG || b[zr2+1][zc2]===SHERIFF)) continue;
+    if (noOneCanStop(zr2, zc2)) continue;
+    if (interceptorCount(zr2+1, zc2) === 0) continue; // Step3で処理
+    if (zr2+2 > TOWN_ROW) continue;
+    if (interceptorCount(zr2+2, zc2) !== 0) continue; // 2手後もic>0なら不急
+    // パターンA: bp15=(zr2+1, zc2)に直接ブロック
+    const bp15 = [zr2+1, zc2];
+    const freeDogs15 = dogs.filter(d => !blockingDogs.has(`${d[0]},${d[1]}`));
+    if (bp15[0] < ROWS && b[bp15[0]][bp15[1]] === EMPTY) {
+      for (const [dr15,dc15] of [...freeDogs15].sort((a,x) => cheb(a,bp15)-cheb(x,bp15))) {
+        if (getMoves(b,dr15,dc15).some(([r,c]) => r===bp15[0]&&c===bp15[1])) return [[dr15,dc15],bp15];
+      }
+    }
+    // パターンB: deploy_dog(zr2+1, zc2) で(zr2+2,zc2)をブロック
+    const mv15 = deployDog(zr2+1, zc2, false);
+    if (mv15) return mv15;
+  }
+
   // 2. 保安官が隣接ゾンビを即捕縛
   if (sr!==null) {
     const caps = getMoves(b,sr,sc).filter(([r,c]) => b[r][c]===ZOMBIE);
@@ -519,12 +540,13 @@ function cpuSheriff(b) {
     }
   }
 
-  // 3.5. 次に前進するとic=0になるゾンビ → 先手でデプロイ
+  // 3.5. 次に前進するとic=0になるゾンビ → 先手でデプロイ（row>=2では2手先も検知）
   const predictedFree = zombies.filter(([zr,zc]) =>
     zr < TOWN_ROW - 1
     && b[zr+1][zc] === EMPTY
     && !noOneCanStop(zr, zc)
-    && interceptorCount(zr+1, zc) === 0
+    && (interceptorCount(zr+1, zc) === 0
+        || (zr >= 2 && zr+2 <= TOWN_ROW && interceptorCount(zr+2, zc) === 0))
   ).sort((a,x) => x[0]-a[0]);
 
   for (const [zr,zc] of predictedFree) {
@@ -632,7 +654,10 @@ function cpuSheriff(b) {
       && !(zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF))
       && sheriffCanCatch(zr, zc)
     );
-    const row0Huntable = zombies.filter(([zr]) => zr===0 && sheriffCanCatch(zr, 0));
+    // 保安官がrow<=1にいる場合はrow0追跡を止めて中央へ戻す
+    const row0Huntable = sr > 1
+      ? zombies.filter(([zr,zc]) => zr===0 && sheriffCanCatch(zr, zc))
+      : [];
 
     // 前進中ゾンビを緊急度で分類:
     // urgent = ic<=1 かつ 自由な犬が直接ブロックできない → 保安官が唯一の頼り → ピン済みより優先
