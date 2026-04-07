@@ -432,9 +432,35 @@ function cpuSheriff(b) {
     if (bp[0] >= ROWS || b[bp[0]][bp[1]] !== EMPTY) return null;
     const cands = dogs.filter(d => useBlocking || !blockingDogs.has(`${d[0]},${d[1]}`));
     cands.sort((a,x) => cheb(a,bp)-cheb(x,bp));
-    for (const [dr,dc] of cands) {
+
+    function isSoleInterceptor(dr, dc) {
+      for (const [zr2,zc2] of zombies) {
+        if (zr2===zr && zc2===zc) continue;
+        if (zr2+1 < ROWS && (b[zr2+1][zc2]===DOG || b[zr2+1][zc2]===SHERIFF)) continue;
+        const steps2 = TOWN_ROW - zr2;
+        if (steps2 <= 0) continue;
+        let canStop = false;
+        for (let k=1; k<=steps2; k++) { if (cheb([dr,dc],[zr2+k,zc2])<=k) { canStop=true; break; } }
+        if (!canStop) continue;
+        const othersCanStop = defenders.some(([dr2,dc2]) =>
+          (dr2!==dr || dc2!==dc) &&
+          Array.from({length: steps2}, (_,i) => i+1).some(k => cheb([dr2,dc2],[zr2+k,zc2])<=k)
+        );
+        if (!othersCanStop) return true;
+      }
+      return false;
+    }
+
+    const safe = cands.filter(([dr,dc]) => !isSoleInterceptor(dr,dc));
+    const risky = cands.filter(([dr,dc]) => isSoleInterceptor(dr,dc));
+    // フェーズ1: 直接ブロック (safe優先 → risky)
+    for (const [dr,dc] of [...safe, ...risky]) {
       const dm = getMoves(b, dr, dc);
       if (dm.some(([r,c]) => r===bp[0]&&c===bp[1])) return [[dr,dc],bp];
+    }
+    // フェーズ2: fallback (safe優先 → risky)
+    for (const [dr,dc] of [...safe, ...risky]) {
+      const dm = getMoves(b, dr, dc);
       if (dm.length) {
         const ct = [TOWN_ROW, zc];
         dm.sort((a,x) => (cheb(a,ct)*100+Math.abs(a[1]-zc))-(cheb(x,ct)*100+Math.abs(x[1]-zc)));
@@ -563,6 +589,19 @@ function cpuSheriff(b) {
     }
   }
 
+  // 3.6. エッジ列早期警戒: col<=1 or col>=9でrow>=2かつic<=1 → 直接前をブロック
+  const edgeWarnings = zombies.filter(([zr,zc]) =>
+    zr >= 2
+    && (zc <= 1 || zc >= 9)
+    && !(zr+1 < ROWS && (b[zr+1][zc]===DOG || b[zr+1][zc]===SHERIFF))
+    && !noOneCanStop(zr, zc)
+    && interceptorCount(zr, zc) <= 1
+  ).sort((a,x) => x[0]-a[0]);
+  for (const [zr,zc] of edgeWarnings) {
+    const mv = deployDog(zr, zc, false) || deployDog(zr, zc, true);
+    if (mv) return mv;
+  }
+
   // 4.5. 犬の過負荷検出: 1頭の犬が複数ゾンビの唯一阻止役 → バックアップ展開
   const dogSoleCoverage = new Map();
   for (const [zr,zc] of zombies) {
@@ -612,7 +651,6 @@ function cpuSheriff(b) {
         return [[dr,dc], dm[0]];
       }
     }
-    break;
   }
 
   // 6. 真の危機 → ブロック中の犬も使う
