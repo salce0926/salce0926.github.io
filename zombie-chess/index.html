@@ -368,6 +368,11 @@ function evalPos(b) {
     const blocked = zr+1 < ROWS && (b[zr+1][zc] === DOG || b[zr+1][zc] === SHERIFF);
     score += blocked ? 120 : -zombieThreat(b, zr, zc, sr, sc, dogs);
   }
+  // 保安官の中央化ボーナス: col 5・row 3付近にいるほど得点
+  if (sr !== null) {
+    score += Math.max(0, 3 - Math.abs(sc - 5)) * 15;
+    score += Math.max(0, 2 - Math.abs(sr - 3)) * 10;
+  }
   return score;
 }
 
@@ -433,7 +438,8 @@ function cpuSheriff(b) {
     const cands = dogs.filter(d => useBlocking || !blockingDogs.has(`${d[0]},${d[1]}`));
     cands.sort((a,x) => cheb(a,bp)-cheb(x,bp));
 
-    function isSoleInterceptor(dr, dc) {
+    function dangerIfMoved(dr, dc) {
+      let count = 0;
       for (const [zr2,zc2] of zombies) {
         if (zr2===zr && zc2===zc) continue;
         if (zr2+1 < ROWS && (b[zr2+1][zc2]===DOG || b[zr2+1][zc2]===SHERIFF)) continue;
@@ -446,20 +452,19 @@ function cpuSheriff(b) {
           (dr2!==dr || dc2!==dc) &&
           Array.from({length: steps2}, (_,i) => i+1).some(k => cheb([dr2,dc2],[zr2+k,zc2])<=k)
         );
-        if (!othersCanStop) return true;
+        if (!othersCanStop) count++;
       }
-      return false;
+      return count;
     }
 
-    const safe = cands.filter(([dr,dc]) => !isSoleInterceptor(dr,dc));
-    const risky = cands.filter(([dr,dc]) => isSoleInterceptor(dr,dc));
-    // フェーズ1: 直接ブロック (safe優先 → risky)
-    for (const [dr,dc] of [...safe, ...risky]) {
+    cands.sort((a,x) => (dangerIfMoved(...a) - dangerIfMoved(...x)) || (cheb(a,bp) - cheb(x,bp)));
+    // フェーズ1: 直接ブロック（危険増加が少ない犬を優先）
+    for (const [dr,dc] of cands) {
       const dm = getMoves(b, dr, dc);
       if (dm.some(([r,c]) => r===bp[0]&&c===bp[1])) return [[dr,dc],bp];
     }
-    // フェーズ2: fallback (safe優先 → risky)
-    for (const [dr,dc] of [...safe, ...risky]) {
+    // フェーズ2: fallback
+    for (const [dr,dc] of cands) {
       const dm = getMoves(b, dr, dc);
       if (dm.length) {
         const ct = [TOWN_ROW, zc];
