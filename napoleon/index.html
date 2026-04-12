@@ -542,7 +542,7 @@ function newGame(){
     phase:'bid',stage:'',hands,widow:deck.slice(50),
     napoleon:-1,ally:-1,bid:0,trump:null,friendCard:null,allyRevealed:false,
     trick:[],trickWins:Array(N).fill(0),fudaWins:Array(N).fill(0),
-    fudaCards:Array.from({length:N},()=>[]),history:[],
+    fudaCards:Array.from({length:N},()=>[]),history:[],lastTrickWinner:-1,
     bidDone:Array(N).fill(false),highScore:0,highBid:0,highSuit:null,highBidder:-1,
     currentPlayer:1,
   };
@@ -731,6 +731,7 @@ function playCard(player,card){
   if(allyJustRevealed)G.allyRevealed=true;
   G.trick.push({player,card});
   renderAll();
+  if(ONLINE&&IS_HOST)syncState(); // 非ホストに即時反映
   if(allyJustRevealed){
     // ゲームを一時停止してチーム告知
     showAllyRevealModal(()=>{
@@ -791,6 +792,7 @@ function resolveTrick(){
     G.fudaWins[w]+=f;
     G.fudaCards[w].push(...G.trick.map(t=>t.card).filter(isFuda));
     G.history.push({trick:[...G.trick],winner:w});
+    G.lastTrickWinner=w;
     G.trick=[];G.currentPlayer=w;
     setMsg(`${pn(w)} がトリック獲得！${f>0?`（絵札${f}枚）`:''}`);
     const badge=w===MY_SLOT
@@ -869,7 +871,17 @@ function showResult(){
     const c=p===G.napoleon?'rnap':p===G.ally&&!solo?'raly':'';
     html+=`<tr class="${c}"><td>${pn(p)}</td><td>${r}</td><td>${G.fudaWins[p]}</td><td>${G.trickWins[p]}</td></tr>`;
   }
-  html+=`</table><button class="btn btn-gold" onclick="hideModal();newGame()">もう一度</button>`;
+  html+=`</table>`;
+  if(!ONLINE){
+    html+=`<button class="btn btn-gold" onclick="hideModal();newGame()">もう一度</button>`;
+    html+=`<button class="btn btn-gray" style="margin-left:4px" onclick="hideModal();showStartModal()">メニューへ</button>`;
+  }else if(IS_HOST){
+    html+=`<button class="btn btn-gold" onclick="hideModal();newGame()">もう一度</button>`;
+    html+=`<button class="btn btn-gray" style="margin-left:4px" onclick="leaveRoom()">ロビーへ</button>`;
+  }else{
+    html+=`<p style="color:#aaa;font-size:12px;margin-top:8px">ホストが次のゲームを開始するまでお待ちください…</p>`;
+    html+=`<button class="btn btn-gray" style="margin-top:4px" onclick="leaveRoom()">退出</button>`;
+  }
   showModal(html);renderAll();
 }
 
@@ -1179,7 +1191,7 @@ function syncState(){
     napoleon:G.napoleon,ally:G.ally,bid:G.bid,trump:G.trump,
     friendCard:G.friendCard,allyRevealed:G.allyRevealed,
     trick:G.trick,trickWins:G.trickWins,fudaWins:G.fudaWins,
-    fudaCards:G.fudaCards,history:G.history,
+    fudaCards:G.fudaCards,history:G.history,lastTrickWinner:G.lastTrickWinner??-1,
     bidDone:G.bidDone,highScore:G.highScore,highBid:G.highBid,
     highSuit:G.highSuit,highBidder:G.highBidder,currentPlayer:G.currentPlayer,
   });
@@ -1232,9 +1244,21 @@ function onRemoteState(snap){
   if(!snap.exists())return;
   const s=restoreG(snap.val());
   if(!s)return;
+  const prevPhase=G.phase;
+  const prevTrickLen=G.trick?G.trick.length:0;
   Object.assign(G,s);
   uiState=null;
+  // 新ゲーム開始時はモーダルを閉じる
+  if(prevPhase==='result'&&G.phase==='bid')hideModal();
   renderAll();
+  // トリック決着を非ホスト側で表示
+  if(prevTrickLen>0&&(G.trick?.length||0)===0&&G.lastTrickWinner>=0){
+    const w=G.lastTrickWinner;
+    setMsg(`${pn(w)} がトリック獲得！`);
+    const badge=w===MY_SLOT?document.getElementById('label-p0'):document.getElementById(`badge-p${w}`);
+    badge?.classList.add('flash');
+    setTimeout(()=>badge?.classList.remove('flash'),800);
+  }
   const p=G.currentPlayer;
   if(G.phase==='result'){if(!modalOpen())showResult();return;}
   if(G.phase==='bid'&&p===MY_SLOT&&!G.bidDone[MY_SLOT]&&!modalOpen()){
