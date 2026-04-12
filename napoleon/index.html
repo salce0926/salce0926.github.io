@@ -491,6 +491,7 @@ let ROOM_CODE='',MY_ID='',MY_NAME='プレイヤー';
 let roomRef=null,humanSlots=new Set([HUMAN]);
 let playerNames=['あなた','P1','P2','P3','P4'];
 let uiState=null; // 現在表示中のUI種別（重複防止）
+let gamePaused=false; // モーダル表示中などの一時停止フラグ（ホスト側）
 
 /* ── CARD UTILS ───────────────────────────────── */
 const rstr =r=>RANK_STR[r]||String(r);
@@ -543,6 +544,7 @@ function newGame(){
     napoleon:-1,ally:-1,bid:0,trump:null,friendCard:null,allyRevealed:false,
     trick:[],trickWins:Array(N).fill(0),fudaWins:Array(N).fill(0),
     fudaCards:Array.from({length:N},()=>[]),history:[],lastTrickWinner:-1,
+    allyRevealPending:false,
     bidDone:Array(N).fill(false),highScore:0,highBid:0,highSuit:null,highBidder:-1,
     currentPlayer:1,
   };
@@ -731,14 +733,19 @@ function playCard(player,card){
   if(allyJustRevealed)G.allyRevealed=true;
   G.trick.push({player,card});
   renderAll();
-  if(ONLINE&&IS_HOST)syncState(); // 非ホストに即時反映
   if(allyJustRevealed){
-    // ゲームを一時停止してチーム告知
+    G.allyRevealPending=true;
+    if(ONLINE&&IS_HOST)syncState(); // 非ホストに副官判明を通知
+    gamePaused=true;
     showAllyRevealModal(()=>{
+      gamePaused=false;
+      G.allyRevealPending=false;
+      if(ONLINE&&IS_HOST)syncState();
       if(G.trick.length===N)setTimeout(resolveTrick,950);
       else{G.currentPlayer=(G.currentPlayer+1)%N;setTimeout(doPlayStep,280);}
     });
   } else {
+    if(ONLINE&&IS_HOST)syncState(); // 非ホストに即時反映
     if(G.trick.length===N)setTimeout(resolveTrick,950);
     else{G.currentPlayer=(G.currentPlayer+1)%N;setTimeout(doPlayStep,280);}
   }
@@ -1192,6 +1199,7 @@ function syncState(){
     friendCard:G.friendCard,allyRevealed:G.allyRevealed,
     trick:G.trick,trickWins:G.trickWins,fudaWins:G.fudaWins,
     fudaCards:G.fudaCards,history:G.history,lastTrickWinner:G.lastTrickWinner??-1,
+    allyRevealPending:G.allyRevealPending||false,
     bidDone:G.bidDone,highScore:G.highScore,highBid:G.highBid,
     highSuit:G.highSuit,highBidder:G.highBidder,currentPlayer:G.currentPlayer,
   });
@@ -1215,6 +1223,7 @@ function setupActionListener(){
 }
 
 function processAction(action){
+  if(gamePaused)return; // モーダル表示中はアクションを無視
   switch(action.type){
     case 'bid':
       doBid(action.player,action.count,action.suit||null);
@@ -1245,20 +1254,51 @@ function onRemoteState(snap){
   const s=restoreG(snap.val());
   if(!s)return;
   const prevPhase=G.phase;
-  const prevTrickLen=G.trick?G.trick.length:0;
+  const prevTrick=G.trick?[...G.trick]:[];
+  const wasAllyRevealPending=G.allyRevealPending;
   Object.assign(G,s);
   uiState=null;
+
   // 新ゲーム開始時はモーダルを閉じる
   if(prevPhase==='result'&&G.phase==='bid')hideModal();
-  renderAll();
-  // トリック決着を非ホスト側で表示
-  if(prevTrickLen>0&&(G.trick?.length||0)===0&&G.lastTrickWinner>=0){
-    const w=G.lastTrickWinner;
-    setMsg(`${pn(w)} がトリック獲得！`);
-    const badge=w===MY_SLOT?document.getElementById('label-p0'):document.getElementById(`badge-p${w}`);
-    badge?.classList.add('flash');
-    setTimeout(()=>badge?.classList.remove('flash'),800);
+
+  // 副官判明：全員にモーダルを表示
+  if(G.allyRevealPending&&!wasAllyRevealPending){
+    renderAll();
+    showAllyRevealModal(()=>{uiState=null;}); // 非ホストは表示のみ、ゲーム進行はホストが制御
+    return;
   }
+  // ホストがモーダルを閉じて次フェーズへ
+  if(!G.allyRevealPending&&wasAllyRevealPending){
+    hideModal();
+  }
+
+  // トリック決着アニメーション（非ホスト自前で実行）
+  if(prevTrick.length>0&&(G.trick?.length||0)===0&&G.lastTrickWinner>=0){
+    const winner=G.lastTrickWinner;
+    const fuda=countFuda(prevTrick.map(t=>t.card));
+    // 一時的にカードを戻してアニメーション
+    G.trick=prevTrick;
+    renderAll();
+    animateTrickWin(winner,()=>{
+      G.trick=[];
+      renderAll();
+      setMsg(`${pn(winner)} がトリック獲得！${fuda>0?`（絵札${fuda}枚）`:''}`);
+      const badge=winner===MY_SLOT?document.getElementById('label-p0'):document.getElementById(`badge-p${winner}`);
+      badge?.classList.add('flash');
+      setTimeout(()=>badge?.classList.remove('flash'),800);
+      processRemoteUI();
+    });
+    return;
+  }
+
+  renderAll();
+  processRemoteUI();
+}
+
+// 非ホスト：インタラクティブUI表示処理
+function processRemoteUI(){
+  if(G.allyRevealPending)return; // モーダル表示中
   const p=G.currentPlayer;
   if(G.phase==='result'){if(!modalOpen())showResult();return;}
   if(G.phase==='bid'&&p===MY_SLOT&&!G.bidDone[MY_SLOT]&&!modalOpen()){
@@ -1269,7 +1309,7 @@ function onRemoteState(snap){
   }else if(G.phase==='play'&&p===MY_SLOT&&!modalOpen()){
     uiState='play';setMsg('カードを選択 → もう1回タップで出す');renderHumanHand(true);
   }else if(G.phase==='play'){
-    setMsg(p===MY_SLOT?'カードを選択 → もう1回タップで出す':`${pn(p)} のターン...`);
+    setMsg(`${pn(p)} のターン...`);
   }
 }
 
