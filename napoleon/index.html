@@ -1,0 +1,1451 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
+<title>ナポレオン</title>
+<link rel="manifest" href="napoleon-manifest.json">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+
+:root{
+  --c-bg:#0a5c1e;
+  --c-panel:rgba(0,0,0,.38);
+  --c-border:rgba(255,255,255,.12);
+  --c-nap:#e8960a;
+  --c-ally:#00c4c4;
+  --c-rebel:#2255aa;
+  --c-gold:#ffd060;
+  --c-active:#ffe066;
+  --card-w:58px;
+  --card-h:82px;
+}
+
+body{
+  background:var(--c-bg);
+  font-family:'Hiragino Sans','Segoe UI',sans-serif;
+  color:#fff;
+  height:100dvh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  user-select:none;
+}
+
+/* ===== TABLE GRID ===== */
+#table{
+  flex:1;
+  display:grid;
+  grid-template-areas:
+    "top  top  top "
+    "left mid  right"
+    "bot  bot  bot ";
+  grid-template-rows:auto 1fr auto;
+  grid-template-columns:120px 1fr 120px;
+  gap:4px;
+  padding:4px;
+  min-height:0;
+}
+
+/* ===== PLAYER ZONES ===== */
+#top{
+  grid-area:top;
+  display:flex;
+  justify-content:space-around;
+  align-items:flex-start;
+  gap:6px;
+  padding:4px 6px;
+}
+#left {grid-area:left;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:4px 3px;}
+#right{grid-area:right;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:4px 3px;}
+#bot{
+  grid-area:bot;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:3px;
+  padding-bottom:4px;
+}
+
+.pzone{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  flex:1;
+  min-width:0;
+}
+
+/* ===== PLAYER BADGE ===== */
+.pbadge{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:2px;
+  background:var(--c-panel);
+  border:2px solid var(--c-border);
+  border-radius:12px;
+  padding:6px 10px;
+  width:100%;
+  transition:border-color .25s, background .25s, box-shadow .25s;
+  white-space:nowrap;
+}
+.pbadge.role-nap  {background:rgba(232,150,10,.45);border-color:var(--c-nap);}
+.pbadge.role-ally {background:rgba(0,180,180,.28);border-color:var(--c-ally);}
+.pbadge.role-reb  {background:rgba(34,85,170,.30);border-color:var(--c-rebel);}
+.pbadge.active    {border-color:var(--c-active);box-shadow:0 0 10px var(--c-active);}
+
+/* 役割ラベル */
+.pbadge .prole{
+  font-size:11px;font-weight:bold;line-height:1.2;
+  letter-spacing:.02em;
+  display:none;
+}
+.pbadge .prole.show{display:block;}
+.pbadge.role-nap  .prole{color:var(--c-gold);}
+.pbadge.role-ally .prole{color:#7ff0f0;}
+.pbadge.role-reb  .prole{color:#88aaff;}
+
+.pbadge .pname{font-size:13px;font-weight:bold;line-height:1.2;color:#fff;}
+.pbadge .pfuda{
+  font-size:18px;font-weight:bold;color:var(--c-gold);
+  line-height:1.1;display:none;
+}
+.pbadge .pfuda.show{display:block;}
+.pbadge .pfuda-label{font-size:10px;color:#aaa;display:none;}
+.pbadge .pfuda-label.show{display:block;}
+
+/* 獲得絵札リスト */
+.pfuda-list{
+  display:flex;flex-wrap:wrap;gap:2px;justify-content:center;
+  margin-top:2px;
+}
+.fuda-pip{
+  font-size:9px;font-weight:bold;
+  background:rgba(0,0,0,.5);
+  border-radius:3px;
+  padding:1px 3px;
+  white-space:nowrap;
+}
+.fuda-pip.red{color:#ff9999;}
+.fuda-pip.blk{color:#eee;}
+
+
+/* ===== CENTER ===== */
+#mid{
+  grid-area:mid;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  min-height:0;
+}
+
+/* Trick area */
+#trick-wrap{
+  background:rgba(0,0,0,.32);
+  border:1px solid var(--c-border);
+  border-radius:12px;
+  padding:8px 10px 10px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  width:100%;
+  max-width:320px;
+}
+#trick-area{
+  position:relative;
+  width:min(256px,100%);
+  height:270px;
+  margin:0 auto;
+  overflow:visible;
+  flex-shrink:0;
+}
+.tc-wrap{
+  position:absolute;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:2px;
+}
+/* 座席位置と対応したカード配置（重複しないよう均等配置） */
+.tc-p0{left:calc(50% - var(--card-w)/2);bottom:0;}
+.tc-p1{left:0;top:calc(var(--card-h) + 10px);}
+.tc-p2{left:18%;top:0;}
+.tc-p3{right:18%;top:0;}
+.tc-p4{right:0;top:calc(var(--card-h) + 10px);}
+
+.tc-name{
+  font-size:10px;color:#bbb;text-align:center;white-space:nowrap;
+}
+.tc-name.winning-name{color:var(--c-gold);font-weight:bold;}
+.win-crown{font-size:13px;line-height:1;text-align:center;}
+
+/* Info strip — RIGHT below the trick */
+#info-strip{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px 8px;
+  justify-content:center;
+  align-items:center;
+  width:100%;
+}
+.chip{
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  background:rgba(0,0,0,.4);
+  border:1px solid var(--c-border);
+  border-radius:12px;
+  padding:2px 8px;
+  font-size:12px;
+  white-space:nowrap;
+}
+.chip .label{font-size:10px;color:#999;}
+.chip .val  {font-weight:bold;}
+.chip .val.red-v{color:#ff7777;}
+.score-chips{display:flex;gap:4px;}
+.nap-sc {color:var(--c-gold);font-weight:bold;font-size:13px;}
+.reb-sc {color:#88ccff;font-weight:bold;font-size:13px;}
+
+/* Status message */
+#msg{
+  font-size:12px;
+  color:#ccc;
+  text-align:center;
+  min-height:16px;
+  padding:0 6px;
+}
+
+/* ===== HUMAN HAND ===== */
+#human-hand{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+  justify-content:center;
+}
+#label-p0{
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:4px 10px;
+  background:var(--c-panel);
+  border:2px solid var(--c-border);
+  border-radius:12px;
+  padding:5px 14px;
+  transition:border-color .25s, background .25s, box-shadow .25s;
+  justify-content:center;
+  max-width:100%;
+}
+#label-p0 .prole{font-size:13px;font-weight:bold;display:none;letter-spacing:.02em;}
+#label-p0 .prole.show{display:block;}
+#label-p0.role-nap  .prole{color:var(--c-gold);}
+#label-p0.role-ally .prole{color:#7ff0f0;}
+#label-p0 .pname{font-size:14px;font-weight:bold;color:#fff;}
+#label-p0 .pfuda-wrap{display:none;align-items:center;gap:5px;}
+#label-p0 .pfuda-wrap.show{display:flex;}
+#label-p0 .pfuda-label{font-size:11px;color:#aaa;}
+#label-p0 .pfuda{font-size:17px;font-weight:bold;color:var(--c-gold);}
+#label-p0.role-nap  {background:rgba(232,150,10,.55);border-color:var(--c-nap);}
+#label-p0.role-ally {background:rgba(0,180,180,.32);border-color:var(--c-ally);box-shadow:0 0 12px rgba(0,200,200,.4);}
+#label-p0.active    {border-color:var(--c-active);box-shadow:0 0 8px var(--c-active);}
+
+/* ===== CARDS ===== */
+.card{
+  width:var(--card-w);
+  height:var(--card-h);
+  border-radius:7px;
+  border:1px solid #bbb;
+  display:inline-flex;
+  flex-direction:column;
+  justify-content:space-between;
+  padding:3px 4px;
+  font-size:11px;
+  font-weight:bold;
+  box-shadow:1px 2px 4px rgba(0,0,0,.5);
+  flex-shrink:0;
+  position:relative;
+}
+.card.face-up{background:#fff;}
+.card.face-down{
+  background:repeating-linear-gradient(45deg,#1a3a7a 0,#1a3a7a 4px,#1e4492 4px,#1e4492 8px);
+  border:2px solid #4a6ab0;
+}
+.card.red  {color:#c00;}
+.card.black{color:#111;}
+.card.jkr  {color:#7700cc;}
+
+.card .ct{font-size:12px;line-height:1.1;}
+.card .cm{font-size:20px;text-align:center;margin:auto 0;line-height:1;}
+.card .cb{font-size:12px;line-height:1.1;transform:rotate(180deg);align-self:flex-end;}
+
+/* Special glows */
+.card.almighty  {box-shadow:0 0 8px 3px gold,1px 2px 4px rgba(0,0,0,.5);}
+.card.is-joker  {box-shadow:0 0 8px 3px #cc44ff,1px 2px 4px rgba(0,0,0,.5);}
+.card.right-j   {box-shadow:0 0 8px 3px #00ccff,1px 2px 4px rgba(0,0,0,.5);}
+.card.left-j    {box-shadow:0 0 6px 2px #0088bb,1px 2px 4px rgba(0,0,0,.5);}
+.card.trick-win {
+  box-shadow:0 0 14px 5px var(--c-gold),1px 2px 4px rgba(0,0,0,.5);
+  border-color:var(--c-gold);
+  transform:translateY(-4px);
+}
+
+/* Jack badge */
+.jbadge{
+  position:absolute;top:2px;right:2px;
+  font-size:8px;font-weight:bold;
+  background:#0088cc;color:#fff;
+  border-radius:3px;padding:0 2px;
+}
+
+/* Human playable */
+.card.playable{cursor:pointer;transition:transform .15s;outline:2px solid rgba(255,220,80,.55);outline-offset:1px;}
+.card.playable:hover{transform:translateY(-10px);background:#fffde0;}
+.card.unplayable{opacity:0.38;filter:grayscale(35%);cursor:not-allowed;}
+.card.lifted  {transform:translateY(-12px)!important;background:#fff9c4!important;border-color:var(--c-active);outline:2px solid var(--c-active);}
+
+/* ===== MODALS ===== */
+.overlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.75);
+  display:flex;align-items:center;justify-content:center;
+  z-index:200;
+}
+.modal{
+  background:#0d4a1a;
+  border:2px solid #3aaa5a;
+  border-radius:14px;
+  padding:20px 22px;
+  max-width:460px;width:93%;
+  text-align:center;
+  max-height:90dvh;overflow-y:auto;
+}
+.modal h2{margin-bottom:12px;font-size:20px;}
+.modal p {font-size:13px;color:#ccc;margin-bottom:8px;}
+
+.btn{
+  display:inline-block;
+  padding:8px 18px;margin:4px;
+  border:none;border-radius:7px;
+  font-size:14px;font-weight:bold;cursor:pointer;
+  transition:opacity .15s,transform .1s;
+}
+.btn:hover{opacity:.85;} .btn:active{transform:scale(.97);}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+.btn-gold{background:#f0a010;color:#000;}
+.btn-gray{background:#555;color:#fff;}
+
+/* Bid */
+#bid-grid{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin:8px 0;}
+.bid-nb{min-width:48px;font-size:13px;padding:6px 10px;}
+.suit-row{display:flex;gap:10px;justify-content:center;margin:8px 0;}
+.suit-btn{
+  width:58px;height:58px;font-size:28px;
+  border-radius:10px;border:3px solid transparent;
+  cursor:pointer;background:#fff;
+  transition:border-color .15s,transform .1s;
+}
+.suit-btn.rs{color:#c00;} .suit-btn.bs{color:#111;}
+.suit-btn:hover{transform:scale(1.08);}
+.suit-btn.sel{border-color:#ffe066;}
+
+/* Exchange & friend */
+#ex-hand,#fr-grid{
+  display:flex;flex-wrap:wrap;gap:5px;
+  justify-content:center;margin:10px 0;
+}
+#fr-grid{max-height:200px;overflow-y:auto;}
+.ex-sel{transform:translateY(-10px);outline:3px solid #ffe066;}
+
+/* Result */
+.rtbl{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px;}
+.rtbl th,.rtbl td{padding:5px 8px;border:1px solid #444;}
+.rtbl th{background:rgba(0,0,0,.4);}
+.rnap{color:#ffd060;} .raly{color:#80ee80;}
+
+/* Animations */
+@keyframes popIn{from{transform:scale(.5) translateY(-4px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+.pop-in{animation:popIn .2s ease-out;}
+@keyframes flash{0%,100%{opacity:1}50%{opacity:.3}}
+.flash{animation:flash .4s ease 2;}
+
+/* Responsive */
+@media(max-width:480px){
+  :root{--card-w:48px;--card-h:68px;}
+  .card .cm{font-size:16px;}
+  #table{grid-template-columns:96px 1fr 96px;}
+  .chip{font-size:11px;padding:2px 6px;}
+  .pbadge .pfuda{font-size:15px;}
+}
+@media(min-width:700px){
+  :root{--card-w:66px;--card-h:94px;}
+  #table{grid-template-columns:140px 1fr 140px;}
+  .pbadge .pfuda{font-size:22px;}
+  .pbadge .prole{font-size:13px;}
+  .pbadge .pname{font-size:15px;}
+}
+</style>
+</head>
+<body>
+<div id="table">
+
+  <!-- TOP: P2, P3 -->
+  <div id="top">
+    <div class="pzone" id="zone-p2">
+      <div class="pbadge" id="badge-p2">
+        <div class="prole" id="pr-p2"></div>
+        <div class="pname">P2</div>
+        <div class="pfuda-label" id="pfl-p2">絵札</div>
+        <div class="pfuda" id="pf-p2">0</div>
+        <div class="pfuda-list" id="pfcl-p2"></div>
+      </div>
+    </div>
+    <div class="pzone" id="zone-p3">
+      <div class="pbadge" id="badge-p3">
+        <div class="prole" id="pr-p3"></div>
+        <div class="pname">P3</div>
+        <div class="pfuda-label" id="pfl-p3">絵札</div>
+        <div class="pfuda" id="pf-p3">0</div>
+        <div class="pfuda-list" id="pfcl-p3"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEFT: P1 -->
+  <div id="left">
+    <div class="pbadge" id="badge-p1">
+      <div class="prole" id="pr-p1"></div>
+      <div class="pname">P1</div>
+      <div class="pfuda-label" id="pfl-p1">絵札</div>
+      <div class="pfuda" id="pf-p1">0</div>
+      <div class="pfuda-list" id="pfcl-p1"></div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div id="mid">
+    <div id="trick-wrap">
+      <div id="trick-area"></div>
+      <div id="info-strip"></div>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <!-- RIGHT: P4 -->
+  <div id="right">
+    <div class="pbadge" id="badge-p4">
+      <div class="prole" id="pr-p4"></div>
+      <div class="pname">P4</div>
+      <div class="pfuda-label" id="pfl-p4">絵札</div>
+      <div class="pfuda" id="pf-p4">0</div>
+      <div class="pfuda-list" id="pfcl-p4"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM: human -->
+  <div id="bot">
+    <div id="human-hand"></div>
+    <div id="label-p0">
+      <div class="prole" id="pr-p0"></div>
+      <div class="pname">あなた</div>
+      <div class="pfuda-wrap" id="pfw-p0">
+        <span class="pfuda-label">絵札</span>
+        <span class="pfuda" id="pf-p0">0</span>
+      </div>
+    </div>
+    <div class="pfuda-list" id="pfcl-p0"></div>
+  </div>
+
+</div>
+<div id="modal-root"></div>
+
+<script>
+'use strict';
+
+/* ── JOKER CONFIG ─────────────────────────────── */
+const JOKER_CONFIG={alwaysPlayable:true,winsAnyTrick:true,whenLed:'any'};
+
+/* ── CONSTANTS ────────────────────────────────── */
+const SUITS=['S','H','D','C'];
+const SYM={S:'♠',H:'♥',D:'♦',C:'♣',J:'🃏'};
+const SUIT_NAME={S:'スペード',H:'ハート',D:'ダイヤ',C:'クラブ'};
+const SUIT_RANK={S:4,H:3,D:2,C:1};
+const RANK_STR={1:'A',11:'J',12:'Q',13:'K'};
+const PARTNER={H:'D',D:'H',S:'C',C:'S'};
+const N=5,HUMAN=0,MIN_BID=12,TOTAL_FUDA=20,CPU_MS=650;
+
+/* ── ONLINE GLOBALS ───────────────────────────── */
+const FB_CFG={
+  apiKey:'AIzaSyACyshzXAt1g-1JepnRncms247S_Xnq2v4',
+  authDomain:'napoleon-f7aef.firebaseapp.com',
+  databaseURL:'https://napoleon-f7aef-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId:'napoleon-f7aef',
+  appId:'1:57954048125:web:a7e0f360df9ee485f4f914'
+};
+let db=null,ONLINE=false,IS_HOST=false,MY_SLOT=HUMAN;
+let ROOM_CODE='',MY_ID='',MY_NAME='プレイヤー';
+let roomRef=null,humanSlots=new Set([HUMAN]);
+let playerNames=['あなた','P1','P2','P3','P4'];
+let uiState=null; // 現在表示中のUI種別（重複防止）
+
+/* ── CARD UTILS ───────────────────────────────── */
+const rstr =r=>RANK_STR[r]||String(r);
+const cid  =c=>c.suit==='J'?'JK':c.suit+c.rank;
+const isRed=c=>c.suit==='H'||c.suit==='D';
+const isFuda=c=>c.suit!=='J'&&[1,10,11,12,13].includes(c.rank);
+const countFuda=cs=>cs.filter(isFuda).length;
+const isAlmighty=c=>c.suit==='S'&&c.rank===1;
+const isRJ=(c,t)=>t&&c.suit===t&&c.rank===11;
+const isLJ=(c,t)=>t&&c.suit===PARTNER[t]&&c.rank===11;
+const effSuit=(c,t)=>isLJ(c,t)?t:c.suit;
+const bidScore=(n,s)=>n*10+SUIT_RANK[s];
+
+function strength(c,t){
+  if(c.suit==='J')    return 3000;
+  if(isAlmighty(c))   return 2000;
+  if(isRJ(c,t))       return 1900;
+  if(isLJ(c,t))       return 1800;
+  if(effSuit(c,t)===t)return 100+(c.rank===1?14:c.rank);
+  return c.rank===1?14:c.rank;
+}
+
+function createDeck(){
+  const d=[];
+  for(const s of SUITS)for(let r=1;r<=13;r++)d.push({suit:s,rank:r});
+  d.push({suit:'J',rank:0});
+  return d;
+}
+function shuffle(a){
+  a=[...a];
+  for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+function sortHand(h){
+  const o={S:0,H:1,D:2,C:3,J:4};
+  return [...h].sort((a,b)=>{
+    if(o[a.suit]!==o[b.suit])return o[a.suit]-o[b.suit];
+    return(b.rank===1?14:b.rank)-(a.rank===1?14:a.rank);
+  });
+}
+
+/* ── GAME STATE ───────────────────────────────── */
+let G={};
+function newGame(){
+  const deck=shuffle(createDeck());
+  const hands=[];
+  for(let p=0;p<N;p++)hands.push(deck.slice(p*10,p*10+10));
+  G={
+    phase:'bid',stage:'',hands,widow:deck.slice(50),
+    napoleon:-1,ally:-1,bid:0,trump:null,friendCard:null,allyRevealed:false,
+    trick:[],trickWins:Array(N).fill(0),fudaWins:Array(N).fill(0),
+    fudaCards:Array.from({length:N},()=>[]),history:[],
+    bidDone:Array(N).fill(false),highScore:0,highBid:0,highSuit:null,highBidder:-1,
+    currentPlayer:1,
+  };
+  uiState=null;
+  if(ONLINE&&IS_HOST){syncState();setupActionListener();}
+  renderAll();
+  setMsg('ビッドフェーズ開始');
+  setTimeout(doBidStep,500);
+}
+
+/* ── BID ──────────────────────────────────────── */
+function doBidStep(){
+  if(G.bidDone.every(Boolean)){endBidding();return;}
+  const p=G.currentPlayer;
+  if(G.bidDone[p]){G.currentPlayer=(G.currentPlayer+1)%N;doBidStep();return;}
+  renderAll();
+  if(ONLINE&&IS_HOST)syncState();
+  if(p===MY_SLOT){
+    uiState='bid';showBidModal();
+  }else if(ONLINE&&IS_HOST&&humanSlots.has(p)){
+    setMsg(`${pn(p)} がビッド中...`);
+  }else{
+    setTimeout(()=>cpuBid(p),CPU_MS);
+  }
+}
+
+function cpuBid(p){
+  const hand=G.hands[p];
+  const sc={S:0,H:0,D:0,C:0};
+  for(const c of hand)if(c.suit!=='J')sc[c.suit]++;
+  const best=Object.entries(sc).sort((a,b)=>b[1]-a[1]||SUIT_RANK[b[0]]-SUIT_RANK[a[0]])[0][0];
+  const est=estimateHand(hand,best);
+  const myScore=bidScore(Math.min(est,20),best);
+  const minScore=Math.max(bidScore(MIN_BID,best),G.highScore+1);
+  if(myScore>=minScore&&est>=MIN_BID){
+    const cnt=Math.max(G.highScore>0&&SUIT_RANK[best]>SUIT_RANK[G.highSuit]?G.highBid:G.highBid+1,MIN_BID);
+    if(cnt<=20){doBid(p,cnt,best);return;}
+  }
+  doBid(p,0,null);
+}
+
+function estimateHand(hand,suit){
+  let bonus=0;
+  for(const c of hand){
+    if(c.suit==='J')bonus+=2.5;
+    else if(isAlmighty(c))bonus+=2.0;
+    else if(c.rank===1)bonus+=1.5;
+    else if(c.rank===13)bonus+=0.8;
+    else if(c.suit===suit)bonus+=0.3;
+  }
+  return Math.round(countFuda(hand)+bonus*.55)+9;
+}
+
+function doBid(p,count,suit){
+  if(ONLINE&&!IS_HOST&&p===MY_SLOT){
+    submitAction({type:'bid',player:p,count,suit});
+    hideModal();uiState=null;
+    setMsg('ビッドを送信中...');
+    return;
+  }
+  G.bidDone[p]=true;
+  if(count>0){
+    const sc=bidScore(count,suit);
+    if(sc>G.highScore){G.highScore=sc;G.highBid=count;G.highSuit=suit;G.highBidder=p;}
+  }
+  setMsg(count===0?`${pn(p)}: パス`:`${pn(p)}: ${SUIT_NAME[suit]} ${count}枚を宣言`);
+  G.currentPlayer=(G.currentPlayer+1)%N;
+  renderAll();
+  setTimeout(doBidStep,380);
+}
+
+function endBidding(){
+  if(G.highBidder===-1){setMsg('全員パス。再ディール…');setTimeout(newGame,1500);return;}
+  G.napoleon=G.highBidder;G.bid=G.highBid;G.trump=G.highSuit;
+  G.phase='exchange';G.stage='exchange';
+  G.hands[G.napoleon]=[...G.hands[G.napoleon],...G.widow];
+  G.widow=[];
+  renderAll();
+  if(ONLINE&&IS_HOST)syncState();
+  setMsg(`${pn(G.napoleon)} がナポレオン！（${SUIT_NAME[G.trump]} ${G.bid}枚宣言）`);
+  if(G.napoleon===MY_SLOT){
+    setTimeout(showExchangeModal,600);
+  }else if(ONLINE&&IS_HOST&&humanSlots.has(G.napoleon)){
+    setMsg(`${pn(G.napoleon)} がカード交換中...`);
+  }else{
+    setTimeout(cpuExchange,600);
+  }
+}
+
+/* ── EXCHANGE ─────────────────────────────────── */
+function cpuExchange(){
+  const sorted=[...G.hands[G.napoleon]].sort((a,b)=>strength(a,G.trump)-strength(b,G.trump));
+  const dis=sorted.slice(0,3).map(cid);
+  G.hands[G.napoleon]=G.hands[G.napoleon].filter(c=>!dis.includes(cid(c)));
+  G.stage='declare';
+  if(ONLINE&&IS_HOST)syncState();
+  setTimeout(cpuDeclare,400);
+}
+function confirmExchange(ids){
+  if(ONLINE&&!IS_HOST){
+    submitAction({type:'exchange',ids:[...ids]});
+    hideModal();uiState=null;
+    setMsg('交換を送信中...');
+    return;
+  }
+  G.hands[MY_SLOT]=G.hands[MY_SLOT].filter(c=>!ids.includes(cid(c)));
+  G.stage='declare';
+  if(ONLINE&&IS_HOST)syncState();
+  hideModal();
+  setTimeout(showFriendModal,400);
+}
+
+/* ── DECLARE ──────────────────────────────────── */
+function cpuDeclare(){
+  const hand=G.hands[G.napoleon];
+  const order=SUITS.filter(s=>s!==G.trump).concat([G.trump]);
+  let fc=null;
+  for(const s of order)if(!hand.some(c=>c.suit===s&&c.rank===1)){fc={suit:s,rank:1};break;}
+  if(!fc)for(const s of order)if(!hand.some(c=>c.suit===s&&c.rank===13)){fc={suit:s,rank:13};break;}
+  if(!fc)fc={suit:SUITS.find(s=>s!==G.trump)||SUITS[0],rank:1};
+  doDeclaration(fc);
+}
+function doDeclaration(fc){
+  G.friendCard=fc;G.phase='play';G.stage='';G.ally=-1;
+  for(let p=0;p<N;p++){
+    if(p===G.napoleon)continue;
+    if(G.hands[p].some(c=>c.suit===fc.suit&&c.rank===fc.rank)){G.ally=p;break;}
+  }
+  if(G.ally===-1)G.ally=G.napoleon;
+  G.allyRevealed=(G.ally===MY_SLOT);
+  G.currentPlayer=G.napoleon;G.trick=[];
+  if(ONLINE&&IS_HOST)syncState();
+  renderAll();
+  setMsg(`副官カード: ${SYM[fc.suit]}${rstr(fc.rank)}（副官は秘密）`);
+  setTimeout(doPlayStep,1000);
+}
+
+/* ── PLAY ─────────────────────────────────────── */
+function doPlayStep(){
+  if(G.hands[MY_SLOT].length===0&&G.trick.length===0){showResult();return;}
+  renderAll();
+  if(ONLINE&&IS_HOST)syncState();
+  const p=G.currentPlayer;
+  if(p===MY_SLOT){
+    uiState='play';
+    setMsg('カードを選択 → もう1回タップで出す');
+    renderHumanHand(true);
+  }else if(ONLINE&&IS_HOST&&humanSlots.has(p)){
+    setMsg(`${pn(p)} のターン...`);
+  }else{
+    setTimeout(()=>cpuPlay(p),CPU_MS);
+  }
+}
+
+function legalCards(player){
+  const hand=G.hands[player];
+  if(G.trick.length===0)return hand;
+  const led=G.trick[0].card;
+  if(led.suit==='J')return hand;
+  const ledS=effSuit(led,G.trump);
+  const suit=hand.filter(c=>c.suit!=='J'&&!isAlmighty(c)&&effSuit(c,G.trump)===ledS);
+  if(suit.length>0)return[...suit,...hand.filter(c=>c.suit==='J'||isAlmighty(c))];
+  return hand;
+}
+
+function cpuPlay(p){playCard(p,chooseCpu(p,legalCards(p)));}
+
+function chooseCpu(p,legal){
+  const onNap=p===G.napoleon||p===G.ally;
+  if(G.trick.length===0){
+    const s=[...legal].sort((a,b)=>strength(b,G.trump)-strength(a,G.trump));
+    return onNap?s[0]:s[Math.floor(s.length/2)]??s[0];
+  }
+  const win=trickWinner();
+  const tmWin=onNap?(win===G.napoleon||win===G.ally):(win!==G.napoleon&&win!==G.ally);
+  const s=[...legal].sort((a,b)=>strength(b,G.trump)-strength(a,G.trump));
+  if(tmWin)return s[s.length-1];
+  const best=G.trick.reduce((b,t)=>strength(t.card,G.trump)>strength(b.card,G.trump)?t:b).card;
+  return s.find(c=>strength(c,G.trump)>strength(best,G.trump))??s[s.length-1];
+}
+
+function playCard(player,card){
+  G.hands[player]=G.hands[player].filter(c=>cid(c)!==cid(card));
+  const allyJustRevealed=!G.allyRevealed&&G.friendCard&&
+    card.suit===G.friendCard.suit&&card.rank===G.friendCard.rank;
+  if(allyJustRevealed)G.allyRevealed=true;
+  G.trick.push({player,card});
+  renderAll();
+  if(allyJustRevealed){
+    // ゲームを一時停止してチーム告知
+    showAllyRevealModal(()=>{
+      if(G.trick.length===N)setTimeout(resolveTrick,950);
+      else{G.currentPlayer=(G.currentPlayer+1)%N;setTimeout(doPlayStep,280);}
+    });
+  } else {
+    if(G.trick.length===N)setTimeout(resolveTrick,950);
+    else{G.currentPlayer=(G.currentPlayer+1)%N;setTimeout(doPlayStep,280);}
+  }
+}
+
+function showAllyRevealModal(cb){
+  const ally=G.ally,nap=G.napoleon;
+  const solo=ally===nap;
+  const rebels=[];
+  for(let p=0;p<N;p++){if(p!==nap&&p!==ally)rebels.push(p);}
+
+  let napTeam=`<div style="margin:8px 0;padding:10px 14px;background:rgba(232,150,10,.25);border:2px solid var(--c-nap);border-radius:10px;">`;
+  napTeam+=`<div style="font-size:15px;font-weight:bold;color:var(--c-nap);margin-bottom:6px;">👑 ナポレオン側</div>`;
+  napTeam+=`<div style="font-size:14px;">👑 ${pn(nap)}（ナポレオン）</div>`;
+  if(!solo)napTeam+=`<div style="font-size:14px;margin-top:4px;">🤝 ${pn(ally)}（副官）</div>`;
+  else napTeam+=`<div style="font-size:12px;color:#aaa;margin-top:4px;">※ 単独（副官なし）</div>`;
+  napTeam+=`</div>`;
+
+  let rebTeam=`<div style="margin:8px 0;padding:10px 14px;background:rgba(34,85,170,.25);border:2px solid var(--c-rebel);border-radius:10px;">`;
+  rebTeam+=`<div style="font-size:15px;font-weight:bold;color:#88aaff;margin-bottom:6px;">⚔️ 反乱軍</div>`;
+  for(const p of rebels)rebTeam+=`<div style="font-size:14px;">${pn(p)}</div>`;
+  if(solo)rebTeam+=`<div style="font-size:14px;">${pn(ally)}</div>`;
+  rebTeam+=`</div>`;
+
+  const fc=G.friendCard;
+  const red=fc.suit==='H'||fc.suit==='D';
+  const fcStr=`<span style="color:${red?'#ff6666':'#fff'}">${SYM[fc.suit]}${rstr(fc.rank)}</span>`;
+  const html=`
+    <h2 style="color:var(--c-gold)">🔔 副官が判明！</h2>
+    <p style="margin-bottom:4px">${pn(G.ally)} が副官カード ${fcStr} を出しました。</p>
+    ${napTeam}
+    ${rebTeam}
+    <button class="btn btn-gold" style="margin-top:8px" onclick="hideModal();(window.__allyRevealCb&&window.__allyRevealCb())">続ける</button>`;
+  window.__allyRevealCb=cb;
+  showModal(html);
+}
+
+function trickWinner(){
+  let b=G.trick[0];
+  for(let i=1;i<G.trick.length;i++)
+    if(strength(G.trick[i].card,G.trump)>strength(b.card,G.trump))b=G.trick[i];
+  return b.player;
+}
+
+function resolveTrick(){
+  const w=trickWinner();
+  const f=countFuda(G.trick.map(t=>t.card));
+  // まずアニメーション、完了後に状態更新
+  animateTrickWin(w,()=>{
+    G.trickWins[w]++;
+    G.fudaWins[w]+=f;
+    G.fudaCards[w].push(...G.trick.map(t=>t.card).filter(isFuda));
+    G.history.push({trick:[...G.trick],winner:w});
+    G.trick=[];G.currentPlayer=w;
+    setMsg(`${pn(w)} がトリック獲得！${f>0?`（絵札${f}枚）`:''}`);
+    const badge=w===MY_SLOT
+      ?document.getElementById('label-p0')
+      :document.getElementById(`badge-p${w}`);
+    badge?.classList.add('flash');
+    setTimeout(()=>badge?.classList.remove('flash'),800);
+    renderAll();
+    if(ONLINE&&IS_HOST)syncState();
+    setTimeout(doPlayStep,450);
+  });
+}
+
+function animateTrickWin(winner,cb){
+  const ta=document.getElementById('trick-area');
+  const wrappers=[...ta.querySelectorAll('.tc-wrap')];
+  if(!wrappers.length){cb();return;}
+
+  // 勝者のバッジ位置を取得
+  const targetEl=winner===MY_SLOT
+    ?document.getElementById('label-p0')
+    :document.getElementById(`badge-p${winner}`);
+  if(!targetEl){cb();return;}
+  const tr=targetEl.getBoundingClientRect();
+  const tx=tr.left+tr.width/2, ty=tr.top+tr.height/2;
+
+  // 各カードの現在位置をスナップショット
+  const snaps=wrappers.map(w=>{
+    const r=w.getBoundingClientRect();
+    const clone=w.cloneNode(true);
+    clone.querySelectorAll('.pop-in').forEach(el=>el.classList.remove('pop-in'));
+    clone.style.cssText=`position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;pointer-events:none;z-index:150;`;
+    return{clone,r};
+  });
+
+  // オリジナルを即座にクリア
+  ta.innerHTML='';
+
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;pointer-events:none;z-index:149;';
+  document.body.appendChild(overlay);
+  snaps.forEach(({clone})=>overlay.appendChild(clone));
+
+  let done=false;
+  const finish=()=>{if(!done){done=true;overlay.remove();cb();}};
+
+  // 次フレームでアニメーション開始
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    snaps.forEach(({clone,r},i)=>{
+      const dx=tx-(r.left+r.width/2);
+      const dy=ty-(r.top+r.height/2);
+      clone.style.transition=`transform .36s ease-in, opacity .28s ease-in`;
+      clone.style.transitionDelay=`${i*0.05}s`;
+      clone.style.transform=`translate(${dx}px,${dy}px) scale(0.12)`;
+      clone.style.opacity='0';
+    });
+    setTimeout(finish,700); // フォールバック
+  }));
+
+  // 最後のカードのアニメーション終了を待つ
+  snaps[snaps.length-1].clone.addEventListener('transitionend',finish,{once:true});
+}
+
+/* ── RESULT ───────────────────────────────────── */
+function showResult(){
+  G.phase='result';
+  const solo=G.ally===G.napoleon;
+  const napF=G.fudaWins[G.napoleon]+(solo?0:G.fudaWins[G.ally]);
+  const rebF=TOTAL_FUDA-napF;
+  const ok=napF>=G.bid;
+  let html=`<h2>${ok?'🎖️ ナポレオン側の勝利！':'⚔️ 反乱軍の勝利！'}</h2>`;
+  html+=`<p>${SUIT_NAME[G.trump]} ${G.bid}枚宣言 ／ ナポレオン側: <b>${napF}</b>枚 ／ 反乱軍: <b>${rebF}</b>枚</p>`;
+  html+=`<table class="rtbl"><tr><th>プレイヤー</th><th>役割</th><th>絵札</th><th>T</th></tr>`;
+  for(let p=0;p<N;p++){
+    const r=p===G.napoleon?'👑ナポ':p===G.ally&&!solo?'🤝副官':'反乱軍';
+    const c=p===G.napoleon?'rnap':p===G.ally&&!solo?'raly':'';
+    html+=`<tr class="${c}"><td>${pn(p)}</td><td>${r}</td><td>${G.fudaWins[p]}</td><td>${G.trickWins[p]}</td></tr>`;
+  }
+  html+=`</table><button class="btn btn-gold" onclick="hideModal();newGame()">もう一度</button>`;
+  showModal(html);renderAll();
+}
+
+/* ── MODALS ───────────────────────────────────── */
+function showModal(html){
+  document.getElementById('modal-root').innerHTML=`<div class="overlay"><div class="modal">${html}</div></div>`;
+}
+function hideModal(){document.getElementById('modal-root').innerHTML='';}
+
+function showBidModal(){
+  let html=`<h2>ビッド</h2>`;
+  html+=`<p>絵札${TOTAL_FUDA}枚を競います。スート→枚数の順に選択。<br>現在の最高: <b>${G.highBid?`${SUIT_NAME[G.highSuit]} ${G.highBid}`:'なし'}</b></p>`;
+  html+=`<p style="font-size:12px;color:#aaa">① 切り札スート</p><div class="suit-row">`;
+  for(const s of SUITS){
+    const red=s==='H'||s==='D';
+    html+=`<button class="suit-btn ${red?'rs':'bs'}" id="bsb-${s}" onclick="selectBidSuit('${s}')">${SYM[s]}</button>`;
+  }
+  html+=`</div><p style="font-size:12px;color:#aaa">② 宣言枚数（${MIN_BID}〜20）</p><div id="bid-grid">`;
+  for(let b=MIN_BID;b<=20;b++)
+    html+=`<button class="btn btn-gold bid-nb" id="bbn-${b}" disabled onclick="doBid(${MY_SLOT},${b},window._bs);hideModal()">${b}</button>`;
+  html+=`</div><button class="btn btn-gray" onclick="doBid(${MY_SLOT},0,null);hideModal()">パス</button>`;
+  showModal(html);
+  window._bs=null;
+}
+function selectBidSuit(s){
+  window._bs=s;
+  document.querySelectorAll('.suit-btn').forEach(b=>b.classList.remove('sel'));
+  document.getElementById('bsb-'+s)?.classList.add('sel');
+  for(let b=MIN_BID;b<=20;b++){
+    const btn=document.getElementById('bbn-'+b);
+    if(btn)btn.disabled=bidScore(b,s)<=G.highScore;
+  }
+}
+
+function showExchangeModal(){
+  let html=`<h2>カード交換</h2><p>3枚追加されました。不要な <b>3枚</b> を選んで捨ててください。</p>`;
+  html+=`<div id="ex-hand"></div><p id="ex-cnt" style="color:#ffe066">選択中: 0/3枚</p>`;
+  html+=`<button class="btn btn-gold" id="ex-btn" disabled onclick="doExC()">捨てる</button>`;
+  showModal(html);
+  const cont=document.getElementById('ex-hand'),sel=new Set();
+  for(const card of sortHand(G.hands[MY_SLOT])){
+    const el=makeCard(card);
+    el.style.cursor='pointer';
+    el.onclick=()=>{
+      const id=cid(card);
+      if(sel.has(id)){sel.delete(id);el.classList.remove('ex-sel');}
+      else if(sel.size<3){sel.add(id);el.classList.add('ex-sel');}
+      document.getElementById('ex-cnt').textContent=`選択中: ${sel.size}/3枚`;
+      document.getElementById('ex-btn').disabled=sel.size!==3;
+    };
+    cont.appendChild(el);
+  }
+  window.__exS=()=>[...sel];
+}
+function doExC(){confirmExchange(window.__exS());}
+
+function showFriendModal(){
+  let html=`<h2>副官カード選択</h2>`;
+  html+=`<p>切り札: <b>${SYM[G.trump]} ${SUIT_NAME[G.trump]}</b><br>このカードを持つプレイヤーが秘密の副官になります。</p>`;
+  html+=`<div id="fr-grid"></div>`;
+  html+=`<button class="btn btn-gold" id="fd-btn" disabled onclick="doFdC()">宣言する</button>`;
+  showModal(html);
+  const grid=document.getElementById('fr-grid');
+  window.__sf=null;
+  for(const s of SUITS)for(const r of [1,13,12,11]){
+    const card={suit:s,rank:r};
+    if(G.hands[MY_SLOT].some(c=>cid(c)===cid(card)))continue;
+    const el=makeCard(card);
+    el.style.cssText='width:48px;height:68px;font-size:10px;cursor:pointer';
+    el.onclick=()=>{
+      grid.querySelectorAll('.card').forEach(c=>c.style.outline='');
+      el.style.outline='3px solid #ffe066';
+      window.__sf=card;
+      document.getElementById('fd-btn').disabled=false;
+    };
+    grid.appendChild(el);
+  }
+}
+function doFdC(){
+  if(!window.__sf)return;
+  if(ONLINE&&!IS_HOST){
+    submitAction({type:'declare',card:window.__sf});
+    hideModal();uiState=null;
+    setMsg('宣言を送信中...');
+    return;
+  }
+  hideModal();doDeclaration(window.__sf);
+}
+
+/* ── RENDERING ────────────────────────────────── */
+function makeCard(card,faceUp=true){
+  const el=document.createElement('div');
+  el.className='card '+(faceUp?'face-up':'face-down');
+  if(faceUp){
+    if(card.suit==='J'){
+      el.classList.add('jkr','is-joker');
+      el.innerHTML=`<div class="ct">JK</div><div class="cm">🃏</div><div class="cb">JK</div>`;
+    }else{
+      el.classList.add(isRed(card)?'red':'black');
+      if(isAlmighty(card))el.classList.add('almighty');
+      if(G.trump&&isRJ(card,G.trump)){el.classList.add('right-j');}
+      if(G.trump&&isLJ(card,G.trump)){el.classList.add('left-j');}
+      const sym=SYM[card.suit],rk=rstr(card.rank);
+      const badge=G.trump&&isRJ(card,G.trump)?'<span class="jbadge">正</span>':
+                  G.trump&&isLJ(card,G.trump)?'<span class="jbadge">裏</span>':'';
+      el.innerHTML=`<div class="ct">${rk}${sym}</div><div class="cm">${sym}${badge}</div><div class="cb">${rk}${sym}</div>`;
+    }
+  }
+  return el;
+}
+
+function renderAll(){
+  renderPlayers();
+  renderHumanHand(false);
+  renderCenter();
+}
+
+function roleLabel(p){
+  if(p===G.napoleon)return'👑 ナポレオン';
+  if(G.allyRevealed&&p===G.ally&&p!==G.napoleon)return'🤝 副官';
+  if(G.phase==='play'||G.phase==='result')return'⚔️ 反乱軍';
+  return'';
+}
+
+function renderPlayers(){
+  const roles=getRoles();
+  const inPlay=G.phase==='play'||G.phase==='result';
+  for(let p=0;p<N;p++){
+    if(p===MY_SLOT){
+      const el=document.getElementById('label-p0');
+      if(!el)continue;
+      el.className='';
+      if(roles[p]==='nap')el.classList.add('role-nap');
+      else if(roles[p]==='ally')el.classList.add('role-ally');
+      if(p===G.currentPlayer&&G.phase==='play')el.classList.add('active');
+      // 役割ラベル
+      const pr=document.getElementById('pr-p0');
+      if(pr){const rl=roleLabel(p);pr.textContent=rl;pr.classList.toggle('show',rl!=='');}
+      // 絵札カウント
+      const pfw=document.getElementById('pfw-p0');
+      const pf=document.getElementById('pf-p0');
+      if(inPlay){
+        if(pf)pf.textContent=G.fudaWins[p];
+        if(pfw)pfw.classList.add('show');
+      }else{
+        if(pfw)pfw.classList.remove('show');
+      }
+      renderFudaList('pfcl-p0',p,inPlay);
+    }else{
+      const badge=document.getElementById(`badge-p${p}`);
+      const pf=document.getElementById(`pf-p${p}`);
+      const pfl=document.getElementById(`pfl-p${p}`);
+      const pr=document.getElementById(`pr-p${p}`);
+      if(!badge)continue;
+      badge.querySelector('.pname').textContent=`P${p}`;
+      badge.className='pbadge';
+      if(roles[p]==='nap')badge.classList.add('role-nap');
+      else if(roles[p]==='ally')badge.classList.add('role-ally');
+      else if(roles[p]==='reb')badge.classList.add('role-reb');
+      if(p===G.currentPlayer&&G.phase==='play')badge.classList.add('active');
+      // 役割ラベル
+      if(pr){
+        const rl=roleLabel(p);
+        pr.textContent=rl;
+        pr.classList.toggle('show',rl!=='');
+      }
+      // 絵札カウント
+      if(inPlay){
+        if(pf){pf.textContent=G.fudaWins[p];pf.classList.add('show');}
+        if(pfl)pfl.classList.add('show');
+      }else{
+        if(pf)pf.classList.remove('show');
+        if(pfl)pfl.classList.remove('show');
+      }
+      renderFudaList(`pfcl-p${p}`,p,inPlay);
+    }
+  }
+}
+
+function getRoles(){
+  const r={};
+  if(G.napoleon<0)return r;
+  r[G.napoleon]='nap';
+  if(G.allyRevealed&&G.ally>=0&&G.ally!==G.napoleon)r[G.ally]='ally';
+  for(let p=0;p<N;p++)if(!r[p])r[p]='reb';
+  return r;
+}
+
+function renderHumanHand(enablePlay){
+  const div=document.getElementById('human-hand');
+  div.innerHTML='';
+  if(!G.hands[MY_SLOT])return;
+  const legal=enablePlay?new Set(legalCards(MY_SLOT).map(cid)):new Set();
+  for(const card of sortHand(G.hands[MY_SLOT])){
+    const el=makeCard(card,true);
+    if(enablePlay){
+      if(legal.has(cid(card))){
+        el.classList.add('playable');
+        el.onclick=()=>{
+          if(el.classList.contains('lifted')){
+            renderHumanHand(false);
+            if(ONLINE&&!IS_HOST){
+              submitAction({type:'play',player:MY_SLOT,cardId:cid(card)});
+              uiState=null;setMsg('カードを送信中...');
+            }else{
+              playCard(MY_SLOT,card);
+            }
+          }else{
+            div.querySelectorAll('.card').forEach(c=>c.classList.remove('lifted'));
+            el.classList.add('lifted');
+          }
+        };
+      }else{
+        el.classList.add('unplayable');
+      }
+    }
+    div.appendChild(el);
+  }
+}
+
+function renderCenter(){
+  // Trick area
+  const ta=document.getElementById('trick-area');
+  ta.innerHTML='';
+  const winnerNow=G.trick.length>0?trickWinner():-1;
+  for(const {player,card} of G.trick){
+    const wrap=document.createElement('div');
+    // 座席位置クラスを付加（プレイヤーIDと対応）
+    wrap.className=`tc-wrap tc-p${player}`;
+    const winning=player===winnerNow;
+    const el=makeCard(card,true);
+    el.classList.add('pop-in');
+    if(winning)el.classList.add('trick-win');
+    // 勝ちマーカー（名前の上に👑）
+    if(winning){
+      const crown=document.createElement('div');
+      crown.className='win-crown';crown.textContent='👑';
+      wrap.appendChild(crown);
+    }
+    wrap.appendChild(el);
+    const nameEl=document.createElement('div');
+    nameEl.className='tc-name'+(winning?' winning-name':'');
+    nameEl.textContent=pn(player);
+    wrap.appendChild(nameEl);
+    ta.appendChild(wrap);
+  }
+
+  // Info strip
+  const strip=document.getElementById('info-strip');
+  strip.innerHTML='';
+
+  if(G.trump){
+    const red=G.trump==='H'||G.trump==='D';
+    strip.innerHTML+=`<span class="chip"><span class="label">切り札</span><span class="val ${red?'red-v':''}">${SYM[G.trump]}${SUIT_NAME[G.trump]}</span></span>`;
+  }
+  if(G.bid){
+    strip.innerHTML+=`<span class="chip"><span class="label">宣言</span><span class="val">${G.bid}枚</span></span>`;
+  }
+  if(G.friendCard){
+    const fc=G.friendCard;
+    const red=fc.suit==='H'||fc.suit==='D';
+    strip.innerHTML+=`<span class="chip"><span class="label">副官カード</span><span class="val ${red?'red-v':''}">${SYM[fc.suit]}${rstr(fc.rank)}</span></span>`;
+  }
+  if(G.phase==='play'||G.phase==='result'){
+    const napSet=new Set([G.napoleon,G.ally].filter(p=>p>=0));
+    const napF=[...napSet].reduce((s,p)=>s+G.fudaWins[p],0);
+    const rebF=TOTAL_FUDA-napF;
+    strip.innerHTML+=`<span class="chip"><span class="nap-sc">ナポ ${napF}</span> / <span class="reb-sc">反乱 ${rebF}</span></span>`;
+  }
+  if(G.phase==='bid'&&G.highBid>0){
+    strip.innerHTML+=`<span class="chip"><span class="label">最高入札</span><span class="val">${SUIT_NAME[G.highSuit]} ${G.highBid}</span></span>`;
+  }
+}
+
+/* ── ONLINE MODE ──────────────────────────────── */
+function initFB(){
+  if(db)return;
+  firebase.initializeApp(FB_CFG);
+  db=firebase.database();
+}
+function genId(n=8){return Math.random().toString(36).slice(2,2+n).toUpperCase();}
+function genCode(){return Math.random().toString(36).slice(2,8).toUpperCase();}
+const modalOpen=()=>!!document.getElementById('modal-root').innerHTML;
+
+// Firebase配列復元（Firebase はarrayをobjectに変換するため）
+function fbArr(v){
+  if(!v)return[];
+  if(Array.isArray(v))return v;
+  return Object.values(v);
+}
+function restoreG(s){
+  if(!s)return;
+  s.hands=fbArr(s.hands).map(h=>fbArr(h));
+  s.fudaCards=fbArr(s.fudaCards).map(fc=>fbArr(fc));
+  s.trick=fbArr(s.trick);
+  s.trickWins=fbArr(s.trickWins);
+  s.fudaWins=fbArr(s.fudaWins);
+  s.bidDone=fbArr(s.bidDone);
+  s.history=fbArr(s.history);
+  return s;
+}
+
+function syncState(){
+  if(!ONLINE||!IS_HOST||!roomRef)return;
+  roomRef.child('state').set({
+    phase:G.phase,stage:G.stage||'',hands:G.hands,widow:G.widow,
+    napoleon:G.napoleon,ally:G.ally,bid:G.bid,trump:G.trump,
+    friendCard:G.friendCard,allyRevealed:G.allyRevealed,
+    trick:G.trick,trickWins:G.trickWins,fudaWins:G.fudaWins,
+    fudaCards:G.fudaCards,history:G.history,
+    bidDone:G.bidDone,highScore:G.highScore,highBid:G.highBid,
+    highSuit:G.highSuit,highBidder:G.highBidder,currentPlayer:G.currentPlayer,
+  });
+}
+
+function submitAction(action){
+  if(!roomRef)return;
+  roomRef.child('pendingAction').set(action);
+}
+
+let actionListening=false;
+function setupActionListener(){
+  if(!IS_HOST||!roomRef||actionListening)return;
+  actionListening=true;
+  roomRef.child('pendingAction').on('value',snap=>{
+    if(!snap.exists()||!snap.val())return;
+    const action=snap.val();
+    roomRef.child('pendingAction').remove();
+    processAction(action);
+  });
+}
+
+function processAction(action){
+  switch(action.type){
+    case 'bid':
+      doBid(action.player,action.count,action.suit||null);
+      break;
+    case 'play':{
+      const hand=G.hands[action.player];
+      const card=hand&&hand.find(c=>cid(c)===action.cardId);
+      if(card)playCard(action.player,card);
+      break;
+    }
+    case 'exchange':
+      G.hands[G.napoleon]=G.hands[G.napoleon].filter(c=>!action.ids.includes(cid(c)));
+      G.stage='declare';
+      syncState();
+      if(G.napoleon===MY_SLOT){setTimeout(showFriendModal,400);}
+      else if(humanSlots.has(G.napoleon)){setMsg(`${pn(G.napoleon)} が副官カード選択中...`);}
+      else{setTimeout(cpuDeclare,400);}
+      break;
+    case 'declare':
+      doDeclaration(action.card);
+      break;
+  }
+}
+
+// 非ホスト：状態受信時の処理
+function onRemoteState(snap){
+  if(!snap.exists())return;
+  const s=restoreG(snap.val());
+  if(!s)return;
+  Object.assign(G,s);
+  uiState=null;
+  renderAll();
+  const p=G.currentPlayer;
+  if(G.phase==='result'){if(!modalOpen())showResult();return;}
+  if(G.phase==='bid'&&p===MY_SLOT&&!G.bidDone[MY_SLOT]&&!modalOpen()){
+    uiState='bid';showBidModal();
+  }else if(G.phase==='exchange'&&G.napoleon===MY_SLOT&&!modalOpen()){
+    if(!G.stage||G.stage==='exchange'){uiState='exchange';setTimeout(showExchangeModal,500);}
+    else if(G.stage==='declare'){uiState='declare';setTimeout(showFriendModal,400);}
+  }else if(G.phase==='play'&&p===MY_SLOT&&!modalOpen()){
+    uiState='play';setMsg('カードを選択 → もう1回タップで出す');renderHumanHand(true);
+  }else if(G.phase==='play'){
+    setMsg(p===MY_SLOT?'カードを選択 → もう1回タップで出す':`${pn(p)} のターン...`);
+  }
+}
+
+/* ── LOBBY ────────────────────────────────────── */
+function showOnlineMenu(){
+  initFB();
+  MY_ID=sessionStorage.getItem('nap_id')||genId();
+  sessionStorage.setItem('nap_id',MY_ID);
+  const prev=sessionStorage.getItem('nap_name')||'';
+  const html=`
+    <h2>🌐 オンライン対戦</h2>
+    <p style="font-size:12px;color:#aaa">お名前（最大8文字）</p>
+    <input id="ni" type="text" maxlength="8" placeholder="プレイヤー名" value="${prev}"
+      style="font-size:16px;padding:6px 10px;border-radius:7px;border:1px solid #888;
+             width:100%;margin:4px 0 14px;background:#1a3a1a;color:#fff;">
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-gold" onclick="startCreate()">ルームを作成</button>
+      <button class="btn btn-gray" onclick="startJoin()">ルームに参加</button>
+    </div><br>
+    <button class="btn btn-gray" style="font-size:11px" onclick="showStartModal()">← 戻る</button>`;
+  showModal(html);
+}
+
+function startCreate(){
+  MY_NAME=(document.getElementById('ni')?.value.trim()||'プレイヤー').slice(0,8);
+  sessionStorage.setItem('nap_name',MY_NAME);
+  ROOM_CODE=genCode();IS_HOST=true;MY_SLOT=0;ONLINE=true;
+  actionListening=false;
+  humanSlots=new Set([0]);
+  playerNames=['あなた','P1','P2','P3','P4'];
+  createRoom();
+}
+
+function startJoin(){
+  MY_NAME=(document.getElementById('ni')?.value.trim()||'プレイヤー').slice(0,8);
+  sessionStorage.setItem('nap_name',MY_NAME);
+  const code=prompt('ルームコードを入力（6文字）:');
+  if(!code)return;
+  ROOM_CODE=code.trim().toUpperCase();
+  ONLINE=true;IS_HOST=false;
+  joinRoom();
+}
+
+async function createRoom(){
+  roomRef=db.ref(`rooms/${ROOM_CODE}`);
+  await roomRef.set({
+    meta:{host:MY_ID,status:'waiting',createdAt:Date.now()},
+    players:{[MY_ID]:{name:MY_NAME,slot:0}},
+    slots:{0:MY_ID,1:'CPU',2:'CPU',3:'CPU',4:'CPU'}
+  });
+  roomRef.child(`players/${MY_ID}`).onDisconnect().remove();
+  roomRef.child('slots/0').onDisconnect().set('CPU');
+  showLobby();
+}
+
+async function joinRoom(){
+  roomRef=db.ref(`rooms/${ROOM_CODE}`);
+  const snap=await roomRef.once('value');
+  if(!snap.exists()){alert('ルームが見つかりません');ONLINE=false;showOnlineMenu();return;}
+  const room=snap.val();
+  if(room.meta.status!=='waiting'){alert('このルームはすでにゲーム中です');ONLINE=false;showOnlineMenu();return;}
+  const slots=room.slots||{};
+  let slot=-1;
+  for(let i=0;i<5;i++){if(slots[i]==='CPU'){slot=i;break;}}
+  if(slot===-1){alert('ルームが満員です');ONLINE=false;showOnlineMenu();return;}
+  MY_SLOT=slot;
+  await roomRef.child(`players/${MY_ID}`).set({name:MY_NAME,slot});
+  await roomRef.child(`slots/${slot}`).set(MY_ID);
+  roomRef.child(`players/${MY_ID}`).onDisconnect().remove();
+  roomRef.child(`slots/${slot}`).onDisconnect().set('CPU');
+  showLobby();
+}
+
+function showLobby(){
+  roomRef.on('value',snap=>{
+    if(!snap.exists())return;
+    const room=snap.val();
+    if(room.meta.status==='playing'){
+      roomRef.off('value');
+      if(!IS_HOST){
+        // 非ホスト：プレイヤー情報セット後にリスナー起動
+        setupNonHostFromRoom(room);
+      }
+      return;
+    }
+    renderLobby(room);
+  });
+}
+
+function setupNonHostFromRoom(room){
+  const players=room.players||{};
+  humanSlots=new Set();
+  for(const[pid,pd]of Object.entries(players)){
+    humanSlots.add(pd.slot);
+    playerNames[pd.slot]=pd.slot===MY_SLOT?'あなた':pd.name;
+  }
+  hideModal();
+  roomRef.child('state').on('value',onRemoteState);
+}
+
+function renderLobby(room){
+  const slots=room.slots||{};
+  const players=room.players||{};
+  const slotNames={};
+  for(const pd of Object.values(players))slotNames[pd.slot]=pd.name;
+  const isHost=room.meta.host===MY_ID;
+  let rows='';
+  for(let i=0;i<5;i++){
+    const val=slots[i];
+    const isMine=val===MY_ID;
+    const isCpu=val==='CPU';
+    const name=isCpu?'CPU':(slotNames[i]||'?');
+    const col=isMine?'var(--c-gold)':isCpu?'#555':'#aef';
+    rows+=`<div style="padding:5px 10px;margin:2px 0;border:1px solid #444;border-radius:7px;color:${col};text-align:left">
+      スロット${i}: ${name}${isMine?' (あなた)':''}${!isCpu&&!isMine?' 🙂':''}
+    </div>`;
+  }
+  const pCount=Object.keys(players).length;
+  const startBtn=isHost
+    ?`<button class="btn btn-gold" ${pCount<2?'disabled title="2人以上必要"':''} onclick="hostStart()">ゲーム開始</button>`
+    :`<p style="color:#aaa;font-size:12px">ホストがゲームを開始するまでお待ちください…</p>`;
+  const html=`
+    <h2>🏠 ロビー</h2>
+    <p style="color:#aaa;font-size:12px">ルームコード</p>
+    <div style="font-size:28px;font-weight:bold;letter-spacing:4px;color:#fff;margin:4px 0 10px">${ROOM_CODE}</div>
+    <p style="font-size:11px;color:#888;margin-bottom:8px">このコードを友達に教えて参加してもらおう</p>
+    ${rows}<br>${startBtn}<br><br>
+    <button class="btn btn-gray" style="font-size:11px" onclick="leaveRoom()">退出</button>`;
+  showModal(html);
+}
+
+async function hostStart(){
+  const snap=await roomRef.once('value');
+  const room=snap.val();
+  const players=room.players||{};
+  humanSlots=new Set();
+  for(const pd of Object.values(players)){
+    humanSlots.add(pd.slot);
+    playerNames[pd.slot]=pd.slot===MY_SLOT?'あなた':pd.name;
+  }
+  await roomRef.child('meta/status').set('playing');
+  hideModal();
+  newGame();
+}
+
+function leaveRoom(){
+  if(roomRef){
+    roomRef.child(`players/${MY_ID}`).remove();
+    if(MY_SLOT!==null)roomRef.child(`slots/${MY_SLOT}`).set('CPU');
+    roomRef.off();roomRef=null;
+  }
+  ONLINE=false;IS_HOST=false;ROOM_CODE='';actionListening=false;
+  MY_SLOT=HUMAN;humanSlots=new Set([HUMAN]);
+  playerNames=['あなた','P1','P2','P3','P4'];
+  showStartModal();
+}
+
+function showStartModal(){
+  const html=`
+    <h2>🃏 ナポレオン</h2>
+    <p>5人用トリックテイキングカードゲーム</p>
+    <p style="font-size:12px;color:#aaa">あなた（P0）＋CPU×4人</p><br>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-gold" onclick="hideModal();newGame()">ソロ（CPU対戦）</button>
+      <button class="btn btn-gray" onclick="showOnlineMenu()">🌐 オンライン対戦</button>
+    </div><br>
+    <details style="text-align:left;font-size:12px;color:#bbb">
+      <summary style="cursor:pointer;margin-bottom:6px">ルール説明</summary>
+      <p>① ビッド: スート＋枚数を宣言（最低${MIN_BID}枚）。最高入札者がナポレオン。</p>
+      <p>② ナポレオンは3枚捨て、副官カードを指定。</p>
+      <p>③ 副官カードを持つ人が秘密の仲間（副官）。</p>
+      <p>④ 絵札（A・K・Q・J・10）計${TOTAL_FUDA}枚を競う。ナポレオン側が宣言枚数以上取れば勝ち。</p>
+      <p>⑤ 強さ: ジョーカー ＞ ♠A（オールマイティ）＞ 正ジャック ＞ 裏ジャック ＞ 切り札 ＞ 平札</p>
+      <p>⑥ カード: タップ→選択 / もう1回→出す</p>
+    </details>`;
+  showModal(html);
+}
+
+/* ── FUDA LIST HELPER ─────────────────────────── */
+function renderFudaList(id,p,inPlay){
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.innerHTML='';
+  if(!inPlay||!G.fudaCards||!G.fudaCards[p])return;
+  for(const c of G.fudaCards[p]){
+    const span=document.createElement('span');
+    span.className='fuda-pip '+(isRed(c)?'red':'blk');
+    span.textContent=SYM[c.suit]+rstr(c.rank);
+    el.appendChild(span);
+  }
+}
+
+/* ── HELPERS ──────────────────────────────────── */
+function pn(p){return p===MY_SLOT?playerNames[MY_SLOT]:playerNames[p]||`P${p}`;}
+function setMsg(t){const el=document.getElementById('msg');if(el)el.textContent=t;}
+
+/* ── STARTUP ──────────────────────────────────── */
+if('serviceWorker'in navigator)navigator.serviceWorker.register('./napoleon-sw.js').catch(()=>{});
+
+window.addEventListener('load',()=>{showStartModal();});
+</script>
+</body>
+</html>
