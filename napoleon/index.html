@@ -543,7 +543,8 @@ function newGame(){
     phase:'bid',stage:'',hands,widow:deck.slice(50),
     napoleon:-1,ally:-1,bid:0,trump:null,friendCard:null,allyRevealed:false,
     trick:[],trickWins:Array(N).fill(0),fudaWins:Array(N).fill(0),
-    fudaCards:Array.from({length:N},()=>[]),history:[],lastTrickWinner:-1,
+    fudaCards:Array.from({length:N},()=>[]),history:[],
+    lastTrickWinner:-1,lastTrick:[],lastTrickId:0,
     allyRevealPending:false,
     bidDone:Array(N).fill(false),highScore:0,highBid:0,highSuit:null,highBidder:-1,
     currentPlayer:1,
@@ -798,13 +799,15 @@ function resolveTrick(){
     G.trickWins[w]++;
     G.fudaWins[w]+=f;
     G.fudaCards[w].push(...G.trick.map(t=>t.card).filter(isFuda));
-    G.history.push({trick:[...G.trick],winner:w});
+    G.lastTrick=[...G.trick];
     G.lastTrickWinner=w;
+    G.lastTrickId=(G.lastTrickId||0)+1;
+    G.history.push({trick:[...G.lastTrick],winner:w});
     G.trick=[];G.currentPlayer=w;
     setMsg(`${pn(w)} がトリック獲得！${f>0?`（絵札${f}枚）`:''}`);
     const badge=w===MY_SLOT
       ?document.getElementById('label-p0')
-      :document.getElementById(`badge-p${w}`);
+      :document.getElementById(`badge-p${getPositionForSlot(w)}`);
     badge?.classList.add('flash');
     setTimeout(()=>badge?.classList.remove('flash'),800);
     renderAll();
@@ -821,7 +824,7 @@ function animateTrickWin(winner,cb){
   // 勝者のバッジ位置を取得
   const targetEl=winner===MY_SLOT
     ?document.getElementById('label-p0')
-    :document.getElementById(`badge-p${winner}`);
+    :document.getElementById(`badge-p${getPositionForSlot(winner)}`);
   if(!targetEl){cb();return;}
   const tr=targetEl.getBoundingClientRect();
   const tx=tr.left+tr.width/2, ty=tr.top+tr.height/2;
@@ -1038,24 +1041,19 @@ function renderPlayers(){
       }
       renderFudaList('pfcl-p0',p,inPlay);
     }else{
-      const badge=document.getElementById(`badge-p${p}`);
-      const pf=document.getElementById(`pf-p${p}`);
-      const pfl=document.getElementById(`pfl-p${p}`);
-      const pr=document.getElementById(`pr-p${p}`);
+      const pos=getPositionForSlot(p); // 1-4（表示位置）
+      const badge=document.getElementById(`badge-p${pos}`);
+      const pf=document.getElementById(`pf-p${pos}`);
+      const pfl=document.getElementById(`pfl-p${pos}`);
+      const pr=document.getElementById(`pr-p${pos}`);
       if(!badge)continue;
-      badge.querySelector('.pname').textContent=`P${p}`;
+      badge.querySelector('.pname').textContent=playerNames[p]||`P${p}`;
       badge.className='pbadge';
       if(roles[p]==='nap')badge.classList.add('role-nap');
       else if(roles[p]==='ally')badge.classList.add('role-ally');
       else if(roles[p]==='reb')badge.classList.add('role-reb');
       if(p===G.currentPlayer&&G.phase==='play')badge.classList.add('active');
-      // 役割ラベル
-      if(pr){
-        const rl=roleLabel(p);
-        pr.textContent=rl;
-        pr.classList.toggle('show',rl!=='');
-      }
-      // 絵札カウント
+      if(pr){const rl=roleLabel(p);pr.textContent=rl;pr.classList.toggle('show',rl!=='');}
       if(inPlay){
         if(pf){pf.textContent=G.fudaWins[p];pf.classList.add('show');}
         if(pfl)pfl.classList.add('show');
@@ -1063,7 +1061,7 @@ function renderPlayers(){
         if(pf)pf.classList.remove('show');
         if(pfl)pfl.classList.remove('show');
       }
-      renderFudaList(`pfcl-p${p}`,p,inPlay);
+      renderFudaList(`pfcl-p${pos}`,p,inPlay);
     }
   }
 }
@@ -1116,8 +1114,8 @@ function renderCenter(){
   const winnerNow=G.trick.length>0?trickWinner():-1;
   for(const {player,card} of G.trick){
     const wrap=document.createElement('div');
-    // 座席位置クラスを付加（プレイヤーIDと対応）
-    wrap.className=`tc-wrap tc-p${player}`;
+    // MY_SLOT基準の相対位置でカードを配置
+    wrap.className=`tc-wrap tc-p${getPositionForSlot(player)}`;
     const winning=player===winnerNow;
     const el=makeCard(card,true);
     el.classList.add('pop-in');
@@ -1184,6 +1182,7 @@ function restoreG(s){
   s.hands=fbArr(s.hands).map(h=>fbArr(h));
   s.fudaCards=fbArr(s.fudaCards).map(fc=>fbArr(fc));
   s.trick=fbArr(s.trick);
+  s.lastTrick=fbArr(s.lastTrick);
   s.trickWins=fbArr(s.trickWins);
   s.fudaWins=fbArr(s.fudaWins);
   s.bidDone=fbArr(s.bidDone);
@@ -1198,7 +1197,8 @@ function syncState(){
     napoleon:G.napoleon,ally:G.ally,bid:G.bid,trump:G.trump,
     friendCard:G.friendCard,allyRevealed:G.allyRevealed,
     trick:G.trick,trickWins:G.trickWins,fudaWins:G.fudaWins,
-    fudaCards:G.fudaCards,history:G.history,lastTrickWinner:G.lastTrickWinner??-1,
+    fudaCards:G.fudaCards,history:G.history,
+    lastTrickWinner:G.lastTrickWinner??-1,lastTrick:G.lastTrick||[],lastTrickId:G.lastTrickId||0,
     allyRevealPending:G.allyRevealPending||false,
     bidDone:G.bidDone,highScore:G.highScore,highBid:G.highBid,
     highSuit:G.highSuit,highBidder:G.highBidder,currentPlayer:G.currentPlayer,
@@ -1254,8 +1254,8 @@ function onRemoteState(snap){
   const s=restoreG(snap.val());
   if(!s)return;
   const prevPhase=G.phase;
-  const prevTrick=G.trick?[...G.trick]:[];
   const wasAllyRevealPending=G.allyRevealPending;
+  const prevLastTrickId=G.lastTrickId||0;
   Object.assign(G,s);
   uiState=null;
 
@@ -1265,26 +1265,29 @@ function onRemoteState(snap){
   // 副官判明：全員にモーダルを表示
   if(G.allyRevealPending&&!wasAllyRevealPending){
     renderAll();
-    showAllyRevealModal(()=>{uiState=null;}); // 非ホストは表示のみ、ゲーム進行はホストが制御
+    showAllyRevealModal(()=>{uiState=null;});
     return;
   }
-  // ホストがモーダルを閉じて次フェーズへ
+  // ホストがモーダルを閉じた→こちらも閉じる
   if(!G.allyRevealPending&&wasAllyRevealPending){
     hideModal();
   }
 
-  // トリック決着アニメーション（非ホスト自前で実行）
-  if(prevTrick.length>0&&(G.trick?.length||0)===0&&G.lastTrickWinner>=0){
+  // トリック決着アニメーション（lastTrickIdの増加を検出、確実に実行）
+  const trickJustResolved=(G.lastTrickId||0)>prevLastTrickId&&(G.lastTrick?.length||0)>0;
+  if(trickJustResolved){
     const winner=G.lastTrickWinner;
-    const fuda=countFuda(prevTrick.map(t=>t.card));
-    // 一時的にカードを戻してアニメーション
-    G.trick=prevTrick;
+    const savedTrick=[...G.lastTrick];
+    const fuda=countFuda(savedTrick.map(t=>t.card));
+    G.trick=savedTrick; // 一時的に復元して描画
     renderAll();
     animateTrickWin(winner,()=>{
       G.trick=[];
       renderAll();
       setMsg(`${pn(winner)} がトリック獲得！${fuda>0?`（絵札${fuda}枚）`:''}`);
-      const badge=winner===MY_SLOT?document.getElementById('label-p0'):document.getElementById(`badge-p${winner}`);
+      const badge=winner===MY_SLOT
+        ?document.getElementById('label-p0')
+        :document.getElementById(`badge-p${getPositionForSlot(winner)}`);
       badge?.classList.add('flash');
       setTimeout(()=>badge?.classList.remove('flash'),800);
       processRemoteUI();
@@ -1298,7 +1301,8 @@ function onRemoteState(snap){
 
 // 非ホスト：インタラクティブUI表示処理
 function processRemoteUI(){
-  if(G.allyRevealPending)return; // モーダル表示中
+  if(G.allyRevealPending)return;
+  if((G.trick?.length||0)>=N)return; // トリック完成待ち
   const p=G.currentPlayer;
   if(G.phase==='result'){if(!modalOpen())showResult();return;}
   if(G.phase==='bid'&&p===MY_SLOT&&!G.bidDone[MY_SLOT]&&!modalOpen()){
@@ -1489,6 +1493,12 @@ function showStartModal(){
 }
 
 /* ── FUDA LIST HELPER ─────────────────────────── */
+// MY_SLOT を基準にした相対座標（0=自分下、1=左、2=上左、3=上右、4=右）
+function getPositionForSlot(slot){
+  if(slot===MY_SLOT)return 0;
+  return((slot-MY_SLOT+N)%N); // 1,2,3,4
+}
+
 function renderFudaList(id,p,inPlay){
   const el=document.getElementById(id);
   if(!el)return;
