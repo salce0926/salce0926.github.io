@@ -869,6 +869,7 @@ function animateTrickWin(winner,cb){
 /* ── RESULT ───────────────────────────────────── */
 function showResult(){
   G.phase='result';
+  if(ONLINE&&IS_HOST)syncState(); // 非ホストにresultフェーズを通知
   const solo=G.ally===G.napoleon;
   const napF=G.fudaWins[G.napoleon]+(solo?0:G.fudaWins[G.ally]);
   const rebF=TOTAL_FUDA-napF;
@@ -1150,12 +1151,7 @@ function renderCenter(){
     const red=fc.suit==='H'||fc.suit==='D';
     strip.innerHTML+=`<span class="chip"><span class="label">副官カード</span><span class="val ${red?'red-v':''}">${SYM[fc.suit]}${rstr(fc.rank)}</span></span>`;
   }
-  if(G.phase==='play'||G.phase==='result'){
-    const napSet=new Set([G.napoleon,G.ally].filter(p=>p>=0));
-    const napF=[...napSet].reduce((s,p)=>s+G.fudaWins[p],0);
-    const rebF=TOTAL_FUDA-napF;
-    strip.innerHTML+=`<span class="chip"><span class="nap-sc">ナポ ${napF}</span> / <span class="reb-sc">反乱 ${rebF}</span></span>`;
-  }
+  // ナポレオン/反乱軍の合計絵札スコアは副官が特定されるため非表示
   if(G.phase==='bid'&&G.highBid>0){
     strip.innerHTML+=`<span class="chip"><span class="label">最高入札</span><span class="val">${SUIT_NAME[G.highSuit]} ${G.highBid}</span></span>`;
   }
@@ -1256,6 +1252,7 @@ function onRemoteState(snap){
   const prevPhase=G.phase;
   const wasAllyRevealPending=G.allyRevealPending;
   const prevLastTrickId=G.lastTrickId||0;
+  const prevTrickLen=(G.trick||[]).length; // アニメーション用：Object.assign前のtrick枚数を保存
   Object.assign(G,s);
   uiState=null;
 
@@ -1273,17 +1270,20 @@ function onRemoteState(snap){
     hideModal();
   }
 
-  // トリック決着アニメーション（lastTrickIdの増加を検出、確実に実行）
+  // トリック決着アニメーション（lastTrickIdの増加を検出）
   const trickJustResolved=(G.lastTrickId||0)>prevLastTrickId&&(G.lastTrick?.length||0)>0;
   if(trickJustResolved){
     const winner=G.lastTrickWinner;
     const savedTrick=[...G.lastTrick];
     const fuda=countFuda(savedTrick.map(t=>t.card));
-    G.trick=savedTrick; // 一時的に復元して描画
-    renderAll();
-    animateTrickWin(winner,()=>{
-      G.trick=[];
+    if(prevTrickLen<N){
+      // trick-areaに5枚揃っていない場合のみ再描画（Firebase更新がスキップされた場合）
+      G.trick=savedTrick;
       renderAll();
+    }
+    // trick-areaに5枚ある状態でアニメーション実行
+    animateTrickWin(winner,()=>{
+      renderAll(); // 現在のG状態で再描画（G.trick=[]がObject.assignで設定済み）
       setMsg(`${pn(winner)} がトリック獲得！${fuda>0?`（絵札${fuda}枚）`:''}`);
       const badge=winner===MY_SLOT
         ?document.getElementById('label-p0')
