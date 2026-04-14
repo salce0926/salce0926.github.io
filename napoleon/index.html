@@ -1270,6 +1270,13 @@ function onRemoteState(snap){
     hideModal();
   }
 
+  // 結果フェーズ：最優先で表示（アニメーション待ちより優先）
+  if(G.phase==='result'){
+    renderAll();
+    if(!modalOpen())showResult();
+    return;
+  }
+
   // トリック決着アニメーション（lastTrickIdの増加を検出）
   const trickJustResolved=(G.lastTrickId||0)>prevLastTrickId&&(G.lastTrick?.length||0)>0;
   if(trickJustResolved){
@@ -1283,14 +1290,14 @@ function onRemoteState(snap){
     }
     // trick-areaに5枚ある状態でアニメーション実行
     animateTrickWin(winner,()=>{
-      renderAll(); // 現在のG状態で再描画（G.trick=[]がObject.assignで設定済み）
+      renderAll();
       setMsg(`${pn(winner)} がトリック獲得！${fuda>0?`（絵札${fuda}枚）`:''}`);
       const badge=winner===MY_SLOT
         ?document.getElementById('label-p0')
         :document.getElementById(`badge-p${getPositionForSlot(winner)}`);
       badge?.classList.add('flash');
       setTimeout(()=>badge?.classList.remove('flash'),800);
-      processRemoteUI();
+      processRemoteUI(); // G.phase==='result'の場合もshowResultを呼ぶ
     });
     return;
   }
