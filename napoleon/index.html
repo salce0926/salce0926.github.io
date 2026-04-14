@@ -39,11 +39,12 @@ body{
   flex:1;
   display:grid;
   grid-template-areas:
-    "top  top  top "
-    "left mid  right"
-    "bot  bot  bot ";
-  grid-template-rows:auto 1fr auto;
-  grid-template-columns:120px 1fr 120px;
+    "top"
+    "cpu2"
+    "mid"
+    "bot";
+  grid-template-rows:auto auto 1fr auto;
+  grid-template-columns:1fr;
   gap:4px;
   padding:4px;
   min-height:0;
@@ -58,8 +59,14 @@ body{
   gap:6px;
   padding:4px 6px;
 }
-#left {grid-area:left;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:4px 3px;}
-#right{grid-area:right;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:4px 3px;}
+#cpu2{
+  grid-area:cpu2;
+  display:flex;
+  justify-content:space-around;
+  align-items:flex-start;
+  gap:6px;
+  padding:0 6px;
+}
 #bot{
   grid-area:bot;
   display:flex;
@@ -377,13 +384,13 @@ body{
 @media(max-width:480px){
   :root{--card-w:48px;--card-h:68px;}
   .card .cm{font-size:16px;}
-  #table{grid-template-columns:96px 1fr 96px;}
   .chip{font-size:11px;padding:2px 6px;}
+  .pbadge{padding:4px 8px;}
   .pbadge .pfuda{font-size:15px;}
+  .pbadge .pname{font-size:12px;}
 }
 @media(min-width:700px){
   :root{--card-w:66px;--card-h:94px;}
-  #table{grid-template-columns:140px 1fr 140px;}
   .pbadge .pfuda{font-size:22px;}
   .pbadge .prole{font-size:13px;}
   .pbadge .pname{font-size:15px;}
@@ -415,14 +422,25 @@ body{
     </div>
   </div>
 
-  <!-- LEFT: P1 -->
-  <div id="left">
-    <div class="pbadge" id="badge-p1">
-      <div class="prole" id="pr-p1"></div>
-      <div class="pname">P1</div>
-      <div class="pfuda-label" id="pfl-p1">絵札</div>
-      <div class="pfuda" id="pf-p1">0</div>
-      <div class="pfuda-list" id="pfcl-p1"></div>
+  <!-- CPU ROW 2: P1(左), P4(右) -->
+  <div id="cpu2">
+    <div class="pzone" id="zone-p1">
+      <div class="pbadge" id="badge-p1">
+        <div class="prole" id="pr-p1"></div>
+        <div class="pname">P1</div>
+        <div class="pfuda-label" id="pfl-p1">絵札</div>
+        <div class="pfuda" id="pf-p1">0</div>
+        <div class="pfuda-list" id="pfcl-p1"></div>
+      </div>
+    </div>
+    <div class="pzone" id="zone-p4">
+      <div class="pbadge" id="badge-p4">
+        <div class="prole" id="pr-p4"></div>
+        <div class="pname">P4</div>
+        <div class="pfuda-label" id="pfl-p4">絵札</div>
+        <div class="pfuda" id="pf-p4">0</div>
+        <div class="pfuda-list" id="pfcl-p4"></div>
+      </div>
     </div>
   </div>
 
@@ -433,17 +451,6 @@ body{
       <div id="info-strip"></div>
     </div>
     <div id="msg"></div>
-  </div>
-
-  <!-- RIGHT: P4 -->
-  <div id="right">
-    <div class="pbadge" id="badge-p4">
-      <div class="prole" id="pr-p4"></div>
-      <div class="pname">P4</div>
-      <div class="pfuda-label" id="pfl-p4">絵札</div>
-      <div class="pfuda" id="pf-p4">0</div>
-      <div class="pfuda-list" id="pfcl-p4"></div>
-    </div>
   </div>
 
   <!-- BOTTOM: human -->
