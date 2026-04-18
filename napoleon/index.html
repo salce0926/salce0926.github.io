@@ -27,7 +27,7 @@ body{
   background:var(--c-bg);
   font-family:'Hiragino Sans','Segoe UI',sans-serif;
   color:#fff;
-  height:100dvh;
+  height:100svh; /* ブラウザUI込みで常に収まるサイズ */
   display:flex;
   flex-direction:column;
   overflow:hidden;
@@ -166,7 +166,7 @@ body{
 #trick-area{
   position:relative;
   width:min(256px,100%);
-  height:270px;
+  height:clamp(180px,28svh,270px); /* 画面高さに応じて可変 */
   margin:0 auto;
   overflow:visible;
   flex-shrink:0;
@@ -382,12 +382,17 @@ body{
 
 /* Responsive */
 @media(max-width:480px){
-  :root{--card-w:62px;--card-h:88px;} /* デフォルトより大きめ */
+  :root{--card-w:58px;--card-h:82px;}
   .chip{font-size:11px;padding:2px 6px;}
-  .pbadge{padding:4px 8px;}
-  .pbadge .pfuda{font-size:15px;}
-  .pbadge .pname{font-size:12px;}
+  .pbadge{padding:3px 6px;gap:1px;}
+  .pbadge .pfuda{font-size:14px;}
+  .pbadge .pname{font-size:11px;}
+  .pbadge .prole{font-size:10px;}
+  .pfuda-list{display:none;} /* 絵札ピルは縦スペース節約のため非表示 */
+  #table{gap:2px;padding:2px;}
   .btn{padding:11px 18px;font-size:15px;}
+  #trick-wrap{padding:4px 6px 6px;gap:3px;}
+  #msg{font-size:11px;min-height:14px;}
 }
 @media(min-width:700px){
   :root{--card-w:66px;--card-h:94px;}
