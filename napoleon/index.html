@@ -125,18 +125,15 @@ body{
 
 /* 獲得絵札リスト */
 .pfuda-list{
-  display:flex;flex-wrap:wrap;gap:2px;justify-content:center;
-  margin-top:2px;
-}
-.fuda-pip{
-  font-size:9px;font-weight:bold;
-  background:rgba(0,0,0,.5);
-  border-radius:3px;
-  padding:1px 3px;
+  font-size:10px;
+  color:#e0e0e0;
   white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:100%;
+  margin-top:1px;
+  text-align:center;
 }
-.fuda-pip.red{color:#ff9999;}
-.fuda-pip.blk{color:#eee;}
 
 
 /* ===== CENTER ===== */
@@ -233,6 +230,7 @@ body{
   flex-wrap:wrap;
   gap:4px;
   justify-content:center;
+  overflow:visible;
 }
 #label-p0{
   display:flex;
@@ -384,12 +382,22 @@ body{
 @media(max-width:480px){
   :root{--card-w:58px;--card-h:82px;}
   .chip{font-size:11px;padding:2px 6px;}
-  .pbadge{padding:3px 6px;gap:1px;}
-  .pbadge .pfuda{font-size:14px;}
-  .pbadge .pname{font-size:11px;}
+  /* バッジを横並びにして縦スペースを削減 */
+  .pbadge{
+    flex-direction:row;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    padding:3px 8px;
+  }
+  .pbadge .pfuda-label{display:none !important;}
+  .pbadge .pfuda{font-size:13px;}
+  .pbadge .pname{font-size:12px;}
   .pbadge .prole{font-size:10px;}
-  .pfuda-list{display:none;} /* 絵札ピルは縦スペース節約のため非表示 */
   #table{gap:2px;padding:2px;}
+  #top{padding:2px 4px;gap:4px;}
+  #cpu2{padding:0 4px;gap:4px;}
+  #trick-area{height:clamp(155px,24svh,230px);}
   .btn{padding:11px 18px;font-size:15px;}
   #trick-wrap{padding:4px 6px 6px;gap:3px;}
   #msg{font-size:11px;min-height:14px;}
@@ -413,8 +421,8 @@ body{
         <div class="pname">P2</div>
         <div class="pfuda-label" id="pfl-p2">絵札</div>
         <div class="pfuda" id="pf-p2">0</div>
-        <div class="pfuda-list" id="pfcl-p2"></div>
       </div>
+      <div class="pfuda-list" id="pfcl-p2"></div>
     </div>
     <div class="pzone" id="zone-p3">
       <div class="pbadge" id="badge-p3">
@@ -422,8 +430,8 @@ body{
         <div class="pname">P3</div>
         <div class="pfuda-label" id="pfl-p3">絵札</div>
         <div class="pfuda" id="pf-p3">0</div>
-        <div class="pfuda-list" id="pfcl-p3"></div>
       </div>
+      <div class="pfuda-list" id="pfcl-p3"></div>
     </div>
   </div>
 
@@ -435,8 +443,8 @@ body{
         <div class="pname">P1</div>
         <div class="pfuda-label" id="pfl-p1">絵札</div>
         <div class="pfuda" id="pf-p1">0</div>
-        <div class="pfuda-list" id="pfcl-p1"></div>
       </div>
+      <div class="pfuda-list" id="pfcl-p1"></div>
     </div>
     <div class="pzone" id="zone-p4">
       <div class="pbadge" id="badge-p4">
@@ -444,8 +452,8 @@ body{
         <div class="pname">P4</div>
         <div class="pfuda-label" id="pfl-p4">絵札</div>
         <div class="pfuda" id="pf-p4">0</div>
-        <div class="pfuda-list" id="pfcl-p4"></div>
       </div>
+      <div class="pfuda-list" id="pfcl-p4"></div>
     </div>
   </div>
 
@@ -1046,12 +1054,7 @@ function renderPlayers(){
       // 絵札カウント
       const pfw=document.getElementById('pfw-p0');
       const pf=document.getElementById('pf-p0');
-      if(inPlay){
-        if(pf)pf.textContent=G.fudaWins[p];
-        if(pfw)pfw.classList.add('show');
-      }else{
-        if(pfw)pfw.classList.remove('show');
-      }
+      if(pfw)pfw.classList.remove('show'); // 枚数は非表示、pfuda-listで代替
       renderFudaList('pfcl-p0',p,inPlay);
     }else{
       const pos=getPositionForSlot(p); // 1-4（表示位置）
@@ -1067,13 +1070,9 @@ function renderPlayers(){
       else if(roles[p]==='reb')badge.classList.add('role-reb');
       if(p===G.currentPlayer&&G.phase==='play')badge.classList.add('active');
       if(pr){const rl=roleLabel(p);pr.textContent=rl;pr.classList.toggle('show',rl!=='');}
-      if(inPlay){
-        if(pf){pf.textContent=G.fudaWins[p];pf.classList.add('show');}
-        if(pfl)pfl.classList.add('show');
-      }else{
-        if(pf)pf.classList.remove('show');
-        if(pfl)pfl.classList.remove('show');
-      }
+      // 枚数は非表示、pfuda-listで代替
+      if(pf)pf.classList.remove('show');
+      if(pfl)pfl.classList.remove('show');
       renderFudaList(`pfcl-p${pos}`,p,inPlay);
     }
   }
@@ -1133,17 +1132,7 @@ function renderCenter(){
     const el=makeCard(card,true);
     el.classList.add('pop-in');
     if(winning)el.classList.add('trick-win');
-    // 勝ちマーカー（名前の上に👑）
-    if(winning){
-      const crown=document.createElement('div');
-      crown.className='win-crown';crown.textContent='👑';
-      wrap.appendChild(crown);
-    }
     wrap.appendChild(el);
-    const nameEl=document.createElement('div');
-    nameEl.className='tc-name'+(winning?' winning-name':'');
-    nameEl.textContent=pn(player);
-    wrap.appendChild(nameEl);
     ta.appendChild(wrap);
   }
 
@@ -1523,12 +1512,19 @@ function renderFudaList(id,p,inPlay){
   if(!el)return;
   el.innerHTML='';
   if(!inPlay||!G.fudaCards||!G.fudaCards[p])return;
+  // スート別グルーピング: ♠AKQJ10 ♥K ...
+  const RANK_ORDER=[1,13,12,11,10]; // A,K,Q,J,10
+  const groups={};
   for(const c of G.fudaCards[p]){
-    const span=document.createElement('span');
-    span.className='fuda-pip '+(isRed(c)?'red':'blk');
-    span.textContent=SYM[c.suit]+rstr(c.rank);
-    el.appendChild(span);
+    (groups[c.suit]||(groups[c.suit]=[])).push(c.rank);
   }
+  const parts=[];
+  for(const suit of SUITS){
+    if(!groups[suit])continue;
+    const ranks=RANK_ORDER.filter(r=>groups[suit].includes(r));
+    parts.push(SYM[suit]+ranks.map(r=>rstr(r)).join(''));
+  }
+  el.textContent=parts.join(' ');
 }
 
 /* ── HELPERS ──────────────────────────────────── */
