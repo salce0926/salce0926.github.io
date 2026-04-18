@@ -123,17 +123,36 @@ body{
 .pbadge .pfuda-label{font-size:10px;color:#aaa;display:none;}
 .pbadge .pfuda-label.show{display:block;}
 
+/* badge-top: デスクトップは縦積み、モバイルで横並びに */
+.badge-top{
+  display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;
+}
+
 /* 獲得絵札リスト */
 .pfuda-list{
-  font-size:10px;
-  color:#e0e0e0;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  max-width:100%;
-  margin-top:1px;
-  text-align:center;
+  display:flex;flex-wrap:wrap;gap:2px;justify-content:center;
+  margin-top:2px;width:100%;
 }
+/* 個別ピル（ワイド時に表示） */
+.fuda-pip{
+  display:inline-flex;
+  font-size:9px;font-weight:bold;
+  background:rgba(0,0,0,.5);
+  border-radius:3px;
+  padding:1px 3px;
+  white-space:nowrap;
+}
+/* スートグループ（ナロー時に表示） */
+.fuda-group{
+  display:none;
+  font-size:9px;font-weight:bold;
+  background:rgba(0,0,0,.5);
+  border-radius:3px;
+  padding:1px 4px;
+  white-space:nowrap;
+}
+.fuda-pip.red,.fuda-group.red{color:#ff9999;}
+.fuda-pip.blk,.fuda-group.blk{color:#eee;}
 
 
 /* ===== CENTER ===== */
@@ -382,22 +401,19 @@ body{
 @media(max-width:480px){
   :root{--card-w:58px;--card-h:82px;}
   .chip{font-size:11px;padding:2px 6px;}
-  /* バッジを横並びにして縦スペースを削減 */
-  .pbadge{
-    flex-direction:row;
-    align-items:center;
-    justify-content:center;
-    gap:4px;
-    padding:3px 8px;
-  }
+  /* バッジ内の役割/名前行を横並びに */
+  .pbadge{padding:3px 6px;gap:1px;}
+  .badge-top{flex-direction:row;gap:4px;justify-content:center;}
   .pbadge .pfuda-label{display:none !important;}
   .pbadge .pfuda{font-size:13px;}
   .pbadge .pname{font-size:12px;}
   .pbadge .prole{font-size:10px;}
+  /* ナロー時: 個別ピル非表示、グループ表示 */
+  .fuda-pip{display:none;}
+  .fuda-group{display:inline-flex;}
   #table{gap:2px;padding:2px;}
   #top{padding:2px 4px;gap:4px;}
   #cpu2{padding:0 4px;gap:4px;}
-  #trick-area{height:clamp(155px,24svh,230px);}
   .btn{padding:11px 18px;font-size:15px;}
   #trick-wrap{padding:4px 6px 6px;gap:3px;}
   #msg{font-size:11px;min-height:14px;}
@@ -417,21 +433,25 @@ body{
   <div id="top">
     <div class="pzone" id="zone-p2">
       <div class="pbadge" id="badge-p2">
-        <div class="prole" id="pr-p2"></div>
-        <div class="pname">P2</div>
-        <div class="pfuda-label" id="pfl-p2">絵札</div>
-        <div class="pfuda" id="pf-p2">0</div>
+        <div class="badge-top">
+          <div class="prole" id="pr-p2"></div>
+          <div class="pname">P2</div>
+          <div class="pfuda-label" id="pfl-p2">絵札</div>
+          <div class="pfuda" id="pf-p2">0</div>
+        </div>
+        <div class="pfuda-list" id="pfcl-p2"></div>
       </div>
-      <div class="pfuda-list" id="pfcl-p2"></div>
     </div>
     <div class="pzone" id="zone-p3">
       <div class="pbadge" id="badge-p3">
-        <div class="prole" id="pr-p3"></div>
-        <div class="pname">P3</div>
-        <div class="pfuda-label" id="pfl-p3">絵札</div>
-        <div class="pfuda" id="pf-p3">0</div>
+        <div class="badge-top">
+          <div class="prole" id="pr-p3"></div>
+          <div class="pname">P3</div>
+          <div class="pfuda-label" id="pfl-p3">絵札</div>
+          <div class="pfuda" id="pf-p3">0</div>
+        </div>
+        <div class="pfuda-list" id="pfcl-p3"></div>
       </div>
-      <div class="pfuda-list" id="pfcl-p3"></div>
     </div>
   </div>
 
@@ -439,21 +459,25 @@ body{
   <div id="cpu2">
     <div class="pzone" id="zone-p1">
       <div class="pbadge" id="badge-p1">
-        <div class="prole" id="pr-p1"></div>
-        <div class="pname">P1</div>
-        <div class="pfuda-label" id="pfl-p1">絵札</div>
-        <div class="pfuda" id="pf-p1">0</div>
+        <div class="badge-top">
+          <div class="prole" id="pr-p1"></div>
+          <div class="pname">P1</div>
+          <div class="pfuda-label" id="pfl-p1">絵札</div>
+          <div class="pfuda" id="pf-p1">0</div>
+        </div>
+        <div class="pfuda-list" id="pfcl-p1"></div>
       </div>
-      <div class="pfuda-list" id="pfcl-p1"></div>
     </div>
     <div class="pzone" id="zone-p4">
       <div class="pbadge" id="badge-p4">
-        <div class="prole" id="pr-p4"></div>
-        <div class="pname">P4</div>
-        <div class="pfuda-label" id="pfl-p4">絵札</div>
-        <div class="pfuda" id="pf-p4">0</div>
+        <div class="badge-top">
+          <div class="prole" id="pr-p4"></div>
+          <div class="pname">P4</div>
+          <div class="pfuda-label" id="pfl-p4">絵札</div>
+          <div class="pfuda" id="pf-p4">0</div>
+        </div>
+        <div class="pfuda-list" id="pfcl-p4"></div>
       </div>
-      <div class="pfuda-list" id="pfcl-p4"></div>
     </div>
   </div>
 
@@ -476,8 +500,8 @@ body{
         <span class="pfuda-label">絵札</span>
         <span class="pfuda" id="pf-p0">0</span>
       </div>
+      <div class="pfuda-list" id="pfcl-p0"></div>
     </div>
-    <div class="pfuda-list" id="pfcl-p0"></div>
   </div>
 
 </div>
@@ -1511,20 +1535,30 @@ function renderFudaList(id,p,inPlay){
   const el=document.getElementById(id);
   if(!el)return;
   el.innerHTML='';
-  if(!inPlay||!G.fudaCards||!G.fudaCards[p])return;
-  // スート別グルーピング: ♠AKQJ10 ♥K ...
-  const RANK_ORDER=[1,13,12,11,10]; // A,K,Q,J,10
-  const groups={};
-  for(const c of G.fudaCards[p]){
-    (groups[c.suit]||(groups[c.suit]=[])).push(c.rank);
+  if(!inPlay||!G.fudaCards||!G.fudaCards[p]||!G.fudaCards[p].length)return;
+  const RANK_ORDER=[1,13,12,11,10];
+  const redSuit=s=>s==='H'||s==='D';
+  // ワイド用: 個別ピル（スート順・ランク順ソート）
+  const sorted=[...G.fudaCards[p]].sort((a,b)=>
+    SUIT_RANK[b.suit]-SUIT_RANK[a.suit]||RANK_ORDER.indexOf(a.rank)-RANK_ORDER.indexOf(b.rank)
+  );
+  for(const c of sorted){
+    const span=document.createElement('span');
+    span.className='fuda-pip '+(redSuit(c.suit)?'red':'blk');
+    span.textContent=SYM[c.suit]+rstr(c.rank);
+    el.appendChild(span);
   }
-  const parts=[];
+  // ナロー用: スートグループ（♠AKQ ♥K など）
+  const groups={};
+  for(const c of G.fudaCards[p])(groups[c.suit]||(groups[c.suit]=[])).push(c.rank);
   for(const suit of SUITS){
     if(!groups[suit])continue;
     const ranks=RANK_ORDER.filter(r=>groups[suit].includes(r));
-    parts.push(SYM[suit]+ranks.map(r=>rstr(r)).join(''));
+    const span=document.createElement('span');
+    span.className='fuda-group '+(redSuit(suit)?'red':'blk');
+    span.textContent=SYM[suit]+ranks.map(r=>rstr(r)).join('');
+    el.appendChild(span);
   }
-  el.textContent=parts.join(' ');
 }
 
 /* ── HELPERS ──────────────────────────────────── */
