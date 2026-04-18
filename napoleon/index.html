@@ -230,10 +230,17 @@ body{
 /* ===== HUMAN HAND ===== */
 #human-hand{
   display:flex;
-  flex-wrap:wrap;
-  gap:4px;
+  flex-wrap:nowrap;
   justify-content:center;
+  padding-top:14px; /* lifted カードが見切れないよう上余白 */
 }
+#human-hand .card{
+  margin-right:-14px; /* ファン状に重ねる */
+  flex-shrink:0;
+}
+#human-hand .card:last-child{margin-right:0;}
+#human-hand .card.lifted{z-index:5;}
+#human-hand .card.playable:hover{z-index:5;}
 #label-p0{
   display:flex;
   flex-direction:row;
@@ -388,6 +395,8 @@ body{
   .pbadge{padding:4px 8px;}
   .pbadge .pfuda{font-size:15px;}
   .pbadge .pname{font-size:12px;}
+  #trick-area{height:200px;}
+  .btn{padding:11px 18px;font-size:15px;} /* タップしやすく */
 }
 @media(min-width:700px){
   :root{--card-w:66px;--card-h:94px;}
