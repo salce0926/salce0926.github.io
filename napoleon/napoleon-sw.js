@@ -1,5 +1,5 @@
 // Service Worker for ナポレオン PWA
-const CACHE = 'napoleon-v8';
+const CACHE = 'napoleon-v9';
 const FILES = [
   './index.html',
   './napoleon-manifest.json',
