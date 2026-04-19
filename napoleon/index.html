@@ -1572,26 +1572,29 @@ function pn(p){return p===MY_SLOT?playerNames[MY_SLOT]:playerNames[p]||`P${p}`;}
 function setMsg(t){const el=document.getElementById('msg');if(el)el.textContent=t;}
 
 /* ── BUILD ID ─────────────────────────────────── */
-const BUILD_ID='0419a';
+const BUILD_ID='0419b';
 console.log('%c🃏 Napoleon '+BUILD_ID,'color:#ffd060;font-size:14px;font-weight:bold');
 
 (()=>{
+  // 画面右下隅に透明タップエリアを設置（5回タップでバージョン表示）
+  const area=document.createElement('div');
+  area.style.cssText='position:fixed;right:0;bottom:0;width:48px;height:48px;z-index:500;-webkit-tap-highlight-color:transparent;touch-action:manipulation;';
+  document.body.appendChild(area);
   let taps=0,timer;
-  const area=document.getElementById('info-strip')||document.getElementById('msg');
-  if(!area)return;
-  area.addEventListener('click',()=>{
+  area.addEventListener('touchend',e=>{
+    e.preventDefault();
     taps++;
     clearTimeout(timer);
     if(taps>=5){
       taps=0;
       const sw=navigator.serviceWorker?.controller?.scriptURL||'SW未登録';
       const toast=document.createElement('div');
-      toast.textContent=`Build: ${BUILD_ID}  SW: ${sw.split('/').pop()||sw}`;
+      toast.textContent=`Build: ${BUILD_ID} / SW: ${sw.split('/').pop()||sw}`;
       toast.style.cssText='position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#222;color:#ffd060;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:bold;z-index:999;white-space:nowrap;pointer-events:none;';
       document.body.appendChild(toast);
       setTimeout(()=>toast.remove(),3000);
     }else{
-      timer=setTimeout(()=>{taps=0;},1500);
+      timer=setTimeout(()=>{taps=0;},2000);
     }
   });
 })();
