@@ -1571,6 +1571,31 @@ function renderFudaList(id,p,inPlay){
 function pn(p){return p===MY_SLOT?playerNames[MY_SLOT]:playerNames[p]||`P${p}`;}
 function setMsg(t){const el=document.getElementById('msg');if(el)el.textContent=t;}
 
+/* ── BUILD ID ─────────────────────────────────── */
+const BUILD_ID='0419a';
+console.log('%c🃏 Napoleon '+BUILD_ID,'color:#ffd060;font-size:14px;font-weight:bold');
+
+(()=>{
+  let taps=0,timer;
+  const area=document.getElementById('info-strip')||document.getElementById('msg');
+  if(!area)return;
+  area.addEventListener('click',()=>{
+    taps++;
+    clearTimeout(timer);
+    if(taps>=5){
+      taps=0;
+      const sw=navigator.serviceWorker?.controller?.scriptURL||'SW未登録';
+      const toast=document.createElement('div');
+      toast.textContent=`Build: ${BUILD_ID}  SW: ${sw.split('/').pop()||sw}`;
+      toast.style.cssText='position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#222;color:#ffd060;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:bold;z-index:999;white-space:nowrap;pointer-events:none;';
+      document.body.appendChild(toast);
+      setTimeout(()=>toast.remove(),3000);
+    }else{
+      timer=setTimeout(()=>{taps=0;},1500);
+    }
+  });
+})();
+
 /* ── STARTUP ──────────────────────────────────── */
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./napoleon-sw.js').catch(()=>{});
 
