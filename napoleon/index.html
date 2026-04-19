@@ -795,10 +795,17 @@ function legalCards(player){
   const hand=G.hands[player];
   if(G.trick.length===0)return hand;
   const led=G.trick[0].card;
-  // ジョーカーが台札 = 切り札スートとして扱いフォロー義務あり
+  // ジョーカー台札 = 切り札スートとしてフォロー義務
   const ledS=led.suit==='J'?G.trump:effSuit(led,G.trump);
+  // ジョーカー・オールマイティは常に自由に出せる
+  const free=hand.filter(c=>c.suit==='J'||isAlmighty(c));
+  // スートフォロー（RJ/LJともにeffSuit=切り札）
   const suit=hand.filter(c=>c.suit!=='J'&&!isAlmighty(c)&&effSuit(c,G.trump)===ledS);
-  if(suit.length>0)return[...suit,...hand.filter(c=>c.suit==='J'||isAlmighty(c))];
+  if(suit.length>0)return[...suit,...free];
+  // フォロー義務なし: ジャックは他に出せるカードがある限り出せない
+  const noJack=hand.filter(c=>c.suit!=='J'&&!isAlmighty(c)&&!isRJ(c,G.trump)&&!isLJ(c,G.trump));
+  if(noJack.length>0)return[...noJack,...free];
+  // ジャックしか残っていない場合は出せる
   return hand;
 }
 
@@ -1670,7 +1677,7 @@ function pn(p){return p===MY_SLOT?playerNames[MY_SLOT]:playerNames[p]||`P${p}`;}
 function setMsg(t){const el=document.getElementById('msg');if(el)el.textContent=t;}
 
 /* ── BUILD ID ─────────────────────────────────── */
-const BUILD_ID='0419f';
+const BUILD_ID='0419g';
 console.log('%c🃏 Napoleon '+BUILD_ID,'color:#ffd060;font-size:14px;font-weight:bold');
 
 (()=>{
