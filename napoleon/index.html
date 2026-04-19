@@ -32,6 +32,7 @@ body{
   flex-direction:column;
   overflow:hidden;
   user-select:none;
+  touch-action:manipulation; /* ダブルタップズーム防止 */
 }
 
 /* ===== TABLE GRID ===== */
@@ -128,10 +129,11 @@ body{
   display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;
 }
 
-/* 獲得絵札リスト */
+/* 獲得絵札リスト（常に領域確保してバッジサイズを固定） */
 .pfuda-list{
   display:flex;flex-wrap:wrap;gap:2px;justify-content:center;
   margin-top:2px;width:100%;
+  min-height:15px;
   white-space:normal; /* badge の nowrap 継承を上書き */
 }
 /* 個別ピル（ワイド時に表示） */
@@ -1544,6 +1546,7 @@ function renderFudaList(id,p,inPlay){
   if(!inPlay||!G.fudaCards||!G.fudaCards[p]||!G.fudaCards[p].length)return;
   const RANK_ORDER=[1,13,12,11,10];
   const redSuit=s=>s==='H'||s==='D';
+  const rk=r=>r===10?'T':rstr(r); // 10→T で文字数統一
   // ワイド用: 個別ピル（スート順・ランク順ソート）
   const sorted=[...G.fudaCards[p]].sort((a,b)=>
     SUIT_RANK[b.suit]-SUIT_RANK[a.suit]||RANK_ORDER.indexOf(a.rank)-RANK_ORDER.indexOf(b.rank)
@@ -1551,7 +1554,7 @@ function renderFudaList(id,p,inPlay){
   for(const c of sorted){
     const span=document.createElement('span');
     span.className='fuda-pip '+(redSuit(c.suit)?'red':'blk');
-    span.textContent=SYM[c.suit]+rstr(c.rank);
+    span.textContent=SYM[c.suit]+rk(c.rank);
     el.appendChild(span);
   }
   // ナロー用: スートグループ（♠AKQ ♥K など）
@@ -1562,7 +1565,7 @@ function renderFudaList(id,p,inPlay){
     const ranks=RANK_ORDER.filter(r=>groups[suit].includes(r));
     const span=document.createElement('span');
     span.className='fuda-group '+(redSuit(suit)?'red':'blk');
-    span.textContent=SYM[suit]+ranks.map(r=>rstr(r)).join('');
+    span.textContent=SYM[suit]+ranks.map(r=>rk(r)).join('');
     el.appendChild(span);
   }
 }
@@ -1572,7 +1575,7 @@ function pn(p){return p===MY_SLOT?playerNames[MY_SLOT]:playerNames[p]||`P${p}`;}
 function setMsg(t){const el=document.getElementById('msg');if(el)el.textContent=t;}
 
 /* ── BUILD ID ─────────────────────────────────── */
-const BUILD_ID='0419b';
+const BUILD_ID='0419c';
 console.log('%c🃏 Napoleon '+BUILD_ID,'color:#ffd060;font-size:14px;font-weight:bold');
 
 (()=>{
