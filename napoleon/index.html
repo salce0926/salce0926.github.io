@@ -246,6 +246,23 @@ body{
   min-height:16px;
   padding:0 6px;
 }
+/* 特殊勝利ラベル */
+#special-label{
+  font-size:15px;font-weight:bold;
+  text-align:center;
+  min-height:20px;padding:1px 4px;
+  opacity:0;
+  transition:opacity .25s;
+  pointer-events:none;
+  text-shadow:0 0 8px currentColor;
+}
+#special-label.show{opacity:1;}
+@keyframes specialPop{
+  0%{transform:scale(.7);opacity:0}
+  40%{transform:scale(1.15);opacity:1}
+  100%{transform:scale(1);opacity:1}
+}
+#special-label.show{animation:specialPop .3s ease-out forwards;}
 
 /* ===== HUMAN HAND ===== */
 #human-hand{
@@ -493,6 +510,7 @@ body{
   <div id="mid">
     <div id="trick-wrap">
       <div id="trick-area"></div>
+      <div id="special-label"></div>
       <div id="info-strip"></div>
     </div>
     <div id="msg"></div>
@@ -882,9 +900,47 @@ function trickWinner(){
   return b.player;
 }
 
+function trickWinReason(trick,trump){
+  const jokerLed=trick.length>0&&trick[0].card.suit==='J';
+  // セイム２チェック
+  if(trick.length===N){
+    const ledEffS=jokerLed?trump:effSuit(trick[0].card,trump);
+    const allSame=trick.every(({card})=>card.suit==='J'||effSuit(card,trump)===ledEffS);
+    if(allSame){
+      const s2=trick.find(({card})=>
+        card.suit!=='J'&&!isAlmighty(card)&&!isRJ(card,trump)&&!isLJ(card,trump)&&
+        effSuit(card,trump)===ledEffS&&card.rank===2);
+      if(s2&&!trick.some(({card})=>isAlmighty(card)||isRJ(card,trump)||isLJ(card,trump)))
+        return{text:'セイム２！',color:'#ff9944'};
+    }
+  }
+  // 勝利カード特定
+  let b=trick[0];
+  for(let i=1;i<trick.length;i++)
+    if(trickStrength(trick[i].card,jokerLed)>trickStrength(b.card,jokerLed))b=trick[i];
+  const c=b.card;
+  if(c.suit==='J'&&jokerLed) return{text:'ジョーカー（台札）',color:'#cc66ff'};
+  if(isAlmighty(c))           return{text:'オールマイティ！',color:'#ffd060'};
+  if(isRJ(c,trump))           return{text:'正ジャック！',color:'#00ccff'};
+  if(isLJ(c,trump))           return{text:'裏ジャック！',color:'#0088bb'};
+  return null;
+}
+function showSpecialLabel(info){
+  const el=document.getElementById('special-label');
+  if(!el)return;
+  el.classList.remove('show');
+  void el.offsetWidth; // reflow for re-trigger
+  el.style.color=info.color;
+  el.textContent=info.text;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2200);
+}
+
 function resolveTrick(){
   const w=trickWinner();
   const f=countFuda(G.trick.map(t=>t.card));
+  const reason=trickWinReason(G.trick,G.trump);
+  if(reason)showSpecialLabel(reason);
   // まずアニメーション、完了後に状態更新
   animateTrickWin(w,()=>{
     G.trickWins[w]++;
@@ -1614,7 +1670,7 @@ function pn(p){return p===MY_SLOT?playerNames[MY_SLOT]:playerNames[p]||`P${p}`;}
 function setMsg(t){const el=document.getElementById('msg');if(el)el.textContent=t;}
 
 /* ── BUILD ID ─────────────────────────────────── */
-const BUILD_ID='0419e';
+const BUILD_ID='0419f';
 console.log('%c🃏 Napoleon '+BUILD_ID,'color:#ffd060;font-size:14px;font-weight:bold');
 
 (()=>{
