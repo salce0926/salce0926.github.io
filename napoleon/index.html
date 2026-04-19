@@ -558,12 +558,18 @@ const effSuit=(c,t)=>isLJ(c,t)?t:c.suit;
 const bidScore=(n,s)=>n*10+SUIT_RANK[s];
 
 function strength(c,t){
-  if(c.suit==='J')    return 3000;
+  // ジョーカーはトリック位置依存のためtrickStrength()を使う。ここでは非ジョーカー専用
+  if(c.suit==='J')    return 1950; // leadStrength用フォールバック（台札想定）
   if(isAlmighty(c))   return 2000;
   if(isRJ(c,t))       return 1900;
   if(isLJ(c,t))       return 1800;
   if(effSuit(c,t)===t)return 100+(c.rank===1?14:c.rank);
   return c.rank===1?14:c.rank;
+}
+// トリック内での実際の強さ（ジョーカーが台札かどうかで変わる）
+function trickStrength(c,jokerLed){
+  if(c.suit==='J') return jokerLed?1950:0;
+  return strength(c,G.trump);
 }
 
 function createDeck(){
@@ -642,13 +648,28 @@ function cpuBid(p){
 function estimateHand(hand,suit){
   let bonus=0;
   for(const c of hand){
-    if(c.suit==='J')bonus+=2.5;
-    else if(isAlmighty(c))bonus+=2.0;
-    else if(c.rank===1)bonus+=1.5;
-    else if(c.rank===13)bonus+=0.8;
-    else if(c.suit===suit)bonus+=0.3;
+    if(c.suit==='J')           bonus+=4.5;  // ジョーカー(台札最強)
+    else if(isAlmighty(c))     bonus+=4.0;  // ♠A
+    else if(isRJ(c,suit))      bonus+=3.5;  // 正Jack
+    else if(isLJ(c,suit))      bonus+=3.0;  // 裏Jack
+    else if(effSuit(c,suit)===suit){         // 切り札
+      if(c.rank===1)           bonus+=1.8;
+      else if(c.rank===13)     bonus+=1.2;
+      else if(c.rank===12)     bonus+=0.8;
+      else                     bonus+=0.4;
+    } else {
+      if(c.rank===1)           bonus+=1.0;  // 非切り札A
+      else if(c.rank===13)     bonus+=0.4;  // 非切り札K
+    }
   }
-  return Math.round(countFuda(hand)+bonus*.55)+9;
+  // ボイドスート：切り札でruffできる
+  for(const s of SUITS.filter(s=>s!==suit)){
+    if(!hand.some(c=>c.suit!=='J'&&effSuit(c,suit)===s)) bonus+=1.5;
+  }
+  // 切り札枚数ボーナス
+  const tlen=hand.filter(c=>c.suit!=='J'&&!isAlmighty(c)&&effSuit(c,suit)===suit).length;
+  bonus+=tlen*0.5;
+  return Math.round(countFuda(hand)+bonus*.48)+8;
 }
 
 function doBid(p,count,suit){
@@ -756,8 +777,8 @@ function legalCards(player){
   const hand=G.hands[player];
   if(G.trick.length===0)return hand;
   const led=G.trick[0].card;
-  if(led.suit==='J')return hand;
-  const ledS=effSuit(led,G.trump);
+  // ジョーカーが台札 = 切り札スートとして扱いフォロー義務あり
+  const ledS=led.suit==='J'?G.trump:effSuit(led,G.trump);
   const suit=hand.filter(c=>c.suit!=='J'&&!isAlmighty(c)&&effSuit(c,G.trump)===ledS);
   if(suit.length>0)return[...suit,...hand.filter(c=>c.suit==='J'||isAlmighty(c))];
   return hand;
@@ -767,16 +788,18 @@ function cpuPlay(p){playCard(p,chooseCpu(p,legalCards(p)));}
 
 function chooseCpu(p,legal){
   const onNap=p===G.napoleon||p===G.ally;
+  const jokerLed=G.trick.length>0&&G.trick[0].card.suit==='J';
+  // リード時はジョーカーを台札扱い(1950)で評価、フォロー時は実際の位置で評価
+  const str=c=>G.trick.length===0?strength(c,G.trump):trickStrength(c,jokerLed);
+  const s=[...legal].sort((a,b)=>str(b)-str(a));
   if(G.trick.length===0){
-    const s=[...legal].sort((a,b)=>strength(b,G.trump)-strength(a,G.trump));
     return onNap?s[0]:s[Math.floor(s.length/2)]??s[0];
   }
   const win=trickWinner();
   const tmWin=onNap?(win===G.napoleon||win===G.ally):(win!==G.napoleon&&win!==G.ally);
-  const s=[...legal].sort((a,b)=>strength(b,G.trump)-strength(a,G.trump));
   if(tmWin)return s[s.length-1];
-  const best=G.trick.reduce((b,t)=>strength(t.card,G.trump)>strength(b.card,G.trump)?t:b).card;
-  return s.find(c=>strength(c,G.trump)>strength(best,G.trump))??s[s.length-1];
+  const best=G.trick.reduce((b,t)=>str(t.card)>str(b.card)?t:b).card;
+  return s.find(c=>str(c)>str(best))??s[s.length-1];
 }
 
 function playCard(player,card){
@@ -837,9 +860,25 @@ function showAllyRevealModal(cb){
 }
 
 function trickWinner(){
+  const jokerLed=G.trick.length>0&&G.trick[0].card.suit==='J';
+  // セイム２チェック（全カードが同スートのとき2が勝つ。強さ1750: LJ未満・切り札超）
+  if(G.trick.length===N){
+    const ledEffS=jokerLed?G.trump:effSuit(G.trick[0].card,G.trump);
+    const allSame=G.trick.every(({card})=>card.suit==='J'||effSuit(card,G.trump)===ledEffS);
+    if(allSame){
+      const s2=G.trick.find(({card})=>
+        card.suit!=='J'&&!isAlmighty(card)&&!isRJ(card,G.trump)&&!isLJ(card,G.trump)&&
+        effSuit(card,G.trump)===ledEffS&&card.rank===2
+      );
+      if(s2){
+        const beater=G.trick.some(({card})=>isAlmighty(card)||isRJ(card,G.trump)||isLJ(card,G.trump));
+        if(!beater)return s2.player;
+      }
+    }
+  }
   let b=G.trick[0];
   for(let i=1;i<G.trick.length;i++)
-    if(strength(G.trick[i].card,G.trump)>strength(b.card,G.trump))b=G.trick[i];
+    if(trickStrength(G.trick[i].card,jokerLed)>trickStrength(b.card,jokerLed))b=G.trick[i];
   return b.player;
 }
 
