@@ -1575,17 +1575,16 @@ function pn(p){return p===MY_SLOT?playerNames[MY_SLOT]:playerNames[p]||`P${p}`;}
 function setMsg(t){const el=document.getElementById('msg');if(el)el.textContent=t;}
 
 /* ── BUILD ID ─────────────────────────────────── */
-const BUILD_ID='0419c';
+const BUILD_ID='0419d';
 console.log('%c🃏 Napoleon '+BUILD_ID,'color:#ffd060;font-size:14px;font-weight:bold');
 
 (()=>{
   // 画面右下隅に透明タップエリアを設置（5回タップでバージョン表示）
   const area=document.createElement('div');
-  area.style.cssText='position:fixed;right:0;bottom:0;width:48px;height:48px;z-index:500;-webkit-tap-highlight-color:transparent;touch-action:manipulation;';
+  area.style.cssText='position:fixed;right:0;bottom:0;width:60px;height:60px;z-index:9999;-webkit-tap-highlight-color:transparent;touch-action:manipulation;cursor:default;';
   document.body.appendChild(area);
   let taps=0,timer;
-  area.addEventListener('touchend',e=>{
-    e.preventDefault();
+  function onTap(){
     taps++;
     clearTimeout(timer);
     if(taps>=5){
@@ -1593,13 +1592,15 @@ console.log('%c🃏 Napoleon '+BUILD_ID,'color:#ffd060;font-size:14px;font-weigh
       const sw=navigator.serviceWorker?.controller?.scriptURL||'SW未登録';
       const toast=document.createElement('div');
       toast.textContent=`Build: ${BUILD_ID} / SW: ${sw.split('/').pop()||sw}`;
-      toast.style.cssText='position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#222;color:#ffd060;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:bold;z-index:999;white-space:nowrap;pointer-events:none;';
+      toast.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#111;color:#ffd060;padding:10px 18px;border-radius:10px;font-size:14px;font-weight:bold;z-index:99999;white-space:nowrap;pointer-events:none;border:2px solid #ffd060;';
       document.body.appendChild(toast);
       setTimeout(()=>toast.remove(),3000);
     }else{
       timer=setTimeout(()=>{taps=0;},2000);
     }
-  });
+  }
+  area.addEventListener('touchstart',e=>{e.preventDefault();onTap();},{passive:false});
+  area.addEventListener('click',onTap);
 })();
 
 /* ── STARTUP ──────────────────────────────────── */
