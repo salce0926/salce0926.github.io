@@ -96,8 +96,8 @@ body{
   padding:6px 10px;
   width:100%;
   transition:border-color .25s, background .25s, box-shadow .25s;
-  white-space:nowrap;
 }
+.pbadge .pname,.pbadge .prole,.pbadge .pfuda,.pbadge .pfuda-label{white-space:nowrap;}
 .pbadge.role-nap  {background:rgba(232,150,10,.45);border-color:var(--c-nap);}
 .pbadge.role-ally {background:rgba(0,180,180,.28);border-color:var(--c-ally);}
 .pbadge.role-reb  {background:rgba(34,85,170,.30);border-color:var(--c-rebel);}
@@ -132,6 +132,7 @@ body{
 .pfuda-list{
   display:flex;flex-wrap:wrap;gap:2px;justify-content:center;
   margin-top:2px;width:100%;
+  white-space:normal; /* badge の nowrap 継承を上書き */
 }
 /* 個別ピル（ワイド時に表示） */
 .fuda-pip{
@@ -150,9 +151,10 @@ body{
   border-radius:3px;
   padding:1px 4px;
   white-space:nowrap;
+  letter-spacing:.03em;
 }
-.fuda-pip.red,.fuda-group.red{color:#ff9999;}
-.fuda-pip.blk,.fuda-group.blk{color:#eee;}
+.fuda-pip.red,.fuda-group.red{color:#ff5555;}
+.fuda-pip.blk,.fuda-group.blk{color:#ddd;}
 
 
 /* ===== CENTER ===== */
@@ -270,6 +272,7 @@ body{
 #label-p0.role-nap  .prole{color:var(--c-gold);}
 #label-p0.role-ally .prole{color:#7ff0f0;}
 #label-p0 .pname{font-size:14px;font-weight:bold;color:#fff;}
+#label-p0 .pfuda-list{flex-basis:100%;margin-top:0;}
 #label-p0 .pfuda-wrap{display:none;align-items:center;gap:5px;}
 #label-p0 .pfuda-wrap.show{display:flex;}
 #label-p0 .pfuda-label{font-size:11px;color:#aaa;}
@@ -411,6 +414,9 @@ body{
   /* ナロー時: 個別ピル非表示、グループ表示 */
   .fuda-pip{display:none;}
   .fuda-group{display:inline-flex;}
+  /* トリックカード: p1/p4を縦中央に配置して重なりを防ぐ */
+  .tc-p1{left:0;top:50%;}
+  .tc-p4{right:0;top:50%;}
   #table{gap:2px;padding:2px;}
   #top{padding:2px 4px;gap:4px;}
   #cpu2{padding:0 4px;gap:4px;}
