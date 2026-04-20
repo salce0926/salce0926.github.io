@@ -1616,21 +1616,61 @@ function leaveRoom(){
 function showStartModal(){
   const html=`
     <h2>🃏 ナポレオン</h2>
-    <p>5人用トリックテイキングカードゲーム</p>
-    <p style="font-size:12px;color:#aaa">あなた（P0）＋CPU×4人</p><br>
-    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+    <p style="color:#bbb;margin-bottom:2px">5人用トリックテイキングカードゲーム</p>
+    <p style="font-size:12px;color:#777;margin-bottom:14px">あなた＋CPU×4人</p>
+    <div style="text-align:left;background:rgba(0,0,0,.3);border-radius:10px;padding:10px 14px;font-size:12px;color:#ccc;margin-bottom:14px;line-height:1.8">
+      <div>① <b>ビッド</b>: 切り札スートと獲得絵札数を宣言。最高入札者が<span style="color:var(--c-nap)">ナポレオン</span>。</div>
+      <div>② ナポレオンは3枚捨て、<b>副官カード</b>を秘密指定。</div>
+      <div>③ <b>絵札</b>（A・K・Q・J・10）計${TOTAL_FUDA}枚を競う。</div>
+      <div>④ ナポレオン側が宣言枚数以上取れば<b>勝ち</b>。</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:10px">
       <button class="btn btn-gold" onclick="hideModal();newGame()">ソロ（CPU対戦）</button>
       <button class="btn btn-gray" onclick="showOnlineMenu()">🌐 オンライン対戦</button>
-    </div><br>
-    <details style="text-align:left;font-size:12px;color:#bbb">
-      <summary style="cursor:pointer;margin-bottom:6px">ルール説明</summary>
-      <p>① ビッド: スート＋枚数を宣言（最低${MIN_BID}枚）。最高入札者がナポレオン。</p>
-      <p>② ナポレオンは3枚捨て、副官カードを指定。</p>
-      <p>③ 副官カードを持つ人が秘密の仲間（副官）。</p>
-      <p>④ 絵札（A・K・Q・J・10）計${TOTAL_FUDA}枚を競う。ナポレオン側が宣言枚数以上取れば勝ち。</p>
-      <p>⑤ 強さ: ジョーカー ＞ ♠A（オールマイティ）＞ 正ジャック ＞ 裏ジャック ＞ 切り札 ＞ 平札</p>
-      <p>⑥ カード: タップ→選択 / もう1回→出す</p>
-    </details>`;
+    </div>
+    <button class="btn btn-gray" style="font-size:12px;padding:6px 14px;width:100%" onclick="showRulesModal()">📖 詳細ルールを見る</button>`;
+  showModal(html);
+}
+
+function showRulesModal(){
+  const html=`
+    <h2 style="font-size:18px">📖 詳細ルール</h2>
+    <div style="text-align:left;font-size:12px;color:#ccc;line-height:1.85;max-height:65dvh;overflow-y:auto;padding-right:4px">
+
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🎯 目的</p>
+      <p>絵札（A・K・Q・J・10）は全部で${TOTAL_FUDA}枚。ナポレオン＋副官チームが宣言した枚数以上取れば勝ち。反乱軍はそれを阻止する。</p>
+
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">📢 ビッド</p>
+      <p>最低${MIN_BID}枚から、切り札スートと獲得枚数を宣言。前のビッドより高い（枚数が多い、または同枚数で上位スート）必要あり。最高入札者がナポレオン。全員パスなら再ディール。</p>
+      <p style="font-size:11px;color:#888">スート強さ: ♠ &gt; ♥ &gt; ♦ &gt; ♣</p>
+
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🔄 カード交換・副官指定</p>
+      <p>ナポレオンはウィドウ（余り3枚）を引き取り、手札から3枚捨てる。その後、<b>副官カード</b>を1枚指定。そのカードを持つプレイヤーが秘密の仲間（副官）になる。副官は自分が副官であることを明かしてはならず、そのカードを出した瞬間に判明する。</p>
+
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🃏 カードの強さ</p>
+      <div style="background:rgba(0,0,0,.3);border-radius:8px;padding:8px 10px;margin-bottom:4px">
+        <div>① <span style="color:#ffd060">♠A（オールマイティ）</span> — 最強。常に自由に出せる。スペードが回っても強制なし。</div>
+        <div>② <span style="color:#cc66ff">ジョーカー（台札）</span> — 台札（最初に出した場合）は♠A直下の強さ。切り札スート扱い。</div>
+        <div>③ <span style="color:#00ccff">正ジャック</span> — 切り札スートのJ。切り札の中で♠A・ジョーカー台札に次ぐ強さ。</div>
+        <div>④ <span style="color:#0088bb">裏ジャック</span> — 切り札と同色スートのJ。実際のスートのまま出し、強さは正ジャック直下。</div>
+        <div>⑤ <span style="color:#aaa">切り札</span> — 宣言されたスートのカード（A&gt;K&gt;Q&gt;…&gt;2）</div>
+        <div>⑥ <span style="color:#888">平札</span> — その他のカード（リードスートのみ有効、A&gt;K&gt;…）</div>
+        <div>⑦ <span style="color:#888">ジョーカー（フォロー）</span> — 台札以外で出した場合は最弱。</div>
+      </div>
+
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">⚡ 特殊ルール</p>
+      <p><b style="color:#ff9944">セイム２</b>: トリックに出たカードのスートが全て同じ（ジョーカーは切り札換算）で、その中に2があれば、2を出したプレイヤーが勝つ。ただし♠A・正J・裏Jがいる場合はそちらが優先。</p>
+
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">📋 フォロー（出せるカード）</p>
+      <p>リードと同じスートのカードがあれば必ず出す。なければ何でも可。<b>ただし</b>、ジャック（正・裏）は切り札のとき以外は出せない（他に出せるカードがある場合）。♠A・ジョーカーは常に自由に出せる。</p>
+
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🏆 勝敗</p>
+      <p>ナポレオン＋副官の取った絵札合計が宣言枚数以上 → ナポレオン側の勝ち。未満 → 反乱軍の勝ち。</p>
+
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">📱 操作</p>
+      <p>カードをタップ→選択（浮く） / もう1回タップ→出す</p>
+    </div>
+    <button class="btn btn-gray" style="margin-top:10px;width:100%" onclick="hideModal();showStartModal()">← 戻る</button>`;
   showModal(html);
 }
 
@@ -1677,7 +1717,7 @@ function pn(p){return p===MY_SLOT?playerNames[MY_SLOT]:playerNames[p]||`P${p}`;}
 function setMsg(t){const el=document.getElementById('msg');if(el)el.textContent=t;}
 
 /* ── BUILD ID ─────────────────────────────────── */
-const BUILD_ID='0419g';
+const BUILD_ID='0420a';
 console.log('%c🃏 Napoleon '+BUILD_ID,'color:#ffd060;font-size:14px;font-weight:bold');
 
 (()=>{
