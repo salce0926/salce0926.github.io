@@ -1634,41 +1634,51 @@ function showStartModal(){
 
 function showRulesModal(){
   const html=`
-    <h2 style="font-size:18px">📖 詳細ルール</h2>
+    <h2 style="font-size:18px">📖 ルール</h2>
     <div style="text-align:left;font-size:12px;color:#ccc;line-height:1.85;max-height:65dvh;overflow-y:auto;padding-right:4px">
 
-      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🎯 目的</p>
-      <p>絵札（A・K・Q・J・10）は全部で${TOTAL_FUDA}枚。ナポレオン＋副官チームが宣言した枚数以上取れば勝ち。反乱軍はそれを阻止する。</p>
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🎯 ゲームの目的</p>
+      <p>5人でカードを出し合い、<b>絵札（A・K・Q・J・10）</b>を取り合うゲームです。絵札は全部で${TOTAL_FUDA}枚あります。</p>
+      <p>プレイヤーは <span style="color:var(--c-nap)">ナポレオン側（2人）</span> と <span style="color:#88aaff">反乱軍（3人）</span> に分かれます。ナポレオン側が宣言した枚数以上の絵札を取れば勝ちです。</p>
 
-      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">📢 ビッド</p>
-      <p>最低${MIN_BID}枚から、切り札スートと獲得枚数を宣言。前のビッドより高い（枚数が多い、または同枚数で上位スート）必要あり。最高入札者がナポレオン。全員パスなら再ディール。</p>
-      <p style="font-size:11px;color:#888">スート強さ: ♠ &gt; ♥ &gt; ♦ &gt; ♣</p>
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🔁 ゲームの流れ</p>
+      <p>① <b>ビッド</b> → ② <b>カード交換・副官指定</b> → ③ <b>10回のトリック</b> → ④ <b>勝敗判定</b></p>
 
-      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🔄 カード交換・副官指定</p>
-      <p>ナポレオンはウィドウ（余り3枚）を引き取り、手札から3枚捨てる。その後、<b>副官カード</b>を1枚指定。そのカードを持つプレイヤーが秘密の仲間（副官）になる。副官は自分が副官であることを明かしてはならず、そのカードを出した瞬間に判明する。</p>
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">📢 ① ビッド（入札）</p>
+      <p>全員が順番に「何枚の絵札を取れるか」と「切り札（最強スート）」を宣言します。前の人より高い宣言（枚数が多い、または同枚数で強いスート）か、パスのどちらかを選びます。最低宣言は${MIN_BID}枚。最も高く宣言した人が <b>ナポレオン</b> になります。</p>
+      <p style="font-size:11px;color:#888">スート強さ（同枚数の比較用）: ♠ &gt; ♥ &gt; ♦ &gt; ♣</p>
 
-      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🃏 カードの強さ</p>
-      <div style="background:rgba(0,0,0,.3);border-radius:8px;padding:8px 10px;margin-bottom:4px">
-        <div>① <span style="color:#ffd060">♠A（オールマイティ）</span> — 最強。常に自由に出せる。スペードが回っても強制なし。</div>
-        <div>② <span style="color:#cc66ff">ジョーカー（台札）</span> — 台札（最初に出した場合）は♠A直下の強さ。切り札スート扱い。</div>
-        <div>③ <span style="color:#00ccff">正ジャック</span> — 切り札スートのJ。切り札の中で♠A・ジョーカー台札に次ぐ強さ。</div>
-        <div>④ <span style="color:#0088bb">裏ジャック</span> — 切り札と同色スートのJ。実際のスートのまま出し、強さは正ジャック直下。</div>
-        <div>⑤ <span style="color:#aaa">切り札</span> — 宣言されたスートのカード（A&gt;K&gt;Q&gt;…&gt;2）</div>
-        <div>⑥ <span style="color:#888">平札</span> — その他のカード（リードスートのみ有効、A&gt;K&gt;…）</div>
-        <div>⑦ <span style="color:#888">ジョーカー（フォロー）</span> — 台札以外で出した場合は最弱。</div>
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🔄 ② カード交換・副官指定</p>
+      <p>ナポレオンは場に残っていた3枚を手札に加え、不要な3枚を捨てます。次に <b>副官カード</b> を1枚指定します。そのカードを持つ人が秘密の仲間（<span style="color:var(--c-ally)">副官</span>）になります。副官は正体を隠して協力し、そのカードを出した瞬間に全員に明かされます。</p>
+
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🃏 ③ トリック（カードの出し合い）</p>
+      <p>全員が1枚ずつカードを出す、これを1トリックといいます。全10トリック行います。</p>
+      <p><b>出す順番のルール（フォロー）:</b><br>
+      最初の人が出したカードと<b>同じスートのカードがあれば必ず出す</b>必要があります。なければ何でも出せます。<br>
+      ただし <b>ジャック（正・裏）は切り札が出たときだけ出せます</b>（他に出せるカードがある場合）。<br>
+      ♠A（オールマイティ）とジョーカーはいつでも自由に出せます。</p>
+      <p><b>トリックの勝者:</b> 最も強いカードを出した人がそのトリックを取ります。取ったカードの中に絵札があれば自分の得点になります。</p>
+
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">💪 カードの強さ（強い順）</p>
+      <div style="background:rgba(0,0,0,.3);border-radius:8px;padding:8px 10px;margin-bottom:4px;font-size:11px">
+        <div style="margin-bottom:3px"><span style="color:#ffd060">① ♠A（オールマイティ）</span> — 絶対最強。いつでも自由に出せる</div>
+        <div style="margin-bottom:3px"><span style="color:#cc66ff">② ジョーカー（最初に出した場合）</span> — ♠Aの次に強い。切り札として扱われる</div>
+        <div style="margin-bottom:3px"><span style="color:#00ccff">③ 正ジャック</span> — 切り札スートのJ</div>
+        <div style="margin-bottom:3px"><span style="color:#0088bb">④ 裏ジャック</span> — 切り札と同じ色のスートのJ。切り札として扱われる</div>
+        <div style="margin-bottom:3px"><span style="color:#aaa">⑤ 切り札</span> — 宣言されたスートのカード（A &gt; K &gt; Q &gt; … &gt; 2）</div>
+        <div style="margin-bottom:3px"><span style="color:#aaa">⑥ 平札</span> — 最初に出たカードと同スートのみ有効（A &gt; K &gt; … &gt; 2）。別スートは無効</div>
+        <div><span style="color:#666">⑦ ジョーカー（2枚目以降に出した場合）</span> — 最弱</div>
       </div>
+      <p style="font-size:11px;color:#888">※ 切り札は平札に勝ちます。別スートの平札どうしは最初に出たスートが優先されます。</p>
 
-      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">⚡ 特殊ルール</p>
-      <p><b style="color:#ff9944">セイム２</b>: トリックに出たカードのスートが全て同じ（ジョーカーは切り札換算）で、その中に2があれば、2を出したプレイヤーが勝つ。ただし♠A・正J・裏Jがいる場合はそちらが優先。</p>
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">⚡ 特殊ルール：セイム２</p>
+      <p>トリックに出た全カードのスートが同じとき（ジョーカーは切り札換算）、2を出したプレイヤーが勝ちます。ただし♠A・正J・裏Jがいる場合はそちらが優先されます。</p>
 
-      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">📋 フォロー（出せるカード）</p>
-      <p>リードと同じスートのカードがあれば必ず出す。なければ何でも可。<b>ただし</b>、ジャック（正・裏）は切り札のとき以外は出せない（他に出せるカードがある場合）。♠A・ジョーカーは常に自由に出せる。</p>
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🏆 ④ 勝敗判定</p>
+      <p>10トリック終了後、ナポレオン＋副官が取った絵札の合計が宣言枚数以上なら <span style="color:var(--c-nap)">ナポレオン側の勝ち</span>、未満なら <span style="color:#88aaff">反乱軍の勝ち</span> です。</p>
 
-      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">🏆 勝敗</p>
-      <p>ナポレオン＋副官の取った絵札合計が宣言枚数以上 → ナポレオン側の勝ち。未満 → 反乱軍の勝ち。</p>
-
-      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">📱 操作</p>
-      <p>カードをタップ→選択（浮く） / もう1回タップ→出す</p>
+      <p style="color:var(--c-gold);font-weight:bold;margin:8px 0 2px">📱 操作方法</p>
+      <p>カードをタップ → 選択（カードが浮き上がる）<br>もう一度タップ → 出す</p>
     </div>
     <button class="btn btn-gray" style="margin-top:10px;width:100%" onclick="hideModal();showStartModal()">← 戻る</button>`;
   showModal(html);
