@@ -7,6 +7,7 @@
 <link rel="manifest" href="napoleon-manifest.json">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 
@@ -1293,10 +1294,19 @@ function renderCenter(){
 }
 
 /* ── ONLINE MODE ──────────────────────────────── */
+let fbAuth=null,fbUid=null;
 function initFB(){
   if(db)return;
   firebase.initializeApp(FB_CFG);
   db=firebase.database();
+  fbAuth=firebase.auth();
+}
+async function ensureAuth(){
+  if(fbUid)return fbUid;
+  const user=await fbAuth.signInAnonymously();
+  fbUid=user.user.uid;
+  MY_ID=fbUid;
+  return fbUid;
 }
 function genId(n=8){return Math.random().toString(36).slice(2,2+n).toUpperCase();}
 function genCode(){return Math.random().toString(36).slice(2,8).toUpperCase();}
@@ -1462,8 +1472,6 @@ function processRemoteUI(){
 /* ── LOBBY ────────────────────────────────────── */
 function showOnlineMenu(){
   initFB();
-  MY_ID=sessionStorage.getItem('nap_id')||genId();
-  sessionStorage.setItem('nap_id',MY_ID);
   const prev=sessionStorage.getItem('nap_name')||'';
   const html=`
     <h2>🌐 オンライン対戦</h2>
@@ -1479,9 +1487,10 @@ function showOnlineMenu(){
   showModal(html);
 }
 
-function startCreate(){
+async function startCreate(){
   MY_NAME=(document.getElementById('ni')?.value.trim()||'プレイヤー').slice(0,8);
   sessionStorage.setItem('nap_name',MY_NAME);
+  await ensureAuth();
   ROOM_CODE=genCode();IS_HOST=true;MY_SLOT=0;ONLINE=true;
   actionListening=false;
   humanSlots=new Set([0]);
@@ -1489,11 +1498,12 @@ function startCreate(){
   createRoom();
 }
 
-function startJoin(){
+async function startJoin(){
   MY_NAME=(document.getElementById('ni')?.value.trim()||'プレイヤー').slice(0,8);
   sessionStorage.setItem('nap_name',MY_NAME);
   const code=prompt('ルームコードを入力（6文字）:');
   if(!code)return;
+  await ensureAuth();
   ROOM_CODE=code.trim().toUpperCase();
   ONLINE=true;IS_HOST=false;
   joinRoom();
@@ -1727,7 +1737,7 @@ function pn(p){return p===MY_SLOT?playerNames[MY_SLOT]:playerNames[p]||`P${p}`;}
 function setMsg(t){const el=document.getElementById('msg');if(el)el.textContent=t;}
 
 /* ── BUILD ID ─────────────────────────────────── */
-const BUILD_ID='0420a';
+const BUILD_ID='0423a';
 console.log('%c🃏 Napoleon '+BUILD_ID,'color:#ffd060;font-size:14px;font-weight:bold');
 
 (()=>{

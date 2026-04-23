@@ -1,0 +1,39 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomCode": {
+        ".read": "auth != null",
+
+        // 新規作成のみルームルートへの書き込みを許可（ホストが createRoom で一括 set する用）
+        ".write": "auth != null && !data.exists()",
+
+        "meta": {
+          // ホストのみ meta を更新可（status: playing への遷移など）
+          ".write": "auth != null && root.child('rooms').child($roomCode).child('meta/host').val() === auth.uid"
+        },
+
+        "players": {
+          "$uid": {
+            // 自分の player エントリのみ書き込み可
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        },
+
+        "slots": {
+          // ホストまたはルーム参加者（players に登録済み）のみ書き込み可
+          ".write": "auth != null && (root.child('rooms').child($roomCode).child('meta/host').val() === auth.uid || root.child('rooms').child($roomCode).child('players').child(auth.uid).exists())"
+        },
+
+        "state": {
+          // ゲーム状態の更新はホストのみ
+          ".write": "auth != null && root.child('rooms').child($roomCode).child('meta/host').val() === auth.uid"
+        },
+
+        "pendingAction": {
+          // アクション送信はルーム参加者のみ
+          ".write": "auth != null && root.child('rooms').child($roomCode).child('players').child(auth.uid).exists()"
+        }
+      }
+    }
+  }
+}
