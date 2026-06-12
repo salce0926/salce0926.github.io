@@ -179,11 +179,11 @@ const ITEMS={
 
 // モンスター（名前・数値・ドット絵すべてオリジナル）
 const MONSTERS={
-  punyo: {name:'プニョ',         hp:7,  atk:6,  def:3,  agi:3,  exp:2,  gold:3},
-  bat:   {name:'おおコウモリ',   hp:10, atk:9,  def:4,  agi:9,  exp:4,  gold:5},
-  mush:  {name:'キノッコ',       hp:14, atk:12, def:6,  agi:5,  exp:6,  gold:9},
-  gob:   {name:'いたずらゴブリン',hp:18, atk:15, def:8,  agi:8,  exp:9,  gold:14},
-  bone:  {name:'さまようホネ',   hp:24, atk:20, def:11, agi:10, exp:14, gold:20},
+  punyo: {name:'プニョ',         hp:7,  atk:6,  def:3,  agi:3,  exp:2,  gold:4},
+  bat:   {name:'おおコウモリ',   hp:10, atk:9,  def:4,  agi:9,  exp:4,  gold:7},
+  mush:  {name:'キノッコ',       hp:14, atk:12, def:6,  agi:5,  exp:6,  gold:12},
+  gob:   {name:'いたずらゴブリン',hp:18, atk:15, def:8,  agi:8,  exp:9,  gold:18},
+  bone:  {name:'さまようホネ',   hp:24, atk:20, def:11, agi:10, exp:14, gold:26},
   scor:  {name:'どくサソリ',     hp:26, atk:25, def:18, agi:9,  exp:19, gold:26},
   mage:  {name:'やみのまどうし', hp:28, atk:22, def:12, agi:12, exp:24, gold:36, spell:'fire'},
   wolf:  {name:'ダークウルフ',   hp:34, atk:31, def:15, agi:19, exp:30, gold:42},
@@ -483,27 +483,50 @@ let world=[];
   for(let y=2;y<46;y++){ world[y][27]='water'; world[y][28]='water'; }
   // 南の魔の島を隔てる横の河（y=44〜45, 西側）
   for(let x=2;x<28;x++){ world[44][x]='water'; world[45][x]='water'; }
-  // 地形パッチ
-  function patch(t,cx,cy,rad,prob){
-    for(let y=cy-rad;y<=cy+rad;y++) for(let x=cx-rad;x<=cx+rad;x++){
+  // 地形: 中を塗りつぶし、縁だけランダムにする「かたまり」
+  function blob(t,cx,cy,rad){
+    for(let y=Math.round(cy-rad);y<=cy+rad;y++) for(let x=Math.round(cx-rad);x<=cx+rad;x++){
       if(x<2||y<2||x>=MAPW-2||y>=MAPH-2) continue;
       if(world[y][x]!=='grass') continue;
       const dd=Math.hypot(x-cx,y-cy);
-      if(dd<=rad && r()<prob) world[y][x]=t;
+      if(dd<=rad-1 || (dd<=rad && r()<0.6)) world[y][x]=t;
     }
   }
-  patch('forest',20,28,6,0.7); patch('forest',38,8,6,0.6); patch('forest',46,40,5,0.6);
-  patch('forest',8,30,5,0.6);  patch('hill',22,8,5,0.5);   patch('hill',40,28,6,0.5);
-  patch('mtn',54,12,5,0.75);   patch('mtn',34,38,4,0.7);   patch('mtn',8,38,4,0.7);
-  patch('mtn',50,52,5,0.7);    patch('mtn',20,52,4,0.6);
+  // 尾根に沿って blob を連ねて山脈をつくる
+  function ridge(t,x1,y1,x2,y2,w){
+    const steps=Math.ceil(Math.hypot(x2-x1,y2-y1))*2;
+    for(let i=0;i<=steps;i++){
+      const x=x1+(x2-x1)*i/steps+(r()*2-1), y=y1+(y2-y1)*i/steps+(r()*2-1);
+      blob(t,Math.round(x),Math.round(y),w);
+    }
+  }
+  // 山脈（連なり）
+  ridge('mtn',48,6,58,16,2);   // 北東山脈
+  ridge('mtn',31,34,40,40,1);  // 中央の尾根
+  ridge('mtn',4,32,12,40,2);   // 西山脈
+  ridge('mtn',44,46,56,56,2);  // 南東山脈
+  ridge('mtn',5,48,8,57,1);    // 魔の島をはさむ尾根（西）
+  ridge('mtn',17,48,21,57,1);  // 魔の島をはさむ尾根（東）
+  // 丘は山のふもとに
+  blob('hill',44,14,3); blob('hill',40,28,4); blob('hill',14,36,3); blob('hill',22,8,4);
+  // 森（かたまり）
+  blob('forest',20,28,5); blob('forest',38,8,5); blob('forest',46,40,4);
+  blob('forest',8,26,4);  blob('forest',34,20,4); blob('forest',18,20,3);
   // 砂漠（南東）
   for(let y=28;y<44;y++) for(let x=42;x<60;x++)
-    if(world[y][x]==='grass'&&r()<0.9) world[y][x]='desert';
+    if(world[y][x]==='grass'&&r()<0.92) world[y][x]='desert';
   // 魔の島（南西）は毒の沼だらけ
   for(let y=47;y<60;y++) for(let x=4;x<26;x++)
-    if(world[y][x]==='grass'&&r()<0.5) world[y][x]='swamp';
-  // 山で囲った魔王城周辺
-  patch('mtn',12,54,6,0.5);
+    if(world[y][x]==='grass'&&r()<0.55) world[y][x]='swamp';
+  // ぽつぽつ除去: となりに同じ地形がない山・森・丘は草原に戻す
+  for(let y=2;y<MAPH-2;y++) for(let x=2;x<MAPW-2;x++){
+    const t=world[y][x];
+    if(t!=='mtn'&&t!=='forest'&&t!=='hill') continue;
+    let same=0;
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]])
+      if(world[y+dy][x+dx]===t) same++;
+    if(same===0) world[y][x]='grass';
+  }
   // 橋
   world[14][27]='bridge'; world[14][28]='bridge';
   world[34][27]='bridge'; world[34][28]='bridge';
@@ -818,8 +841,9 @@ document.querySelectorAll('#pad .btn').forEach(b=>{
 //==================================================================
 let mode='title';
 let frame=0;
-const WALK=14; // 1マス移動にかけるフレーム数（大きいほどゆっくり）
+const WALK=10; // 1マス移動にかけるフレーム数（大きいほどゆっくり）
 let moveAnim=0, moveDx=0, moveDy=0;
+let idleTime=0, battleShake=0;
 let titleSel=0;
 let flashTimer=0;
 
@@ -849,14 +873,15 @@ function enterMap(name,x,y){
   playMusic(m?m.music:'field');
 }
 function fieldUpdate(){
-  if(MSG){ msgUpdate(); return; }
-  if(CHOICE){ choiceUpdate(); return; }
+  if(MSG){ msgUpdate(); idleTime=0; return; }
+  if(CHOICE){ choiceUpdate(); idleTime=0; return; }
   if(MENU){ menuUpdate(); return; }
   if(moveAnim>0){
-    moveAnim--;
+    moveAnim--; idleTime=0;
     if(moveAnim===0) onStep();
     return;
   }
+  idleTime++;
   // メニュー
   if(keyPressed('x')||keyPressed('Escape')){ openMenu(); return; }
   // 調べる/話す
@@ -910,7 +935,13 @@ function doTalk(){
     }
   }
   if(m && m.npcs){
-    const n=m.npcs.find(n=>n.x===fx&&n.y===fy);
+    let tx=fx, ty=fy;
+    // カウンター越しに ひとつ先まで しらべる
+    if(tileAt(tx,ty)==='C'){
+      const d={u:[0,-1],d:[0,1],l:[-1,0],r:[1,0]}[G.dir];
+      tx+=d[0]; ty+=d[1];
+    }
+    const n=m.npcs.find(n=>n.x===tx&&n.y===ty);
     if(n){ talkNpc(n); return; }
   }
   showMsg('しらべたが なにもない。');
@@ -1160,8 +1191,8 @@ function fieldDraw(){
     ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(504-nw,8,nw,24);
     drawText(m.name,512-nw,12,'#ffd'); ctx.font=FONT;
   }
-  if(!MSG&&!CHOICE) {} else if(MSG||CHOICE) drawStatusWin();
-  if(MENU) drawStatusWin();
+  // 立ちどまると ステータス窓が出る（メッセージ・選択中も表示）
+  if(MSG||CHOICE||MENU||idleTime>40) drawStatusWin();
   msgDraw(); choiceDraw();
 }
 
@@ -1201,7 +1232,7 @@ function playerAttack(){
   else d=dmgCalc(atk(),B.def);
   B.shake=10;
   const head='ゆうしゃの こうげき！';
-  const lines=[crit?head+'\nかいしんの いちげき！！':head,
+  const lines=[crit?head+'\nきょうれつな いちげき！！':head,
     d>0?B.name+'に '+d+'の ダメージ！':'ミス！ ダメージを あたえられない！'];
   B.hp-=d;
   showMsg(lines,()=>afterPlayerAction());
@@ -1238,12 +1269,12 @@ function battleItem(){
   },{title:'どうぐ',x:20,y:160,w:200});
 }
 function tryRun(){
-  if(B.boss){ showMsg('しかし まわりこまれてしまった！',()=>enemyTurn()); return; }
+  if(B.boss){ showMsg('しかし てきに ゆくてを ふさがれた！',()=>enemyTurn()); return; }
   if(Math.random()*agi() >= Math.random()*B.agi*0.8){
     sfx('cursor');
     showMsg('ゆうしゃは にげだした！',()=>endBattle(false));
   } else {
-    showMsg('しかし まわりこまれてしまった！',()=>enemyTurn());
+    showMsg('しかし てきに ゆくてを ふさがれた！',()=>enemyTurn());
   }
 }
 function afterPlayerAction(){
@@ -1259,7 +1290,7 @@ function enemyTurn(){
   if(act==='attack'){
     sfx('hit');
     const d=dmgCalc(B.atk,dfn());
-    G.hp-=d; flashTimer=8;
+    G.hp-=d; flashTimer=8; if(d>0) battleShake=12;
     showMsg([B.name+'の こうげき！',d>0?'ゆうしゃは '+d+'の ダメージを うけた！':'ミス！ ゆうしゃは ひらりと かわした！'],()=>afterEnemyAction());
   } else if(act==='heal'){
     sfx('heal');
@@ -1268,7 +1299,7 @@ function enemyTurn(){
   } else {
     sfx('spell');
     const v=act==='fire'?irnd(10,20):irnd(30,45);
-    G.hp-=v; flashTimer=8;
+    G.hp-=v; flashTimer=8; battleShake=12;
     showMsg([B.name+'は ほのおを はいた！','ゆうしゃは '+v+'の ダメージを うけた！'],()=>afterEnemyAction());
   }
 }
@@ -1315,16 +1346,19 @@ function endBattle(){
 }
 function playerDead(){
   stopMusic(); sfx('dead');
-  showMsg(['ゆうしゃは ちからつきた…','めのまえが まっくらに なった…'],()=>{
+  showMsg(['ゆうしゃは ちからつきた…','いしきが とおく なっていく…'],()=>{
     G.gold=Math.floor(G.gold/2);
     G.hp=maxHP(); G.mp=maxMP();
     B=null; mode='field';
     enterMap('castle',8,9);
-    showMsg('おう「しんでしまうとは なさけない！\nだが もういちど きかいを あたえよう。\nおかねは はんぶん あずかったぞ」');
+    showMsg('おう「なんと、たおれてしまったか…。\nだが あきらめるでないぞ。\nちりょうだいとして おかねを\nはんぶん もらっておく」');
   });
 }
 function battleDraw(){
   ctx.fillStyle='#000'; ctx.fillRect(0,0,512,448);
+  // 被弾時は画面ぜんたいを ゆらす
+  ctx.save();
+  if(battleShake>0){ battleShake--; ctx.translate(irnd(-5,5),irnd(-3,3)); }
   // 背景枠
   drawWindow(96,40,320,260);
   // 地面っぽい線
@@ -1348,6 +1382,7 @@ function battleDraw(){
   }
   drawStatusWin();
   msgDraw(); choiceDraw();
+  ctx.restore();
 }
 
 //==================================================================
