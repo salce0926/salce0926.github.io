@@ -58,16 +58,16 @@ function mulberry(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0;
 //==================================================================
 //  サウンド（WebAudio チップチューン・全曲オリジナル）
 //==================================================================
-let AC=null, musicTimer=null, musicName='', muted=false;
+let AC=null, musicTimer=null, musicName='', muted=false, musicGain=null;
 function audio(){ if(!AC){ AC = new (window.AudioContext||window.webkitAudioContext)(); }
   if(AC.state==='suspended') AC.resume(); return AC; }
-function beep(freq,dur,type,vol,when){
+function beep(freq,dur,type,vol,when,dest){
   if(muted) return; const ac=audio();
   const o=ac.createOscillator(), g=ac.createGain();
   o.type=type||'square'; o.frequency.value=freq;
   g.gain.setValueAtTime(vol||0.06, when||ac.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001,(when||ac.currentTime)+dur);
-  o.connect(g); g.connect(ac.destination);
+  o.connect(g); g.connect(dest||ac.destination);
   o.start(when||ac.currentTime); o.stop((when||ac.currentTime)+dur);
 }
 function midi(n){ return 440*Math.pow(2,(n-69)/12); }
@@ -105,7 +105,12 @@ const TUNES = {
   ending:{bpm:96, mel:[[72,6],[71,2],[69,4],[67,4],[65,4],[67,4],[69,8],[0,2],[69,2],[71,2],[72,2],[74,4],[76,4],[77,6],[76,2],[74,8],[72,6],[71,2],[69,4],[71,4],[72,16]],
         bas:[[41,8],[43,8],[45,8],[41,8],[43,8],[45,8],[47,8],[48,16]]},
 };
-function stopMusic(){ if(musicTimer){ clearTimeout(musicTimer); musicTimer=null; } musicName=''; }
+function stopMusic(){
+  if(musicTimer){ clearTimeout(musicTimer); musicTimer=null; }
+  musicName='';
+  // 予約済みの音もまとめて切る（曲がりかさなるのを防ぐ）
+  if(musicGain){ try{ musicGain.disconnect(); }catch(e){} musicGain=null; }
+}
 function playMusic(name){
   if(musicName===name) return;
   stopMusic(); musicName=name;
@@ -114,10 +119,13 @@ function playMusic(name){
   const step = 60/tune.bpm/4; // 16分音符の秒数
   function loop(){
     if(musicName!==name || muted){ if(musicName===name) musicTimer=setTimeout(loop,500); return; }
-    const ac=audio(); let t=ac.currentTime+0.05; let total=0;
-    for(const [n,d] of tune.mel){ if(n>0) beep(midi(n),d*step*0.92,'square',0.045,t+total*step); total+=d; }
+    const ac=audio();
+    if(!musicGain){ musicGain=ac.createGain(); musicGain.gain.value=1; musicGain.connect(ac.destination); }
+    const dest=musicGain;
+    let t=ac.currentTime+0.05; let total=0;
+    for(const [n,d] of tune.mel){ if(n>0) beep(midi(n),d*step*0.92,'square',0.045,t+total*step,dest); total+=d; }
     let bt=0;
-    for(const [n,d] of tune.bas){ if(n>0) beep(midi(n),d*step*0.92,'triangle',0.06,t+bt*step); bt+=d; }
+    for(const [n,d] of tune.bas){ if(n>0) beep(midi(n),d*step*0.92,'triangle',0.06,t+bt*step,dest); bt+=d; }
     musicTimer=setTimeout(loop, total*step*1000);
   }
   loop();
@@ -1096,7 +1104,8 @@ function fieldDraw(){
   const VW=16,VH=14;
   // スクロール位置（移動補間）
   let ox=0,oy=0;
-  if(moveAnim>0){ ox=-moveDx*(moveAnim/WALK)*TS; oy=-moveDy*(moveAnim/WALK)*TS; }
+  // 移動中は「ひとつ前のカメラ位置」から現在位置へ滑らかに寄せる（符号は正）
+  if(moveAnim>0){ ox=moveDx*(moveAnim/WALK)*TS; oy=moveDy*(moveAnim/WALK)*TS; }
   const camx=G.x-Math.floor(VW/2), camy=G.y-Math.floor(VH/2);
   const m=curMap();
   const dark = m&&m.dark&&G.light===0 ? 1 : (m&&m.dark&&G.light>0?2:0);
