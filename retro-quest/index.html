@@ -86,6 +86,7 @@ function sfx(name){
     case 'stairs': beep(330,0.08,'triangle',0.06); beep(262,0.10,'triangle',0.06,t+0.08); break;
     case 'dead':   [52,50,48,45,41].forEach((n,i)=>beep(midi(n),0.22,'triangle',0.08,t+i*0.18)); break;
     case 'win':    [67,72,76,79,84].forEach((n,i)=>beep(midi(n),0.13,'square',0.06,t+i*0.10)); break;
+    case 'swamp':  beep(110,0.12,'triangle',0.07); break;
   }
 }
 // 曲データ: [音程(midi,0=休符), 長さ(16分音符単位)] の列。メロディ＋ベース。
@@ -104,6 +105,10 @@ const TUNES = {
         bas:[[26,4],[26,4],[26,4],[26,4],[29,4],[29,4],[27,4],[27,4],[26,4],[26,4],[31,4],[29,4],[26,8]]},
   ending:{bpm:96, mel:[[72,6],[71,2],[69,4],[67,4],[65,4],[67,4],[69,8],[0,2],[69,2],[71,2],[72,2],[74,4],[76,4],[77,6],[76,2],[74,8],[72,6],[71,2],[69,4],[71,4],[72,16]],
         bas:[[41,8],[43,8],[45,8],[41,8],[43,8],[45,8],[47,8],[48,16]]},
+  field2:{bpm:108, mel:[[69,4],[71,4],[72,4],[76,4],[74,4],[72,4],[71,8],[69,4],[67,4],[64,4],[67,4],[69,4],[71,4],[72,8],[74,4],[76,4],[77,4],[76,4],[74,4],[72,4],[69,8],[71,4],[72,4],[74,4],[71,4],[69,16]],
+        bas:[[45,8],[45,8],[41,8],[41,8],[43,8],[43,8],[45,8],[45,8],[38,8],[40,8],[43,8],[45,8],[45,16]]},
+  island:{bpm:92, mel:[[57,8],[60,4],[59,4],[57,8],[56,8],[57,8],[60,4],[62,4],[63,8],[62,4],[60,4],[59,16],[57,8],[55,4],[56,4],[57,16]],
+        bas:[[33,16],[32,16],[33,16],[29,8],[31,8],[33,16],[28,16],[33,16]]},
 };
 function stopMusic(){
   if(musicTimer){ clearTimeout(musicTimer); musicTimer=null; }
@@ -194,15 +199,16 @@ const MONSTERS={
   boss1: {name:'まおうガルド',   hp:140,atk:62, def:42, agi:26, exp:0,  gold:0, spell:'fire', boss:true},
   boss2: {name:'しんのガルド',   hp:220,atk:78, def:52, agi:32, exp:0,  gold:0, spell:'fire2',boss:true},
 };
-// 地域ごとの出現テーブル
+// 地域ごとの出現テーブル（よわい→つよい 順。平地ではよわい側が出やすい）
 const ZONES=[
-  ['punyo','punyo','bat','mush'],            // 0 城周辺
-  ['mush','gob','gob','bone','bat'],         // 1 すこし遠く
-  ['bone','scor','mage','wolf','gob'],       // 2 川の東
-  ['wolf','golem','knight','wyv','mage'],    // 3 砂漠・洞窟周辺
-  ['knight','wyv','shadow','golem'],         // 4 南の魔の島
+  ['punyo','punyo','bat'],            // 0 城周辺
+  ['bat','mush','gob'],               // 1 すこし遠く
+  ['gob','bone','scor','mage'],       // 2 川の東
+  ['mage','wolf','golem','knight'],   // 3 洞窟周辺
+  ['golem','knight','wyv','shadow'],  // 4 南の魔の島
 ];
-const CAVE_ZONE=['mage','wolf','golem','knight','scor'];
+const DESERT_ZONE=['scor','wolf','golem','wyv']; // ワイバーンは砂漠の主
+const CAVE_ZONE=['scor','mage','wolf','golem','knight'];
 
 //==================================================================
 //  ドット絵（16x16・パレット文字 → 色）すべてオリジナルデザイン
@@ -396,7 +402,8 @@ function drawArt(name,x,y,px,flip){
 const TS=32; // 画面上のタイルサイズ
 const TILE_KEYS=['grass','forest','hill','mtn','water','bridge','desert','swamp',
   'castle','town','cave','wall','floor','counter','stairs_d','stairs_u','chest','chest_open',
-  'throne','carpet','cell','dark'];
+  'throne','carpet','cell','dark',
+  'water2','flower','sign_w','sign_a','sign_i','sign_n'];
 const atlas=document.createElement('canvas');
 atlas.width=TILE_KEYS.length*TS; atlas.height=TS;
 const atx=atlas.getContext('2d');
@@ -458,6 +465,30 @@ function tileIndex(k){ return TILE_KEYS.indexOf(k); }
       case 'cell': px(i,0,0,16,16,'#585058');
         for(let n=0;n<4;n++) px(i,2+n*4,0,1,16,'#282028'); break;
       case 'dark': px(i,0,0,16,16,'#000'); break;
+      case 'water2': px(i,0,0,16,16,'#2858c0'); // 波アニメの2コマめ
+        for(let n=0;n<5;n++) px(i,Math.floor(r()*13),Math.floor(r()*15),3,1,'#5888e8');
+        px(i,2,6,4,1,'#88b0f0'); px(i,9,12,4,1,'#88b0f0'); break;
+      case 'flower': px(i,0,0,16,16,'#48a040'); // 花の咲いた草原
+        for(let n=0;n<6;n++) px(i,Math.floor(r()*15),Math.floor(r()*15),1,1,'#60b858');
+        px(i,3,3,2,2,'#f8e858');
+        px(i,2,2,1,1,'#f8f8f8'); px(i,5,2,1,1,'#f8f8f8'); px(i,2,5,1,1,'#f8f8f8'); px(i,5,5,1,1,'#f8f8f8');
+        px(i,10,9,2,2,'#f06868');
+        px(i,9,8,1,1,'#f8f8f8'); px(i,12,8,1,1,'#f8f8f8'); px(i,9,11,1,1,'#f8f8f8'); px(i,12,11,1,1,'#f8f8f8');
+        break;
+      case 'sign_w': case 'sign_a': case 'sign_i': case 'sign_n': { // 店のかんばん
+        px(i,0,0,16,16,'#c8b088');
+        px(i,7,10,2,5,'#6a4318');                 // 柱
+        px(i,2,2,12,9,'#8a5a28'); px(i,3,3,10,7,'#b08040'); // 板
+        if(k==='sign_w'){        // 剣
+          px(i,7,3,2,5,'#d8d8e0'); px(i,6,7,4,1,'#e8c030'); px(i,7,8,2,2,'#a87820');
+        } else if(k==='sign_a'){ // 盾
+          px(i,6,4,4,1,'#c8d0e0'); px(i,6,5,4,3,'#5878c8'); px(i,7,8,2,1,'#5878c8');
+        } else if(k==='sign_i'){ // くすりの瓶
+          px(i,7,3,2,1,'#88c888'); px(i,6,4,4,5,'#48a048'); px(i,7,5,1,2,'#a8e0a8');
+        } else {                 // ベッド
+          px(i,5,4,6,2,'#e8e8e8'); px(i,5,6,6,2,'#c03040'); px(i,4,4,1,4,'#6a4318'); px(i,11,4,1,4,'#6a4318');
+        }
+        break; }
     }
   });
 })();
@@ -553,9 +584,11 @@ let world=[];
     }
   });
 })();
-function worldTileKey(t){
+function worldTileKey(t,x,y){
   if(t==='town2') return 'town';
   if(t==='dcastle') return 'castle';
+  if(t==='grass' && ((x*7+y*13)%29===0)) return 'flower'; // ところどころ花ばたけ
+  if(t==='water' && ((x+y+(frame>>5))%2===0)) return 'water2'; // 波のアニメ
   return t;
 }
 function zoneAt(x,y){
@@ -596,14 +629,14 @@ INDOOR.town1={ name:'カナンのまち', music:'town', floor:'floor', rows:[
 '#....#....#......#',
 '#.C..#.C..#..C...#',
 '#....#....#......#',
-'#.#.##.#.##..#.#.#',
+'#W.###A.####I.####',
 '#................#',
 '#................#',
 '#..#####.........#',
 '#..#...#.....#.#.#',
 '#..#.C.#.........#',
 '#..#...#.........#',
-'#..##.##.........#',
+'#..#N.##.........#',
 '#................#',
 '########EE########'],
  npcs:[
@@ -619,12 +652,12 @@ INDOOR.town2={ name:'みなとまちポルテ', music:'town', floor:'floor', row
 '#....#....#......#',
 '#.C..#.C..#..C...#',
 '#....#....#......#',
-'#.#.##.#.##..#.#.#',
+'#W.###A.####I.####',
 '#................#',
 '#......##........#',
 '#......##........#',
 '#................#',
-'#.#.#.....#.#....#',
+'#.#.#.....#.#N...#',
 '#................#',
 '########EE########'],
  npcs:[
@@ -843,7 +876,7 @@ let mode='title';
 let frame=0;
 const WALK=10; // 1マス移動にかけるフレーム数（大きいほどゆっくり）
 let moveAnim=0, moveDx=0, moveDy=0;
-let idleTime=0, battleShake=0;
+let idleTime=0, battleShake=0, encGrace=0;
 let titleSel=0;
 let flashTimer=0;
 
@@ -862,7 +895,7 @@ function tileAt(x,y){
 function isBlocked(x,y){
   const t=tileAt(x,y);
   if(G.map==='world') return t==='water'||t==='mtn';
-  if(t==='#'||t==='C'||t==='t'||t==='B') return true;
+  if(t==='#'||t==='C'||t==='t'||t==='B'||t==='W'||t==='A'||t==='I'||t==='N') return true;
   const m=curMap();
   if(m.npcs && m.npcs.some(n=>n.x===x&&n.y===y)) return true;
   return false;
@@ -870,7 +903,8 @@ function isBlocked(x,y){
 function enterMap(name,x,y){
   G.map=name; G.x=x; G.y=y; G.light=0;
   const m=curMap();
-  playMusic(m?m.music:'field');
+  if(m) playMusic(m.music);
+  else playMusic(zoneAt(x,y)>=4?'island':(x>=29?'field2':'field'));
 }
 function fieldUpdate(){
   if(MSG){ msgUpdate(); idleTime=0; return; }
@@ -906,10 +940,21 @@ function onStep(){
     if(t==='town2'){ enterMap('town2',9,10); sfx('stairs'); return; }
     if(t==='cave'){ enterMap('cave1',18,6); sfx('stairs'); return; }
     if(t==='dcastle'){ enterMap('dcastle',8,10); sfx('stairs'); return; }
-    if(t==='swamp'){ G.hp=Math.max(1,G.hp-2); flashTimer=8; }
-    // エンカウント
-    const enc = (t==='forest'||t==='swamp') ? 10 : 16;
-    if(Math.random()*enc<1) startBattle(pickEnemy(ZONES[zoneAt(G.x,G.y)]));
+    if(t==='swamp'){ G.hp=Math.max(1,G.hp-2); flashTimer=8; sfx('swamp'); }
+    // 地域でBGMがかわる（川の東・魔の島）
+    const wantBgm = zoneAt(G.x,G.y)>=4 ? 'island' : (G.x>=29 ? 'field2' : 'field');
+    if(musicName!==wantBgm) playMusic(wantBgm);
+    // エンカウント（険しい地形ほど強敵・高頻度。戦闘直後はしばらく出ない）
+    const rough = (t==='forest'||t==='swamp'||t==='hill'||t==='desert');
+    if(encGrace>0){ encGrace--; }
+    else {
+      const enc = rough ? 11 : 16;
+      if(Math.random()*enc<1){
+        let table = ZONES[zoneAt(G.x,G.y)];
+        if(t==='desert') table=DESERT_ZONE;
+        startBattle(pickEnemy(table,rough));
+      }
+    }
   } else {
     const m=curMap();
     if(t==='E'){ const e=m.exit; enterMap(e.map,e.x,e.y); G.dir='d'; return; }
@@ -917,7 +962,8 @@ function onStep(){
     if(t==='<'){ enterMap('cave1',1,17); sfx('stairs'); return; }
     if(m.encounter){
       if(G.light>0) G.light--;
-      if(Math.random()*13<1) startBattle(pickEnemy(CAVE_ZONE));
+      if(encGrace>0){ encGrace--; }
+      else if(Math.random()*13<1) startBattle(pickEnemy(CAVE_ZONE,true));
     }
   }
 }
@@ -944,6 +990,10 @@ function doTalk(){
     const n=m.npcs.find(n=>n.x===tx&&n.y===ty);
     if(n){ talkNpc(n); return; }
   }
+  // かんばん
+  const signMsg={W:'かんばんには「ぶきや」と かいてある。',A:'かんばんには「ぼうぐや」と かいてある。',
+                 I:'かんばんには「どうぐや」と かいてある。',N:'かんばんには「やどや」と かいてある。'};
+  if(m && signMsg[tileAt(fx,fy)]){ showMsg(signMsg[tileAt(fx,fy)]); return; }
   showMsg('しらべたが なにもない。');
 }
 function openChest(cx,cy){
@@ -1147,7 +1197,7 @@ function fieldDraw(){
     if(dark===2 && (Math.abs(tx-G.x)>3||Math.abs(ty-G.y)>3)){ continue; }
     let key;
     const t=tileAt(tx,ty);
-    if(G.map==='world') key=worldTileKey(t);
+    if(G.map==='world') key=worldTileKey(t,tx,ty);
     else {
       switch(t){
         case '#': key='wall'; break;
@@ -1159,6 +1209,10 @@ function fieldDraw(){
         case 't': key='throne'; break;
         case 'r': key='carpet'; break;
         case 'B': key='cell'; break;
+        case 'W': key='sign_w'; break;
+        case 'A': key='sign_a'; break;
+        case 'I': key='sign_i'; break;
+        case 'N': key='sign_n'; break;
         case 'E': key=m.floor; break;
         default: key=m.floor;
       }
@@ -1200,7 +1254,12 @@ function fieldDraw(){
 //  戦闘
 //==================================================================
 let B=null; // {key, name, hp, maxhp, ..., phase, shake}
-function pickEnemy(table){ return table[irnd(0,table.length-1)]; }
+// strong=true(険しい地形)なら強い側、false(平地)なら弱い側に寄せて選ぶ
+function pickEnemy(table,strong){
+  const u=Math.random();
+  const idx=Math.floor(Math.pow(u, strong?0.85:1.7)*table.length);
+  return table[Math.min(idx,table.length-1)];
+}
 function startBattle(key){
   const mdef=MONSTERS[key];
   B={ key, name:mdef.name, hp:mdef.hp+irnd(0,Math.floor(mdef.hp/8)),
@@ -1341,8 +1400,10 @@ function enemyDefeated(){
 }
 function endBattle(){
   B=null; mode='field';
+  encGrace=4; // 戦闘直後は数歩ぶん エンカウントしない
   const m=curMap();
-  playMusic(m?m.music:'field');
+  if(m) playMusic(m.music);
+  else playMusic(zoneAt(G.x,G.y)>=4?'island':(G.x>=29?'field2':'field'));
 }
 function playerDead(){
   stopMusic(); sfx('dead');
@@ -1361,12 +1422,25 @@ function battleDraw(){
   if(battleShake>0){ battleShake--; ctx.translate(irnd(-5,5),irnd(-3,3)); }
   // 背景枠
   drawWindow(96,40,320,260);
-  // 地面っぽい線
-  ctx.strokeStyle='#444'; ctx.beginPath();
-  ctx.moveTo(120,250); ctx.lineTo(392,250); ctx.stroke();
-  // モンスター
+  // 背景（フィールドの夜空 / どうくつの岩肌）
+  if(curMap()){
+    ctx.fillStyle='#181020'; ctx.fillRect(102,46,308,204);
+    ctx.fillStyle='#383048'; // 岩柱
+    ctx.fillRect(120,120,24,130); ctx.fillRect(364,140,20,110);
+    ctx.fillRect(170,190,16,60); ctx.fillRect(312,90,14,44); ctx.fillRect(224,58,10,30);
+  } else {
+    ctx.fillStyle='#101830'; ctx.fillRect(102,46,308,204);
+    ctx.fillStyle='#1c2c50'; // 遠くの山なみ
+    ctx.fillRect(102,200,308,50);
+    ctx.fillRect(120,180,80,30); ctx.fillRect(280,170,100,40); ctx.fillRect(200,190,70,20);
+    ctx.fillStyle='#e8e8a0'; // 星
+    ctx.fillRect(140,70,2,2); ctx.fillRect(330,60,2,2); ctx.fillRect(250,92,2,2);
+    ctx.fillRect(380,104,2,2); ctx.fillRect(180,110,2,2);
+  }
+  ctx.fillStyle='#262420'; ctx.fillRect(102,250,308,44); // 地面
+  // モンスター（ゆっくり上下にゆれる）
   if(B&&!B.dead){
-    let sx=256-64, sy=100;
+    let sx=256-64, sy=100+Math.round(Math.sin(frame/18)*3);
     if(B.shake>0){ B.shake--; sx+=irnd(-6,6); }
     if(B.flash>0){ B.flash--; }
     if(!(B.flash>0&&B.flash%4<2)) drawArt(B.key,sx,sy,8,false);
