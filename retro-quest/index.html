@@ -169,6 +169,7 @@ const ARMORS=[
   {name:'くさりかたびら',def:10, price:350},
   {name:'てつのよろい', def:16, price:1100},
   {name:'はがねのよろい',def:24, price:2600},
+  {name:'ほしのよろい', def:30, price:0}, // 廃墟の町の宝
 ];
 const SHIELDS=[
   {name:'なし',       def:0,  price:0},
@@ -180,6 +181,7 @@ const ITEMS={
   herb: {name:'やくそう', price:20, info:'HPを 30 かいふく'},
   torch:{name:'たいまつ', price:8,  info:'どうくつで まわりを てらす'},
   wing: {name:'そらとぶはね', price:50, info:'おしろの まちへ ワープ'},
+  key:  {name:'まほうのかぎ', price:85, info:'かぎのかかった とびらを ひらく'},
 };
 
 // モンスター（名前・数値・ドット絵すべてオリジナル）
@@ -196,6 +198,7 @@ const MONSTERS={
   knight:{name:'ダークナイト',   hp:56, atk:45, def:28, agi:18, exp:62, gold:84, spell:'heal'},
   wyv:   {name:'ワイバーン',     hp:62, atk:51, def:26, agi:25, exp:78, gold:98, spell:'fire'},
   shadow:{name:'デスシャドウ',   hp:72, atk:58, def:31, agi:31, exp:98, gold:115,spell:'fire'},
+  drago: {name:'ぬまのドラゴン', hp:80, atk:46, def:30, agi:16, exp:110,gold:140,spell:'fire',boss:true},
   boss1: {name:'まおうガルド',   hp:140,atk:62, def:42, agi:26, exp:0,  gold:0, spell:'fire', boss:true},
   boss2: {name:'しんのガルド',   hp:220,atk:78, def:52, agi:32, exp:0,  gold:0, spell:'fire2',boss:true},
 };
@@ -209,6 +212,7 @@ const ZONES=[
 ];
 const DESERT_ZONE=['scor','wolf','golem','wyv']; // ワイバーンは砂漠の主
 const CAVE_ZONE=['scor','mage','wolf','golem','knight'];
+const ENC_TABLES={cave:CAVE_ZONE, dcastle:['knight','wyv','shadow'], pcave:['bone','scor','mage','wolf']};
 
 //==================================================================
 //  ドット絵（16x16・パレット文字 → 色）すべてオリジナルデザイン
@@ -379,6 +383,7 @@ def('boss2',{K:'#101018',d:'#a02838',g:'#681020',y:'#e8c030',w:'#e8e8e8'},[
 '.KdyKddddddKydK.','..KdddddddddK...','..KddwwKKwwddK..','...KddddddddK...',
 '..KKddKddKddKK..','.KgKddddddddKgK.','.KgKdKddddKdKgK.','.KgKddddddddKgK.',
 '..KKddddddddKK..','...KdddKKdddK...','...KddK..KddK...','...KKK....KKK...']);
+ART.drago={p:{K:'#101018',g:'#509838',d:'#2f7028',y:'#e8d048',r:'#d04848'},r:ART.wyv.r};
 
 // 描画関数（パレット絵）
 function drawArt(name,x,y,px,flip){
@@ -403,7 +408,7 @@ const TS=32; // 画面上のタイルサイズ
 const TILE_KEYS=['grass','forest','hill','mtn','water','bridge','desert','swamp',
   'castle','town','cave','wall','floor','counter','stairs_d','stairs_u','chest','chest_open',
   'throne','carpet','cell','dark',
-  'water2','flower','sign_w','sign_a','sign_i','sign_n'];
+  'water2','flower','sign_w','sign_a','sign_i','sign_n','door','shrine'];
 const atlas=document.createElement('canvas');
 atlas.width=TILE_KEYS.length*TS; atlas.height=TS;
 const atx=atlas.getContext('2d');
@@ -475,6 +480,12 @@ function tileIndex(k){ return TILE_KEYS.indexOf(k); }
         px(i,10,9,2,2,'#f06868');
         px(i,9,8,1,1,'#f8f8f8'); px(i,12,8,1,1,'#f8f8f8'); px(i,9,11,1,1,'#f8f8f8'); px(i,12,11,1,1,'#f8f8f8');
         break;
+      case 'door': px(i,0,0,16,16,'#888090');
+        px(i,2,1,12,14,'#7a4a20'); px(i,3,2,10,12,'#9a6630');
+        px(i,4,3,8,1,'#b8854a'); px(i,10,8,2,2,'#e8c030'); break;
+      case 'shrine': px(i,0,0,16,16,'#48a040');
+        px(i,2,12,12,3,'#a8a098'); px(i,1,5,14,2,'#807870');
+        px(i,3,7,10,6,'#c8c0b8'); px(i,6,9,4,4,'#383028'); px(i,7,1,2,4,'#c8c0b8'); break;
       case 'sign_w': case 'sign_a': case 'sign_i': case 'sign_n': { // 店のかんばん
         px(i,0,0,16,16,'#c8b088');
         px(i,7,10,2,5,'#6a4318');                 // 柱
@@ -543,6 +554,12 @@ let world=[];
   // 森（かたまり）
   blob('forest',20,28,5); blob('forest',38,8,5); blob('forest',46,40,4);
   blob('forest',8,26,4);  blob('forest',34,20,4); blob('forest',18,20,3);
+  // 追加の地形（フィールドの密度アップ）
+  blob('forest',52,20,4); blob('forest',26,20,4); blob('forest',12,18,3);
+  blob('forest',33,28,3); blob('forest',56,40,3); blob('forest',22,12,3);
+  blob('hill',34,12,3); blob('hill',18,33,3); blob('hill',48,36,3); blob('hill',8,16,3);
+  blob('water',22,24,2); blob('water',36,24,2); blob('water',46,11,2); blob('water',16,28,2); // 湖
+  blob('swamp',20,40,3); // ぬまのどうくつ の周辺
   // 砂漠（南東）
   for(let y=28;y<44;y++) for(let x=42;x<60;x++)
     if(world[y][x]==='grass'&&r()<0.92) world[y][x]='desert';
@@ -570,14 +587,22 @@ let world=[];
   }
   carve(12,12,26,14); carve(29,14,42,16); carve(42,16,50,34);
   carve(29,34,26,34); carve(26,34,14,43); carve(14,46,12,52);
+  carve(42,16,42,8);   // いやしのほこらへ
+  carve(14,40,20,40);  // ぬまのどうくつへ
+  carve(14,42,10,42);  // けんじゃのほこらへ
+  carve(50,24,52,24);  // はいきょのまちへ
   // ランドマーク
   world[12][12]='castle';  // ラダム城
   world[14][16]='town';    // 城下町カナン
   world[16][42]='town2';   // 港町ポルテ（タイルはtownを使う）
   world[34][50]='cave';    // 試練の洞窟
   world[52][12]='dcastle'; // 魔王城（タイルはcastleを暗く）
+  world[7][42]='shrine';   // いやしのほこら
+  world[42][10]='shrine2'; // けんじゃのほこら
+  world[40][20]='pcave';   // ぬまのどうくつ（姫がとらわれている）
+  world[24][52]='town3';   // はいきょのまち
   // 入口の周囲は歩けるように
-  [[12,12],[16,14],[42,16],[50,34],[12,52]].forEach(([x,y])=>{
+  [[12,12],[16,14],[42,16],[50,34],[12,52],[42,7],[10,42],[20,40],[52,24]].forEach(([x,y])=>{
     for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
       const t=world[y+dy][x+dx];
       if((t==='water'||t==='mtn')&&!(dx===0&&dy===0)) world[y+dy][x+dx]='grass';
@@ -585,8 +610,10 @@ let world=[];
   });
 })();
 function worldTileKey(t,x,y){
-  if(t==='town2') return 'town';
+  if(t==='town2'||t==='town3') return 'town';
   if(t==='dcastle') return 'castle';
+  if(t==='pcave') return 'cave';
+  if(t==='shrine'||t==='shrine2') return 'shrine';
   if(t==='grass' && ((x*7+y*13)%29===0)) return 'flower'; // ところどころ花ばたけ
   if(t==='water' && ((x+y+(frame>>5))%2===0)) return 'water2'; // 波のアニメ
   return t;
@@ -607,9 +634,9 @@ function zoneAt(x,y){
 const INDOOR={};
 INDOOR.castle={ name:'ラダムじょう', music:'town', floor:'floor', rows:[
 '################',
-'#......tt......#',
-'#..............#',
-'#..............#',
+'#......tt..#.cc#',
+'#..........#...#',
+'#..........##D##',
 '#....######....#',
 '#..............#',
 '#..............#',
@@ -618,56 +645,83 @@ INDOOR.castle={ name:'ラダムじょう', music:'town', floor:'floor', rows:[
 '#......rr......#',
 '#......rr......#',
 '#######EE#######'],
+ chests:{'13,1':{itemKey:'wing'},'14,1':{gold:120}},
  npcs:[
   {x:7,y:2,art:'npc_king',id:'king'},
-  {x:4,y:6,art:'npc_guard',text:['へいし「まおうガルドは みなみの\nまのしまに しろを かまえている。',
-    'だが ふつうの ぶきでは\nやつに かなわぬだろう…」']},
-  {x:11,y:6,art:'npc_guard',text:['へいし「とうの たからは すでに\nうばわれた。のこるは でんせつの\nつるぎ だけだ…」']},
+  {x:8,y:3,art:'npc_princess',id:'princess_castle',showIf:'princessSaved'},
+  {x:4,y:6,art:'npc_guard',text:['へいし「まおうじょうの とびらには\nかぎが かかっているそうだ。\nまほうのかぎを わすれるな」']},
+  {x:11,y:6,art:'npc_guard',text:['へいし「でんせつのつるぎは みなみの\nさばくの どうくつに ねむっている。\nふつうのぶきでは まおうに かなわぬ」']},
  ], exit:{map:'world',x:12,y:13}};
 INDOOR.town1={ name:'カナンのまち', music:'town', floor:'floor', rows:[
-'##################',
-'#....#....#......#',
-'#.C..#.C..#..C...#',
-'#....#....#......#',
-'#W.###A.####I.####',
-'#................#',
-'#................#',
-'#..#####.........#',
-'#..#...#.....#.#.#',
-'#..#.C.#.........#',
-'#..#...#.........#',
-'#..#N.##.........#',
-'#................#',
-'########EE########'],
+'########################',
+'#....#....#......#gTTTg#',
+'#.C..#.C..#..C...#gT.Tg#',
+'#....#....#......#g...g#',
+'#W.###A.####I.####g...g#',
+'#.................g...g#',
+'#.................ggggg#',
+'#..#####...............#',
+'#..#...#....TT....####.#',
+'#..#.C.#....TT....#ww#.#',
+'#..#...#..........#ww#.#',
+'#..#N.##..........####.#',
+'#......................#',
+'#.TT..........TT.......#',
+'#.TT..........TT.......#',
+'###########EE###########'],
  npcs:[
   {x:2,y:1,art:'npc_villager',id:'shop_weapon'},
   {x:7,y:1,art:'npc_villager',id:'shop_armor'},
   {x:13,y:1,art:'npc_lady',id:'shop_item'},
   {x:5,y:10,art:'npc_lady',id:'inn',price:8},
-  {x:12,y:6,art:'npc_villager',text:['まちのひと「ひがしの はしを わたると\nつよい まものが でるぞ。\nそうびを ととのえて いきな」']},
-  {x:3,y:12,art:'npc_lady',text:['おんなのひと「おうじょさまが まおうに\nさらわれてしまったの…。\nゆうしゃさま おねがいします」']},
+  {x:10,y:5,art:'npc_villager',text:['まちのひと「ひがしの はしを わたると\nつよい まものが でるぞ。\nそうびを ととのえて いきな」']},
+  {x:3,y:12,art:'npc_lady',text:['おんなのひと「リナひめさまは みなみの\nぬまちの どうくつに とらわれて\nいるんですって…。おねがいします」']},
+  {x:20,y:12,art:'npc_villager',text:['たびのひと「かわのひがしの ずっときた、\nうみべに いやしのほこらが ある。\nただで きずを いやしてくれるぞ」']},
+  {x:8,y:13,art:'npc_villager',text:['こども「おにいちゃん つよそう！\nまおうを やっつけてね！」']},
  ], exit:{map:'world',x:16,y:15}};
 INDOOR.town2={ name:'みなとまちポルテ', music:'town', floor:'floor', rows:[
-'##################',
-'#....#....#......#',
-'#.C..#.C..#..C...#',
-'#....#....#......#',
-'#W.###A.####I.####',
-'#................#',
-'#......##........#',
-'#......##........#',
-'#................#',
-'#.#.#.....#.#N...#',
-'#................#',
-'########EE########'],
+'########################',
+'#....#....#......#.....#',
+'#.C..#.C..#..C...#.TT..#',
+'#....#....#......#.TT..#',
+'#W.###A.####I.####.....#',
+'#......................#',
+'#......##..............#',
+'#......##.....####.....#',
+'#..............#ww#....#',
+'#.#.#........N.........#',
+'#.................TT...#',
+'#wwwww.................#',
+'#wwwww.................#',
+'###########EE###########'],
  npcs:[
   {x:2,y:1,art:'npc_villager',id:'shop_weapon2'},
   {x:7,y:1,art:'npc_villager',id:'shop_armor2'},
-  {x:13,y:1,art:'npc_lady',id:'shop_item'},
+  {x:13,y:1,art:'npc_lady',id:'shop_item2'},
   {x:14,y:9,art:'npc_lady',id:'inn',price:20},
-  {x:4,y:8,art:'npc_villager',text:['ふなのり「みなみの さばくの おくに\nしれんの どうくつが ある。\nでんせつのつるぎは そこに ねむるという」']},
-  {x:11,y:5,art:'npc_guard',text:['へいし「どうくつのなかは まっくらだ。\nたいまつか ライトのじゅもんが\nひつようだぞ」']},
+  {x:3,y:10,art:'npc_villager',text:['ふなのり「みなみの さばくの おくに\nしれんの どうくつが ある。\nでんせつのつるぎは そこに ねむるという」']},
+  {x:16,y:5,art:'npc_guard',text:['へいし「どうくつのなかは まっくらだ。\nたいまつか ライトのじゅもんが\nひつようだぞ」']},
+  {x:20,y:6,art:'npc_villager',text:['しょうにん「まほうのかぎは うちの\nどうぐやで うっているよ。\nまおうじょうの とびらも ひらくらしい」']},
+  {x:18,y:1,art:'npc_lady',text:['おんなのひと「さばくの はいきょには\nすごい よろいが のこされている…\nそんな うわさが あるわ」']},
  ], exit:{map:'world',x:42,y:17}};
+INDOOR.town3={ name:'サラムのはいきょ', music:'cave', floor:'desert', rows:[
+'####################',
+'#..#...#......#....#',
+'#.....c#..##.......#',
+'#..#####..##...#...#',
+'#..................#',
+'#.###..####..###...#',
+'#.#......#...#c#...#',
+'#.#......#...#D#...#',
+'#..................#',
+'#..##..##..##..##..#',
+'#..................#',
+'#########EE#########'],
+ chests:{'6,2':{gold:160},'14,6':{armor:5}},
+ npcs:[
+  {x:3,y:4,art:'npc_villager',text:['いきのこり「まものに おそわれて\nみんな にげてしまった…。','ぼうぐやの おたからは かぎのかかった\nへやに のこされたままだ」']},
+  {x:16,y:8,art:'npc_lady',text:['おんなのひと「ここも むかしは\nにぎやかな まちだったのよ…」']},
+ ], exit:{map:'world',x:52,y:25}};
 INDOOR.cave1={ name:'しれんのどうくつ B1', music:'cave', floor:'floor', dark:true, encounter:'cave', rows:[
 '####################',
 '#........#.........#',
@@ -689,6 +743,7 @@ INDOOR.cave1={ name:'しれんのどうくつ B1', music:'cave', floor:'floor', 
 '#>..#...#....#...#.#',
 '####################'],
  chests:{'2,13':{gold:120}},
+ stairs:{'1,17':{map:'cave2',x:1,y:1}},
  exit:{map:'world',x:50,y:35}, escape:{map:'world',x:50,y:35}};
 INDOOR.cave2={ name:'しれんのどうくつ B2', music:'cave', floor:'floor', dark:true, encounter:'cave', rows:[
 '####################',
@@ -711,25 +766,98 @@ INDOOR.cave2={ name:'しれんのどうくつ B2', music:'cave', floor:'floor', 
 '#........#.........#',
 '####################'],
  chests:{'2,5':{gold:300},'16,11':{item:'sword'},'17,11':{item:'shield'}},
+ stairs:{'1,1':{map:'cave1',x:1,y:17}},
  escape:{map:'world',x:50,y:35},
 };
-INDOOR.dcastle={ name:'まおうじょう', music:'boss', floor:'carpet', rows:[
+INDOOR.pcave={ name:'ぬまのどうくつ', music:'cave', floor:'floor', encounter:'pcave', rows:[
+'##############',
+'#E.....#.....#',
+'#.###.#.#.##.#',
+'#.#.c.#.#..#.#',
+'#.#.###.##.#.#',
+'#.#.#....#.#.#',
+'#.#.#.##.#.#.#',
+'#.#.#..#.#.#.#',
+'#.#.##.#.#.#.#',
+'#.#....#.#...#',
+'##.#####.###.#',
+'#............#',
+'##############'],
+ chests:{'4,3':{gold:200}},
+ npcs:[
+  {x:2,y:11,art:'drago',id:'drago',hideIf:'dragoDead'},
+  {x:1,y:11,art:'npc_princess',id:'princess2',hideIf:'princessSaved'},
+ ], exit:{map:'world',x:20,y:41}, escape:{map:'world',x:20,y:41}};
+INDOOR.dcastle1={ name:'まおうじょう 1F', music:'boss', floor:'carpet', encounter:'dcastle', rows:[
 '################',
-'#B............B#',
-'#B....tt......B#',
+'#......<.......#',
+'#..............#',
+'#######D########',
+'#..............#',
+'#..####..####..#',
+'#..#cc#..#cc#..#',
+'#..#..#..#..#..#',
+'#..#D##..##D#..#',
+'#..............#',
 '#..............#',
 '#....######....#',
 '#..............#',
-'#..#........#..#',
+'#......EE......#',
+'################'],
+ chests:{'4,6':{gold:500},'5,6':{itemKey:'herb'},'10,6':{itemKey:'wing'},'11,6':{gold:300}},
+ stairs:{'7,1':{map:'dcastle2',x:1,y:1}},
+ npcs:[], exit:{map:'world',x:12,y:53}};
+INDOOR.dcastle2={ name:'まおうじょう 2F', music:'boss', floor:'carpet', encounter:'dcastle', rows:[
+'################',
+'#>.....#......<#',
+'##.###.#.####.##',
+'#..#...#....#..#',
+'#.##.#####.##.##',
+'#.#..#...#..#..#',
+'#.#.##.#.##.##.#',
+'#.#....#.....#.#',
+'#.####.#####.#.#',
+'#......#...#.#.#',
+'######.#.#.#.#.#',
+'#......#.#...#.#',
+'#.######.#####.#',
 '#..............#',
-'#..#........#..#',
+'################'],
+ stairs:{'1,1':{map:'dcastle1',x:7,y:1},'14,1':{map:'dcastle3',x:7,y:8}},
+ npcs:[]};
+INDOOR.dcastle3={ name:'まおうじょう さいじょうかい', music:'boss', floor:'carpet', rows:[
+'################',
+'#B............B#',
+'#B.....tt.....B#',
+'#..............#',
+'#....##..##....#',
+'#######D########',
 '#..............#',
 '#..............#',
-'#######EE#######'],
+'#......>.......#',
+'################'],
+ stairs:{'7,8':{map:'dcastle2',x:14,y:1}},
  npcs:[
   {x:7,y:2,art:'npc_demon',id:'demon'},
-  {x:2,y:1,art:'npc_princess',id:'princess'},
- ], exit:{map:'world',x:12,y:53}};
+ ]};
+INDOOR.shrine1={ name:'いやしのほこら', music:'town', floor:'floor', rows:[
+'##########',
+'#........#',
+'#........#',
+'#........#',
+'#........#',
+'####EE####'],
+ npcs:[{x:4,y:2,art:'npc_villager',id:'healer'}],
+ exit:{map:'world',x:42,y:8}};
+INDOOR.shrine2={ name:'けんじゃのほこら', music:'town', floor:'floor', rows:[
+'##########',
+'#........#',
+'#........#',
+'#........#',
+'#........#',
+'####EE####'],
+ npcs:[{x:4,y:2,art:'npc_villager',text:['けんじゃ「まおうガルドは にどめの\nすがたこそ しんのすがた。','HPを たもったまま いっせんめを\nきりぬけるのじゃ。','かいふくのじゅもん ヒーラスを\nおぼえる レベル12が めやすじゃろう」']}],
+ exit:{map:'world',x:10,y:43}};
 
 //==================================================================
 //  ゲーム状態
@@ -739,9 +867,9 @@ let G=null;
 function newGame(){
   G={ lv:1, exp:0, hp:LV_HP[0], mp:LV_MP[0], gold:120,
       weapon:0, armor:0, shield:0,
-      items:{herb:2, torch:1, wing:0},
-      flags:{sword:false, shield:false, cleared:false, metDemon:false},
-      chests:{},
+      items:{herb:2, torch:1, wing:0, key:0},
+      flags:{sword:false, shield:false, cleared:false, princessSaved:false, dragoDead:false},
+      chests:{}, doors:{},
       map:'world', x:12, y:13, dir:'d', light:0,
   };
 }
@@ -757,7 +885,9 @@ function saveGame(){
 function loadGame(){
   const s=localStorage.getItem(SAVE_KEY);
   if(!s) return false;
-  try{ G=JSON.parse(s); G.map='world'; G.x=12; G.y=13; G.dir='d'; G.light=0; return true; }
+  try{ G=JSON.parse(s); G.map='world'; G.x=12; G.y=13; G.dir='d'; G.light=0;
+    G.doors=G.doors||{}; G.items.key=G.items.key||0; // ふるいセーブへの対応
+    return true; }
   catch(e){ return false; }
 }
 function knownSpells(){ return SPELLS.filter(s=>G.lv>=s.lv); }
@@ -891,14 +1021,21 @@ function tileAt(x,y){
   if(y<0||y>=m.rows.length||x<0||x>=m.rows[0].length) return '#';
   // 開封済み宝箱
   if(m.rows[y][x]==='c' && G.chests[G.map+':'+x+','+y]) return 'c_open';
+  if(m.rows[y][x]==='D' && G.doors && G.doors[G.map+':'+x+','+y]) return '.';
   return m.rows[y][x];
+}
+function npcActive(n){
+  if(n.hideIf && G.flags[n.hideIf]) return false;
+  if(n.showIf && !G.flags[n.showIf]) return false;
+  if((n.id==='princess'||n.id==='demon')&&G.flags.cleared) return false;
+  return true;
 }
 function isBlocked(x,y){
   const t=tileAt(x,y);
   if(G.map==='world') return t==='water'||t==='mtn';
-  if(t==='#'||t==='C'||t==='t'||t==='B'||t==='W'||t==='A'||t==='I'||t==='N') return true;
+  if(t==='#'||t==='C'||t==='t'||t==='B'||t==='W'||t==='A'||t==='I'||t==='N'||t==='D'||t==='T'||t==='w') return true;
   const m=curMap();
-  if(m.npcs && m.npcs.some(n=>n.x===x&&n.y===y)) return true;
+  if(m.npcs && m.npcs.some(n=>npcActive(n)&&n.x===x&&n.y===y)) return true;
   return false;
 }
 function enterMap(name,x,y){
@@ -940,7 +1077,11 @@ function onStep(){
     if(t==='town'){ enterMap('town1',9,12); sfx('stairs'); return; }
     if(t==='town2'){ enterMap('town2',9,10); sfx('stairs'); return; }
     if(t==='cave'){ enterMap('cave1',18,6); sfx('stairs'); return; }
-    if(t==='dcastle'){ enterMap('dcastle',8,10); sfx('stairs'); return; }
+    if(t==='town3'){ enterMap('town3',10,10); sfx('stairs'); return; }
+    if(t==='pcave'){ enterMap('pcave',2,1); sfx('stairs'); return; }
+    if(t==='shrine'){ enterMap('shrine1',4,4); sfx('stairs'); return; }
+    if(t==='shrine2'){ enterMap('shrine2',4,4); sfx('stairs'); return; }
+    if(t==='dcastle'){ enterMap('dcastle1',7,12); sfx('stairs'); return; }
     if(t==='swamp'){ G.hp=Math.max(1,G.hp-2); flashTimer=8; sfx('swamp'); }
     // 地域でBGMがかわる（川の東・魔の島）
     const wantBgm = zoneAt(G.x,G.y)>=4 ? 'island' : (G.x>=29 ? 'field2' : 'field');
@@ -959,12 +1100,14 @@ function onStep(){
   } else {
     const m=curMap();
     if(t==='E'){ const e=m.exit; enterMap(e.map,e.x,e.y); G.dir='d'; return; }
-    if(t==='>'){ enterMap('cave2',1,1); sfx('stairs'); return; }
-    if(t==='<'){ enterMap('cave1',1,17); sfx('stairs'); return; }
+    if(t==='>'||t==='<'){
+      const d=m.stairs&&m.stairs[G.x+','+G.y];
+      if(d){ enterMap(d.map,d.x,d.y); sfx('stairs'); return; }
+    }
     if(m.encounter){
       if(G.light>0) G.light--;
       if(encGrace>0){ encGrace--; }
-      else if(Math.random()*13<1) startBattle(pickEnemy(CAVE_ZONE,true));
+      else if(Math.random()*13<1) startBattle(pickEnemy(ENC_TABLES[m.encounter]||CAVE_ZONE,true));
     }
   }
 }
@@ -981,6 +1124,16 @@ function doTalk(){
       openChest(cx,cy); return;
     }
   }
+  // かぎのかかった とびら
+  if(m && tileAt(fx,fy)==='D'){
+    if((G.items.key||0)>0){
+      G.items.key--; G.doors[G.map+':'+fx+','+fy]=true; sfx('stairs');
+      showMsg('まほうのかぎを つかった！\nとびらが ひらいた。');
+    } else {
+      showMsg('かぎが かかっている。\n（まほうのかぎが ひつようだ）');
+    }
+    return;
+  }
   if(m && m.npcs){
     let tx=fx, ty=fy;
     // カウンター越しに ひとつ先まで しらべる
@@ -988,7 +1141,7 @@ function doTalk(){
       const d={u:[0,-1],d:[0,1],l:[-1,0],r:[1,0]}[G.dir];
       tx+=d[0]; ty+=d[1];
     }
-    const n=m.npcs.find(n=>n.x===tx&&n.y===ty);
+    const n=m.npcs.find(n=>npcActive(n)&&n.x===tx&&n.y===ty);
     if(n){ talkNpc(n); return; }
   }
   // かんばん
@@ -1014,6 +1167,17 @@ function openChest(cx,cy){
     G.flags.shield=true; G.shield=3; sfx('levelup');
     showMsg(['「まもりのたて」を てにいれた！','ゆうしゃは まもりのたてを そうびした！']);
   }
+  else if(def.itemKey){
+    const it=ITEMS[def.itemKey];
+    G.items[def.itemKey]=Math.min(9,(G.items[def.itemKey]||0)+1);
+    showMsg(it.name+'を てにいれた！');
+  }
+  else if(def.armor!==undefined){
+    sfx('levelup');
+    if(G.armor<def.armor){ G.armor=def.armor;
+      showMsg(['なんと「'+ARMORS[def.armor].name+'」を てにいれた！','ゆうしゃは '+ARMORS[def.armor].name+'を そうびした！']); }
+    else showMsg('「'+ARMORS[def.armor].name+'」を てにいれた！\nだが いまのそうびのほうが つよい。');
+  }
 }
 
 //==================================================================
@@ -1028,7 +1192,28 @@ function talkNpc(n){
     case 'shop_armor':  shopTalk('ぼうぐや',ARMORS,[1,2],'armor',SHIELDS,[1]); break;
     case 'shop_weapon2':shopTalk('ぶきや',WEAPONS,[3,4,5],'weapon'); break;
     case 'shop_armor2': shopTalk('ぼうぐや',ARMORS,[2,3,4],'armor',SHIELDS,[2]); break;
-    case 'shop_item': itemShop(); break;
+    case 'shop_item': itemShop(['herb','torch','wing']); break;
+    case 'shop_item2': itemShop(['herb','torch','wing','key']); break;
+    case 'healer':
+      G.hp=maxHP(); G.mp=maxMP(); sfx('heal');
+      showMsg(['ろうじん「よく きたな たびのひと。\nつかれを いやして いくがよい」','ふしぎなひかりが ゆうしゃをつつんだ！\nHPとMPが まんたんに なった！']);
+      break;
+    case 'drago':
+      showMsg('どうくつの ぬしが めをさました！\n「グルルルル…！」',()=>startBattle('drago','dragoDead'));
+      break;
+    case 'princess2':
+      showMsg('リナひめ「あなたは…ゆうしゃさま！\nたすけに きてくださったのですね！」',()=>{
+        G.flags.princessSaved=true; sfx('levelup');
+        showMsg('ゆうしゃは リナひめを つれて\nラダムじょうへ おくりとどけた！',()=>{
+          enterMap('castle',8,9);
+          G.gold+=400; G.items.wing=Math.min(9,(G.items.wing||0)+2);
+          showMsg(['おう「おお リナ！ ぶじだったか！','ゆうしゃよ れいを いわせてくれ。\nほうびに 400ゴールドと\nそらとぶはね 2まいを さずけよう！','のこるは まおうガルドのみ。\nたのんだぞ！」']);
+        });
+      });
+      break;
+    case 'princess_castle':
+      showMsg('リナひめ「ゆうしゃさま、ごぶじで\nなによりです。どうか おきをつけて」');
+      break;
     case 'demon': demonTalk(); break;
     case 'princess':
       showMsg(['リナひめ「ゆうしゃさま…！\nどうか おきをつけて。','ガルドは おそろしい ちからを\nかくしもって います…！」']);
@@ -1040,12 +1225,17 @@ function kingTalk(){
     showMsg(['おう「おお ゆうしゃよ！ よくぞ\nまおうガルドを たおしてくれた！','そなたこそ まことの えいゆうじゃ。\nこのくにの へいわは えいえんに\nかたりつがれるであろう！」']);
     return;
   }
-  showMsg(['おう「おお ゆうしゃよ、\nよくぞ まいられた。','まおうガルドが むすめ リナを さらい\nみなみの まのしまに きえた。','どうか むすめと このくにを\nすくってくれ！」'],()=>{
+  const saveChoice=()=>{
     showChoice(['ぼうけんを きろくする','やめておく'],sel=>{
       if(sel===0){ saveGame(); sfx('levelup');
         showMsg(['おう「そなたの ぼうけんを\nきろくしたぞ。','やすむときは そのまま ブラウザを\nとじて かまわぬ。','つぎは タイトルの「つづきから」で\nこの しろから さいかいできるぞ」']); }
     },{title:'きろく',w:280,x:210});
-  });
+  };
+  if(G.flags.princessSaved){
+    showMsg(['おう「リナを すくってくれて\nまことに ありがとう！','のこるは まおうガルドのみ。\nまのしまの しろの とびらには\nまほうのかぎが ひつようじゃぞ」'],saveChoice);
+    return;
+  }
+  showMsg(['おう「おお ゆうしゃよ、\nよくぞ まいられた。','まおうの てしたが むすめリナをさらい\nみなみの ぬまちの どうくつに\nとじこめてしまった。','まおうガルドじしんは さらにみなみ、\nまのしまの しろに ひそんでいる。','どうか むすめと このくにを\nすくってくれ！」'],saveChoice);
 }
 function innTalk(price){
   showChoice(['とまる ('+price+'G)','やめる'],sel=>{
@@ -1075,17 +1265,18 @@ function shopTalk(title,list,idxs,slot,list2,idxs2){
     showMsg(it.name+'を かって そうびした！\n「ほかにも みていくかい？」',again);
   },{title,w:300,x:196,y:80});
 }
-function itemShop(){
-  const keys=['herb','torch','wing'];
+function itemShop(stock){
+  const keys=stock||['herb','torch','wing'];
+  const again=()=>itemShop(stock);
   const labels=keys.map(k=>ITEMS[k].name+' '+ITEMS[k].price+'G');
   labels.push('やめる');
   showChoice(labels,sel=>{
     if(sel<0||sel===keys.length){ showMsg('どうぐや「まいど ありがとう！」'); return; }
     const k=keys[sel], it=ITEMS[k];
-    if(G.gold<it.price){ showMsg('どうぐや「おかねが たりないよ」',itemShop); return; }
-    if((G.items[k]||0)>=9){ showMsg('どうぐや「そんなに もてないよ」',itemShop); return; }
+    if(G.gold<it.price){ showMsg('どうぐや「おかねが たりないよ」',again); return; }
+    if((G.items[k]||0)>=9){ showMsg('どうぐや「そんなに もてないよ」',again); return; }
     G.gold-=it.price; G.items[k]=(G.items[k]||0)+1; sfx('gold');
-    showMsg(it.name+'を かった！\n「ほかにも どうだい？」',itemShop);
+    showMsg(it.name+'を かった！\n「ほかにも どうだい？」',again);
   },{title:'どうぐや',w:300,x:196,y:80});
 }
 function demonTalk(){
@@ -1178,7 +1369,9 @@ function fieldItemMenu(){
     } else if(k==='wing'){
       if(curMap()){ showMsg('ここでは つかえない。'); return; }
       G.items[k]--; sfx('spell');
-      showMsg('そらとぶはねを なげた！',()=>{ enterMap('world',12,13); playMusic('field'); });
+      showMsg('そらとぶはねを なげた！',()=>{ enterMap('world',12,13); });
+    } else if(k==='key'){
+      showMsg('とびらの まえに たって\nZキーを おせば つかえる。');
     }
   },{title:'どうぐ',x:280,y:30,w:210});
 }
@@ -1216,6 +1409,10 @@ function fieldDraw(){
         case 't': key='throne'; break;
         case 'r': key='carpet'; break;
         case 'B': key='cell'; break;
+        case 'D': key='door'; break;
+        case 'g': key='grass'; break;
+        case 'T': key='forest'; break;
+        case 'w': key='water'; break;
         case 'W': key='sign_w'; break;
         case 'A': key='sign_a'; break;
         case 'I': key='sign_i'; break;
@@ -1229,8 +1426,7 @@ function fieldDraw(){
   // NPC
   if(m&&m.npcs){
     for(const n of m.npcs){
-      if(n.id==='princess'&&G.flags.cleared) continue;
-      if(n.id==='demon'&&G.flags.cleared) continue;
+      if(!npcActive(n)) continue;
       const sx=(n.x-camx)*TS+ox, sy=(n.y-camy)*TS+oy;
       if(dark===1&&(Math.abs(n.x-G.x)>1||Math.abs(n.y-G.y)>1)) continue;
       if(dark===2&&(Math.abs(n.x-G.x)>3||Math.abs(n.y-G.y)>3)) continue;
@@ -1267,9 +1463,9 @@ function pickEnemy(table,strong){
   const idx=Math.floor(Math.pow(u, strong?0.85:1.7)*table.length);
   return table[Math.min(idx,table.length-1)];
 }
-function startBattle(key){
+function startBattle(key,winFlag){
   const mdef=MONSTERS[key];
-  B={ key, name:mdef.name, hp:mdef.hp+irnd(0,Math.floor(mdef.hp/8)),
+  B={ key, winFlag:winFlag||null, name:mdef.name, hp:mdef.hp+irnd(0,Math.floor(mdef.hp/8)),
       atk:mdef.atk, def:mdef.def, agi:mdef.agi,
       exp:mdef.exp, gold:mdef.gold+irnd(0,Math.floor(mdef.gold/4)),
       spell:mdef.spell, boss:!!mdef.boss,
@@ -1391,6 +1587,7 @@ function enemyDefeated(){
     return;
   }
   sfx('win');
+  if(B.winFlag) G.flags[B.winFlag]=true;
   const lines=[B.name+'を たおした！','けいけんち '+B.exp+'  '+B.gold+'ゴールドを かくとく！'];
   G.exp+=B.exp; G.gold+=B.gold;
   // レベルアップ判定
@@ -1482,7 +1679,7 @@ function titleUpdate(){
 }
 function startIntro(){
   mode='field'; enterMap('castle',8,6); G.dir='u';
-  showMsg(['むかしむかし レガリアのくにに\nやみの まおう ガルドが あらわれた。','まおうは リナひめを さらい\nみなみの まのしまに きえた…。','たびだちのとき。 きみは おうさまに\nよばれて おしろに きたのだった。',
+  showMsg(['むかしむかし レガリアのくにに\nやみの まおう ガルドが あらわれた。','まおうのてしたは リナひめを さらい\nみなみの ぬまちのどうくつに きえた…。','たびだちのとき。 きみは おうさまに\nよばれて おしろに きたのだった。',
     '【そうさ】 やじるしキー:いどう\nZ/エンター:はなす・しらべる\nX:メニュー  M:おと ON/OFF',
     '【セーブ】 おうさまに はなしかけて\n「きろく」する。やめるときは\nそのまま ブラウザを とじれば いい。']);
 }
