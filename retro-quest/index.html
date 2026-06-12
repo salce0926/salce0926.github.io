@@ -256,6 +256,13 @@ def('hero_l',{K:'#101018',s:'#f0c8a0',b:'#3858c8',h:'#c8c8d8',y:'#e8b830',r:'#c0
 '....KrrKrrK.....',
 '....KKK.KKK.....'],
 );
+// 歩行フレーム（脚部の3行だけ差し替え）
+function legVariant(src,dst,legs){
+  ART[dst]={p:ART[src].p, r:ART[src].r.slice(0,13).concat(legs)};
+}
+legVariant('hero_d','hero_d_w',['.....KbbbbK.....','.....KrrrrK.....','.....KKKKK......']);
+legVariant('hero_u','hero_u_w',['.....KbbbbK.....','.....KrrrrK.....','.....KKKKK......']);
+legVariant('hero_l','hero_l_w',['.....KbbbK......','.....KrrrK......','.....KKKKK......']);
 // --- NPC ---
 def('npc_villager',{K:'#101018',s:'#f0c8a0',c:'#38a048',w:'#e8e0d0'},[
 '................','.....KKKKK......','....KwwwwwK.....','....KwwwwwK.....',
@@ -803,6 +810,7 @@ document.querySelectorAll('#pad .btn').forEach(b=>{
 //==================================================================
 let mode='title';
 let frame=0;
+const WALK=14; // 1マス移動にかけるフレーム数（大きいほどゆっくり）
 let moveAnim=0, moveDx=0, moveDy=0;
 let titleSel=0;
 let flashTimer=0;
@@ -853,7 +861,7 @@ function fieldUpdate(){
   else if(keyDown('ArrowRight')||keyDown('d')){ dx=1; G.dir='r'; }
   if(dx||dy){
     if(!isBlocked(G.x+dx,G.y+dy)){
-      G.x+=dx; G.y+=dy; moveDx=dx; moveDy=dy; moveAnim=8;
+      G.x+=dx; G.y+=dy; moveDx=dx; moveDy=dy; moveAnim=WALK;
     }
   }
 }
@@ -944,7 +952,8 @@ function kingTalk(){
   }
   showMsg(['おう「おお ゆうしゃよ、\nよくぞ まいられた。','まおうガルドが むすめ リナを さらい\nみなみの まのしまに きえた。','どうか むすめと このくにを\nすくってくれ！」'],()=>{
     showChoice(['ぼうけんを きろくする','やめておく'],sel=>{
-      if(sel===0){ saveGame(); showMsg('おう「そなたの ぼうけんを\nしるしておいたぞ。\nゆうきが つきたら もどるがよい」'); }
+      if(sel===0){ saveGame(); sfx('levelup');
+        showMsg(['おう「そなたの ぼうけんを\nきろくしたぞ。','やすむときは そのまま ブラウザを\nとじて かまわぬ。','つぎは タイトルの「つづきから」で\nこの しろから さいかいできるぞ」']); }
     },{title:'きろく',w:280,x:210});
   });
 }
@@ -954,25 +963,26 @@ function innTalk(price){
     if(G.gold<price){ showMsg('やどや「おかねが たりないようだね」'); return; }
     G.gold-=price; G.hp=maxHP(); G.mp=maxMP();
     sfx('heal');
-    showMsg('やどや「おはようございます。\nゆうべは おやすみなさいませ…\nまちがえた、よく おやすみで」');
+    showMsg('やどや「おはようございます。\nゆうべは ゆっくり やすめたようで\nなによりです。いってらっしゃい！」');
   },{title:'やどや',w:240,x:250});
 }
 function shopTalk(title,list,idxs,slot,list2,idxs2){
+  const again=()=>shopTalk(title,list,idxs,slot,list2,idxs2); // 買ったあとも店をひらきなおす
   const entries=idxs.map(i=>({list,idx:i,slot}));
   if(list2) idxs2.forEach(i=>entries.push({list:list2,idx:i,slot:'shield'}));
   const labels=entries.map(e=>e.list[e.idx].name+' '+e.list[e.idx].price+'G');
   labels.push('やめる');
   showChoice(labels,sel=>{
-    if(sel<0||sel===entries.length) return;
+    if(sel<0||sel===entries.length){ showMsg(title+'「まいど！ またきてくれよな」'); return; }
     const e=entries[sel], it=e.list[e.idx];
-    if(G.gold<it.price){ showMsg(title+'「おかねが たりないよ」'); return; }
+    if(G.gold<it.price){ showMsg(title+'「おかねが たりないよ」',again); return; }
     const cur=e.slot==='weapon'?G.weapon:(e.slot==='armor'?G.armor:G.shield);
-    if(cur===e.idx){ showMsg(title+'「それは もう もっているよ」'); return; }
+    if(cur===e.idx){ showMsg(title+'「それは もう もっているよ」',again); return; }
     G.gold-=it.price; sfx('gold');
     if(e.slot==='weapon') G.weapon=e.idx;
     else if(e.slot==='armor') G.armor=e.idx;
     else G.shield=e.idx;
-    showMsg(it.name+'を かって そうびした！');
+    showMsg(it.name+'を かって そうびした！\n「ほかにも みていくかい？」',again);
   },{title,w:300,x:196,y:80});
 }
 function itemShop(){
@@ -980,12 +990,12 @@ function itemShop(){
   const labels=keys.map(k=>ITEMS[k].name+' '+ITEMS[k].price+'G');
   labels.push('やめる');
   showChoice(labels,sel=>{
-    if(sel<0||sel===keys.length) return;
+    if(sel<0||sel===keys.length){ showMsg('どうぐや「まいど ありがとう！」'); return; }
     const k=keys[sel], it=ITEMS[k];
-    if(G.gold<it.price){ showMsg('どうぐや「おかねが たりないよ」'); return; }
-    if((G.items[k]||0)>=9){ showMsg('どうぐや「そんなに もてないよ」'); return; }
+    if(G.gold<it.price){ showMsg('どうぐや「おかねが たりないよ」',itemShop); return; }
+    if((G.items[k]||0)>=9){ showMsg('どうぐや「そんなに もてないよ」',itemShop); return; }
     G.gold-=it.price; G.items[k]=(G.items[k]||0)+1; sfx('gold');
-    showMsg(it.name+'を かった！');
+    showMsg(it.name+'を かった！\n「ほかにも どうだい？」',itemShop);
   },{title:'どうぐや',w:300,x:196,y:80});
 }
 function demonTalk(){
@@ -1086,7 +1096,7 @@ function fieldDraw(){
   const VW=16,VH=14;
   // スクロール位置（移動補間）
   let ox=0,oy=0;
-  if(moveAnim>0){ ox=-moveDx*(moveAnim/8)*TS; oy=-moveDy*(moveAnim/8)*TS; }
+  if(moveAnim>0){ ox=-moveDx*(moveAnim/WALK)*TS; oy=-moveDy*(moveAnim/WALK)*TS; }
   const camx=G.x-Math.floor(VW/2), camy=G.y-Math.floor(VH/2);
   const m=curMap();
   const dark = m&&m.dark&&G.light===0 ? 1 : (m&&m.dark&&G.light>0?2:0);
@@ -1126,19 +1136,20 @@ function fieldDraw(){
       drawArt(n.art,sx,sy,2,false);
     }
   }
-  // 勇者（画面中央固定）
+  // 勇者（画面中央固定・2フレーム歩行アニメ）
   const hx=Math.floor(VW/2)*TS, hy=Math.floor(VH/2)*TS;
-  const bob=(moveAnim>0&&moveAnim%4<2)?-2:0;
-  const artName = G.dir==='u'?'hero_u':(G.dir==='d'?'hero_d':'hero_l');
-  drawArt(artName,hx,hy+bob,2,G.dir==='r');
+  const useWalk = moveAnim>WALK/2;
+  const base = G.dir==='u'?'hero_u':(G.dir==='d'?'hero_d':'hero_l');
+  drawArt(base+(useWalk?'_w':''),hx,hy,2,G.dir==='r');
   // ダメージフラッシュ
   if(flashTimer>0){ flashTimer--;
     ctx.fillStyle='rgba(255,0,0,0.25)'; ctx.fillRect(0,0,512,448); }
-  // 場所名（屋内）
+  // 場所名（屋内・右上に表示してステータス窓と重ならないように）
   if(m){
     ctx.font="14px 'DotGothic16',monospace";
-    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(8,8,m.name.length*15+16,24);
-    drawText(m.name,16,12,'#ffd'); ctx.font=FONT;
+    const nw=m.name.length*15+16;
+    ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(504-nw,8,nw,24);
+    drawText(m.name,512-nw,12,'#ffd'); ctx.font=FONT;
   }
   if(!MSG&&!CHOICE) {} else if(MSG||CHOICE) drawStatusWin();
   if(MENU) drawStatusWin();
@@ -1163,7 +1174,8 @@ function startBattle(key){
 }
 function battleCommand(){
   showChoice(['たたかう','じゅもん','どうぐ','にげる'],sel=>{
-    if(sel===0||sel<0) playerAttack();
+    if(sel<0){ battleCommand(); return; } // キャンセルはコマンド選びなおし
+    if(sel===0) playerAttack();
     else if(sel===1) battleSpell();
     else if(sel===2) battleItem();
     else tryRun();
@@ -1332,22 +1344,22 @@ function battleDraw(){
 //==================================================================
 //  タイトル・エンディング
 //==================================================================
+function hasSave(){ return !!localStorage.getItem(SAVE_KEY); }
 function titleUpdate(){
   if(keyPressed('ArrowUp')||keyPressed('ArrowDown')){ titleSel=1-titleSel; sfx('cursor'); }
   if(keyPressed('z')||keyPressed('Enter')||keyPressed(' ')){
-    sfx('ok');
-    if(titleSel===0){ newGame(); startIntro(); }
-    else {
-      if(loadGame()){ mode='field'; enterMap('castle',8,9);
-        showMsg('おう「おかえり ゆうしゃよ。\nぼうけんの つづきだ！」');
-      } else { newGame(); startIntro(); }
-    }
+    if(titleSel===0){ sfx('ok'); newGame(); startIntro(); }
+    else if(hasSave()&&loadGame()){
+      sfx('ok'); mode='field'; enterMap('castle',8,9);
+      showMsg('おう「おかえり ゆうしゃよ。\nぼうけんの つづきだ！」');
+    } else { sfx('cancel'); } // きろくが ないときは えらべない
   }
 }
 function startIntro(){
   mode='field'; enterMap('castle',8,6); G.dir='u';
   showMsg(['むかしむかし レガリアのくにに\nやみの まおう ガルドが あらわれた。','まおうは リナひめを さらい\nみなみの まのしまに きえた…。','たびだちのとき。 きみは おうさまに\nよばれて おしろに きたのだった。',
-    '【そうさ】 やじるしキー:いどう\nZ/エンター:はなす・しらべる\nX:メニュー  M:おと ON/OFF']);
+    '【そうさ】 やじるしキー:いどう\nZ/エンター:はなす・しらべる\nX:メニュー  M:おと ON/OFF',
+    '【セーブ】 おうさまに はなしかけて\n「きろく」する。やめるときは\nそのまま ブラウザを とじれば いい。']);
 }
 function titleDraw(){
   ctx.fillStyle='#000'; ctx.fillRect(0,0,512,448);
@@ -1369,7 +1381,7 @@ function titleDraw(){
   ctx.font="19px 'DotGothic16',monospace";
   ctx.fillStyle = titleSel===0?'#fff':'#777';
   ctx.fillText((titleSel===0?'▶ ':'  ')+'はじめから',256,340);
-  ctx.fillStyle = titleSel===1?'#fff':'#777';
+  ctx.fillStyle = !hasSave()?'#444':(titleSel===1?'#fff':'#777');
   ctx.fillText((titleSel===1?'▶ ':'  ')+'つづきから',256,370);
   ctx.font="13px 'DotGothic16',monospace";
   ctx.fillStyle='#666'; ctx.fillText('Z / ENTER で けってい',256,404);
