@@ -689,7 +689,7 @@ INDOOR.cave1={ name:'しれんのどうくつ B1', music:'cave', floor:'floor', 
 '#>..#...#....#...#.#',
 '####################'],
  chests:{'2,13':{gold:120}},
- exit:{map:'world',x:50,y:35}};
+ exit:{map:'world',x:50,y:35}, escape:{map:'world',x:50,y:35}};
 INDOOR.cave2={ name:'しれんのどうくつ B2', music:'cave', floor:'floor', dark:true, encounter:'cave', rows:[
 '####################',
 '#<..#...#....#...#.#',
@@ -711,6 +711,7 @@ INDOOR.cave2={ name:'しれんのどうくつ B2', music:'cave', floor:'floor', 
 '#........#.........#',
 '####################'],
  chests:{'2,5':{gold:300},'16,11':{item:'sword'},'17,11':{item:'shield'}},
+ escape:{map:'world',x:50,y:35},
 };
 INDOOR.dcastle={ name:'まおうじょう', music:'boss', floor:'carpet', rows:[
 '################',
@@ -1143,9 +1144,15 @@ function fieldSpellMenu(){
         showMsg('あたりが あかるくなった！'); break;
       }
       case 'return': {
-        if(curMap()){ showMsg('ここでは つかえない。'); return; }
+        const rm=curMap();
+        if(rm&&rm.escape){ // どうくつからは そとへ だっしゅつ
+          G.mp-=s.mp; sfx('spell');
+          showMsg('ゆうしゃのからだが ひかりにつつまれ\nどうくつの そとへ はこばれた！',()=>{ enterMap(rm.escape.map,rm.escape.x,rm.escape.y); });
+          break;
+        }
+        if(rm){ showMsg('ここでは つかえない。'); return; }
         G.mp-=s.mp; sfx('spell');
-        showMsg('からだが ふわりと うきあがった！',()=>{ enterMap('world',12,13); playMusic('field'); });
+        showMsg('からだが ふわりと うきあがった！',()=>{ enterMap('world',12,13); });
         break;
       }
       default: showMsg('たたかいの ときに つかうのだ。');
@@ -1213,7 +1220,7 @@ function fieldDraw(){
         case 'A': key='sign_a'; break;
         case 'I': key='sign_i'; break;
         case 'N': key='sign_n'; break;
-        case 'E': key=m.floor; break;
+        case 'E': key = m.dark?'stairs_u':m.floor; break; // どうくつの出口は階段で見えるように
         default: key=m.floor;
       }
     }
