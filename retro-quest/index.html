@@ -107,6 +107,8 @@ const TUNES = {
         bas:[[41,8],[43,8],[45,8],[41,8],[43,8],[45,8],[47,8],[48,16]]},
   field2:{bpm:108, mel:[[69,4],[71,4],[72,4],[76,4],[74,4],[72,4],[71,8],[69,4],[67,4],[64,4],[67,4],[69,4],[71,4],[72,8],[74,4],[76,4],[77,4],[76,4],[74,4],[72,4],[69,8],[71,4],[72,4],[74,4],[71,4],[69,16]],
         bas:[[45,8],[45,8],[41,8],[41,8],[43,8],[43,8],[45,8],[45,8],[38,8],[40,8],[43,8],[45,8],[45,16]]},
+  last:{bpm:168, mel:[[50,2],[0,2],[50,2],[53,2],[56,4],[55,2],[53,2],[55,2],[53,2],[50,4],[0,4],[50,2],[0,2],[50,2],[53,2],[56,4],[58,2],[56,2],[55,2],[53,2],[55,4],[0,4],[62,4],[61,4],[59,4],[58,4],[56,4],[55,4],[53,4],[55,2],[56,2],[57,8],[0,4],[50,12]],
+        bas:[[38,8],[38,8],[36,8],[36,8],[38,8],[38,8],[34,8],[34,8],[38,8],[38,8],[36,8],[36,8],[31,8],[38,8]]},
   island:{bpm:92, mel:[[57,8],[60,4],[59,4],[57,8],[56,8],[57,8],[60,4],[62,4],[63,8],[62,4],[60,4],[59,16],[57,8],[55,4],[56,4],[57,16]],
         bas:[[33,16],[32,16],[33,16],[29,8],[31,8],[33,16],[28,16],[33,16]]},
 };
@@ -411,7 +413,7 @@ const TS=32; // 画面上のタイルサイズ
 const TILE_KEYS=['grass','forest','hill','mtn','water','bridge','desert','swamp',
   'castle','town','cave','wall','floor','counter','stairs_d','stairs_u','chest','chest_open',
   'throne','carpet','cell','dark',
-  'water2','flower','sign_w','sign_a','sign_i','sign_n','door','shrine','barrier'];
+  'water2','flower','sign_w','sign_a','sign_i','sign_n','door','shrine','barrier','exit'];
 const atlas=document.createElement('canvas');
 atlas.width=TILE_KEYS.length*TS; atlas.height=TS;
 const atx=atlas.getContext('2d');
@@ -483,6 +485,9 @@ function tileIndex(k){ return TILE_KEYS.indexOf(k); }
         px(i,10,9,2,2,'#f06868');
         px(i,9,8,1,1,'#f8f8f8'); px(i,12,8,1,1,'#f8f8f8'); px(i,9,11,1,1,'#f8f8f8'); px(i,12,11,1,1,'#f8f8f8');
         break;
+      case 'exit': px(i,0,0,16,16,'#181018'); // そとへの でぐち（ひかりがさす）
+        px(i,1,0,2,16,'#c8a040'); px(i,13,0,2,16,'#c8a040'); px(i,1,0,14,2,'#c8a040');
+        px(i,5,8,6,8,'#f8e890'); px(i,6,5,4,11,'#f8f0c0'); break;
       case 'barrier': px(i,0,0,16,16,'#382048');
         for(let n=0;n<6;n++) px(i,Math.floor(r()*14),Math.floor(r()*14),2,2,'#7038a0');
         px(i,3,3,1,1,'#c080e8'); px(i,11,9,1,1,'#c080e8'); break;
@@ -1457,7 +1462,7 @@ function fieldDraw(){
         case 'A': key='sign_a'; break;
         case 'I': key='sign_i'; break;
         case 'N': key='sign_n'; break;
-        case 'E': key = m.dark?'stairs_u':m.floor; break; // どうくつの出口は階段で見えるように
+        case 'E': key='exit'; break; // 出口はどこでも見えるように
         default: key=m.floor;
       }
     }
@@ -1511,7 +1516,7 @@ function startBattle(key,winFlag){
       spell:mdef.spell, boss:!!mdef.boss,
       shake:0, flash:0, dead:false, sleep:0 };
   mode='battle';
-  playMusic(B.boss?'boss':'battle');
+  playMusic((key==='boss1'||key==='boss2')?'last':(B.boss?'boss':'battle'));
   showMsg(B.name+'が あらわれた！',()=>battleCommand());
 }
 function battleCommand(){
