@@ -93,8 +93,8 @@ function sfx(name){
 const TUNES = {
   title:{bpm:120, mel:[[64,4],[67,4],[72,6],[71,2],[69,4],[67,4],[64,8],[0,2],[65,2],[67,2],[69,2],[72,4],[74,4],[76,8],[0,4],[76,4],[74,4],[72,4],[69,4],[67,4],[64,4],[62,8],[60,8]],
         bas:[[36,8],[43,8],[36,8],[43,8],[41,8],[43,8],[36,8],[36,8]]},
-  field:{bpm:96, lead:'square', mel:[[60,4],[64,4],[67,4],[72,4],[71,4],[67,4],[69,8],[65,4],[64,4],[62,4],[60,4],[62,4],[64,4],[67,8],[60,4],[64,4],[67,4],[72,4],[74,4],[72,4],[76,8],[74,4],[72,4],[71,4],[69,4],[67,4],[64,4],[60,8],[67,4],[69,4],[71,4],[72,8],[71,4],[69,8],[65,4],[67,4],[69,4],[71,8],[69,4],[67,8],[60,4],[64,4],[67,4],[64,4],[60,4],[62,4],[64,8],[60,4],[64,4],[67,4],[64,4],[62,4],[62,4],[60,8]],
-        bas:[[36,8],[43,8],[41,8],[43,8],[36,8],[40,8],[43,8],[36,8],[48,8],[45,8],[41,8],[43,8],[41,8],[45,8],[41,8],[43,8],[36,8],[43,8],[41,8],[40,8],[36,8],[43,8],[41,8],[43,8],[36,8],[40,8],[43,8],[36,8],[48,8],[45,8],[41,8],[43,8]]},
+  field:{bpm:100, mel:[[67,4],[64,4],[60,4],[62,4],[64,4],[67,4],[72,8],[71,4],[69,4],[67,4],[64,4],[65,4],[67,4],[69,8],[67,4],[64,4],[60,4],[62,4],[64,4],[67,4],[72,4],[76,4],[74,4],[72,4],[71,4],[69,4],[67,12],[0,4],[69,4],[72,4],[76,4],[74,4],[72,4],[71,4],[72,8],[65,4],[69,4],[72,4],[71,4],[69,4],[67,4],[64,8],[62,4],[64,4],[65,4],[67,4],[69,4],[71,4],[72,8],[74,4],[76,4],[77,4],[76,4],[74,4],[71,4],[67,8]],
+        bas:[[36,8],[43,8],[45,8],[40,8],[41,8],[36,8],[38,8],[43,8],[36,8],[43,8],[45,8],[40,8],[41,8],[36,8],[38,8],[43,8],[45,8],[41,8],[43,8],[36,8],[38,8],[40,8],[43,8],[43,8],[38,8],[40,8],[41,8],[43,8],[45,8],[43,8],[41,8],[43,8]]},
   town:{bpm:112, mel:[[72,4],[74,4],[76,4],[72,4],[74,6],[71,2],[67,8],[69,4],[71,4],[72,4],[69,4],[71,6],[67,2],[64,8],[65,4],[67,4],[69,4],[71,4],[72,4],[74,4],[76,4],[74,4],[72,12],[0,4]],
         bas:[[48,8],[43,8],[45,8],[40,8],[41,8],[43,8],[48,8],[43,8],[48,8],[0,4]]},
   cave:{bpm:84, mel:[[57,8],[60,8],[56,8],[59,8],[57,8],[55,4],[53,4],[52,12],[0,4],[57,8],[62,8],[60,8],[59,8],[57,16]],
@@ -105,12 +105,12 @@ const TUNES = {
         bas:[[26,4],[26,4],[26,4],[26,4],[29,4],[29,4],[27,4],[27,4],[26,4],[26,4],[31,4],[29,4],[26,8]]},
   ending:{bpm:96, mel:[[72,6],[71,2],[69,4],[67,4],[65,4],[67,4],[69,8],[0,2],[69,2],[71,2],[72,2],[74,4],[76,4],[77,6],[76,2],[74,8],[72,6],[71,2],[69,4],[71,4],[72,16]],
         bas:[[41,8],[43,8],[45,8],[41,8],[43,8],[45,8],[47,8],[48,16]]},
-  field2:{bpm:138, lead:'square', mel:[[67,2],[0,2],[67,2],[71,2],[74,4],[72,2],[71,2],[69,2],[0,2],[69,2],[67,2],[71,4],[0,4],[72,2],[0,2],[72,2],[74,2],[76,4],[74,2],[72,2],[71,2],[0,2],[71,2],[69,2],[67,4],[0,4],[76,2],[0,2],[74,2],[72,2],[71,4],[69,2],[71,2],[72,2],[0,2],[74,2],[76,2],[79,4],[0,4],[78,2],[76,2],[74,2],[72,2],[71,4],[69,2],[67,2],[66,2],[67,4],[69,4],[67,8],[0,6]],
-        bas:[[43,8],[38,8],[40,8],[43,8],[36,8],[43,8],[38,8],[43,8],[43,8],[38,8],[40,8],[43,8],[36,8],[43,8],[38,8],[43,8],[43,8]]},
+  field2:{bpm:108, mel:[[69,4],[71,4],[72,4],[76,4],[74,4],[72,4],[71,8],[69,4],[67,4],[64,4],[67,4],[69,4],[71,4],[72,8],[69,4],[71,4],[72,4],[76,4],[77,4],[76,4],[74,8],[72,4],[71,4],[69,4],[71,4],[72,4],[74,4],[76,8],[74,4],[72,4],[71,4],[72,4],[74,4],[76,4],[77,8],[76,4],[74,4],[72,4],[71,4],[69,12],[0,4]],
+        bas:[[45,8],[45,8],[41,8],[41,8],[43,8],[43,8],[45,8],[45,8],[45,8],[45,8],[41,8],[41,8],[43,8],[43,8],[38,8],[40,8],[43,8],[43,8],[36,8],[36,8],[38,8],[40,8],[45,8],[45,8]]},
   last:{bpm:168, mel:[[50,2],[0,2],[50,2],[53,2],[56,4],[55,2],[53,2],[55,2],[53,2],[50,4],[0,4],[50,2],[0,2],[50,2],[53,2],[56,4],[58,2],[56,2],[55,2],[53,2],[55,4],[0,4],[62,4],[61,4],[59,4],[58,4],[56,4],[55,4],[53,4],[55,2],[56,2],[57,8],[0,4],[50,12]],
         bas:[[38,8],[38,8],[36,8],[36,8],[38,8],[38,8],[34,8],[34,8],[38,8],[38,8],[36,8],[36,8],[31,8],[38,8]]},
-  island:{bpm:72, lead:'triangle', mel:[[57,8],[58,4],[57,4],[56,8],[53,8],[55,8],[56,4],[55,4],[53,8],[50,8],[57,4],[60,4],[59,8],[57,4],[56,4],[55,8],[53,8],[52,4],[53,4],[57,12],[0,4]],
-        bas:[[33,8],[34,8],[31,8],[33,8],[33,8],[35,8],[28,8],[33,8],[33,8],[34,8],[31,8],[33,8],[33,8],[35,8],[28,8],[33,8]]},
+  island:{bpm:92, mel:[[57,8],[60,4],[59,4],[57,8],[56,8],[57,8],[60,4],[62,4],[63,8],[62,4],[60,4],[59,16],[57,8],[55,4],[56,4],[57,16]],
+        bas:[[33,16],[32,16],[33,16],[29,8],[31,8],[33,16],[28,16],[33,16]]},
 };
 function stopMusic(){
   if(musicTimer){ clearTimeout(musicTimer); musicTimer=null; }
@@ -130,8 +130,7 @@ function playMusic(name){
     if(!musicGain){ musicGain=ac.createGain(); musicGain.gain.value=1; musicGain.connect(ac.destination); }
     const dest=musicGain;
     let t=ac.currentTime+0.05; let total=0;
-    const lead=tune.lead||'square';
-    for(const [n,d] of tune.mel){ if(n>0) beep(midi(n),d*step*0.92,lead,0.05,t+total*step,dest); total+=d; }
+    for(const [n,d] of tune.mel){ if(n>0) beep(midi(n),d*step*0.92,'square',0.045,t+total*step,dest); total+=d; }
     let bt=0;
     for(const [n,d] of tune.bas){ if(n>0) beep(midi(n),d*step*0.92,'triangle',0.06,t+bt*step,dest); bt+=d; }
     musicTimer=setTimeout(loop, total*step*1000);
@@ -224,332 +223,140 @@ const ENC_TABLES={cave:CAVE_ZONE, dcastle:['knight','wyv','shadow'], pcave:['bon
 //==================================================================
 const ART={};
 function def(name,pal,rows){ ART[name]={p:pal,r:rows}; }
-// --- 勇者・人物（16x24・輪郭と2トーン陰影。タイルより背が高い） ---
-def('hero_d',{K:'#0a0a14',h:'#dfe3f0',H:'#8b93b0',s:'#f2cda4',S:'#d6a878',b:'#3a5ad0',B:'#243a8f',y:'#e8c038',c:'#c62b2b',C:'#871c1c',g:'#c4c8d4',r:'#a83228'},[
+// --- 勇者（下向き/上向き/左向き。右は左の反転。陰影つき） ---
+const HERO_PAL={K:'#101018',s:'#f0c8a0',S:'#d8a878',h:'#dce0ec',H:'#9098b4',b:'#3a5ad0',B:'#273f9a',y:'#e8b830',r:'#b03028'};
+def('hero_d',HERO_PAL,[
 '......KKKK......',
-'.....KhHHhK.....',
+'.....KhhhhK.....',
 '....KhhhhhhK....',
-'...KKhHHHHhKK...',
-'...KyKhhhhKyK...',
+'....KHhhhhHK....',
 '....KssssssK....',
 '....KsKssKsK....',
-'.....KSSSSK.....',
-'..cKbbbbbbbbKc..',
-'..cKbbyyyybbKc..',
-'..CKbByyyyBbKC..',
-'..CKbbbyybbbKC..',
-'...KbbbbbbbbK...',
-'...KyyyyyyyyK...',
-'...KbbbKKbbbK...',
-'...KbbbK.KbbbK..',
-'...KbbbK.KbbbK..',
-'...KBbBK.KBbBK..',
-'...KbbbK.KbbbK..',
-'...KbbbK.KbbbK..',
-'...KgggK.KgggK..',
-'...KgggK.KgggK..',
-'...KrrrK.KrrrK..',
-'...KKKK..KKKK...']);
-def('hero_u',{K:'#0a0a14',h:'#dfe3f0',H:'#8b93b0',s:'#f2cda4',S:'#d6a878',b:'#3a5ad0',B:'#243a8f',y:'#e8c038',c:'#c62b2b',C:'#871c1c',g:'#c4c8d4',r:'#a83228'},[
-'......KKKK......',
-'.....KhHHhK.....',
-'....KhhhhhhK....',
-'...KKhhhhhhKK...',
-'...KyhhhhhhyK...',
-'....KHHHHHHK....',
-'....KHHHHHHK....',
-'.....KHHHHK.....',
-'..KccccccccccK..',
-'..KcCccccccCcK..',
-'..KcCccccccCcK..',
-'..KccccccccccK..',
-'..KccCccccCccK..',
-'..KKccccccccKK..',
-'...KbbbKKbbbK...',
-'...KbbbK.KbbbK..',
-'...KbbbK.KbbbK..',
-'...KBbBK.KBbBK..',
-'...KbbbK.KbbbK..',
-'...KgggK.KgggK..',
-'...KgggK.KgggK..',
-'...KrrrK.KrrrK..',
-'...KrrrK.KrrrK..',
-'...KKKK..KKKK...']);
-def('hero_l',{K:'#0a0a14',h:'#dfe3f0',H:'#8b93b0',s:'#f2cda4',S:'#d6a878',b:'#3a5ad0',B:'#243a8f',y:'#e8c038',c:'#c62b2b',C:'#871c1c',g:'#c4c8d4',r:'#a83228'},[
-'................',
-'....KKKK........',
-'...KhHHhK.......',
-'..KhhhhhhK......',
-'..KhHHHHhK......',
-'..KyhhhhKyK.....',
-'...KsssssK......',
-'...KsKsssK......',
-'....KSSSsK......',
-'...KbbbbbcccK...',
-'..KbbyybbcCcK...',
-'..KbByybbcCcK...',
-'..KbbbbbbcccK...',
-'..KbbbbbbKcK....',
-'..KyyyyyyK......',
-'...KbbbbK.......',
-'...KBbbBK.......',
-'...KbbbbK.......',
-'...KbbbbK.......',
-'...KggggK.......',
-'...KggggK.......',
-'..KrrrrrK.......',
-'..KKKKKKK.......',
-'................']);
-def('hero_d_w',{K:'#0a0a14',h:'#dfe3f0',H:'#8b93b0',s:'#f2cda4',S:'#d6a878',b:'#3a5ad0',B:'#243a8f',y:'#e8c038',c:'#c62b2b',C:'#871c1c',g:'#c4c8d4',r:'#a83228'},[
-'......KKKK......',
-'.....KhHHhK.....',
-'....KhhhhhhK....',
-'...KKhHHHHhKK...',
-'...KyKhhhhKyK...',
 '....KssssssK....',
-'....KsKssKsK....',
 '.....KSSSSK.....',
-'..cKbbbbbbbbKc..',
-'..cKbbyyyybbKc..',
-'..CKbByyyyBbKC..',
-'..CKbbbyybbbKC..',
-'...KbbbbbbbbK...',
-'...KyyyyyyyyK...',
-'...KbbbbbbbbK...',
-'...KbbbbbbbbK...',
-'....KbbbbbbK....',
-'....KBbbbBK.....',
-'....KbbbbbbK....',
-'....KggggggK....',
-'....KggggggK....',
-'....KrrrrrrK....',
-'....KKKKKKK.....',
-'................']);
-def('hero_u_w',{K:'#0a0a14',h:'#dfe3f0',H:'#8b93b0',s:'#f2cda4',S:'#d6a878',b:'#3a5ad0',B:'#243a8f',y:'#e8c038',c:'#c62b2b',C:'#871c1c',g:'#c4c8d4',r:'#a83228'},[
+'...KKbbbbbbKK...',
+'..KybbbbbbbbyK..',
+'..KybBbbbbBbyK..',
+'...KKbbbbbbKK...',
+'....KyyyyyyK....',
+'....KbBKKBbK....',
+'....KrrK.KrrK...',
+'....KKK..KKK....']);
+def('hero_u',HERO_PAL,[
 '......KKKK......',
-'.....KhHHhK.....',
+'.....KhhhhK.....',
 '....KhhhhhhK....',
-'...KKhhhhhhKK...',
-'...KyhhhhhhyK...',
-'....KHHHHHHK....',
-'....KHHHHHHK....',
-'.....KHHHHK.....',
-'..KccccccccccK..',
-'..KcCccccccCcK..',
-'..KcCccccccCcK..',
-'..KccccccccccK..',
-'..KccCccccCccK..',
-'..KKccccccccKK..',
-'...KbbbbbbbbK...',
-'...KbbbbbbbbK...',
-'....KbbbbbbK....',
-'....KBbbbBK.....',
-'....KbbbbbbK....',
-'....KggggggK....',
-'....KggggggK....',
-'....KrrrrrrK....',
-'....KKKKKKK.....',
-'................']);
-def('hero_l_w',{K:'#0a0a14',h:'#dfe3f0',H:'#8b93b0',s:'#f2cda4',S:'#d6a878',b:'#3a5ad0',B:'#243a8f',y:'#e8c038',c:'#c62b2b',C:'#871c1c',g:'#c4c8d4',r:'#a83228'},[
-'................',
-'....KKKK........',
-'...KhHHhK.......',
-'..KhhhhhhK......',
-'..KhHHHHhK......',
-'..KyhhhhKyK.....',
-'...KsssssK......',
-'...KsKsssK......',
-'....KSSSsK......',
-'...KbbbbbcccK...',
-'..KbbyybbcCcK...',
-'..KbByybbcCcK...',
-'..KbbbbbbcccK...',
-'..KbbbbbbKcK....',
-'..KyyyyyyK......',
-'...KbbbbK.......',
-'...KBbbBK.......',
-'...KbbbbK.......',
-'...KggggK.......',
-'...KggggK.......',
-'...KrrrrK.......',
-'...KKKKK........',
-'................',
-'................']);
-def('npc_villager',{K:'#0a0a14',s:'#f2cda4',S:'#d6a878',h:'#7a4e22',c:'#3aa048',C:'#27702e',p:'#5a5a86',b:'#5a3a1c'},[
-'................',
 '....KhhhhhhK....',
-'...KhhhhhhhhK...',
-'...KhhhhhhhhK...',
-'...KhKssssKhK...',
-'...KsKssssKsK...',
-'...KssssssssK...',
-'....KsSSSSsK....',
-'....KKKKKKKK....',
-'...KccccccccK...',
-'..cKccccccccKc..',
-'..cKccccccccKc..',
-'..sKccccccccKs..',
-'...KccccccccK...',
-'...KccccccccK...',
-'...KCCCCCCCCK...',
-'...KppppppppK...',
-'...KpppKKpppK...',
-'...KpppK.KpppK..',
-'...KpppK.KpppK..',
-'...KpppK.KpppK..',
-'...KbbbK.KbbbK..',
-'...KKKK..KKKK...',
-'................']);
-def('npc_lady',{K:'#0a0a14',s:'#f2cda4',S:'#d6a878',h:'#6a3a18',c:'#d2589a',C:'#9a3a6e'},[
-'................',
-'...KhhhhhhhhK...',
-'..KhhhhhhhhhhK..',
-'..KhhKssssKhhK..',
-'..KhKssssssKhK..',
-'..KhKsKssKsKhK..',
-'..KhKssssssKhK..',
-'..KhhKsSSsKhhK..',
-'...KhKKKKKKhK...',
-'...KccccccccK...',
-'..cKccccccccKc..',
-'..sKccccccccKs..',
-'...KccccccccK...',
-'...KccccccccK...',
-'..KccccccccccK..',
-'..KccccccccccK..',
-'..KccccccccccK..',
-'.KccccccccccccK.',
-'.KcCccccccccCK..',
-'.KccccccccccccK.',
-'.KccccccccccccK.',
-'.KKccccccccccKK.',
-'..KKKKKKKKKKKK..',
-'................']);
-def('npc_guard',{K:'#0a0a14',s:'#f2cda4',S:'#d6a878',h:'#c4c8d4',H:'#838ba6',c:'#8890a4',C:'#5a6276',r:'#c02828',p:'#6a7082',g:'#9aa0ac',b:'#3a3a44'},[
-'......KrrK......',
-'....KKhhhhKK....',
-'...KhhhhhhhhK...',
-'...KhHHHHHHhK...',
-'...KKssssssKK...',
-'...KsKssssKsK...',
-'...KssssssssK...',
-'....KsSSSSsK....',
-'...KKccccccKK...',
-'..cKccccccccKc..',
-'..sKccccccccKs..',
-'...KcCCCCCCcK...',
-'...KccccccccK...',
-'...KCCCCCCCCK...',
-'...KppppppppK...',
-'...KppppppppK...',
-'...KpppKKpppK...',
-'...KpppK.KpppK..',
-'...KpppK.KpppK..',
-'...KgggK.KgggK..',
-'...KgggK.KgggK..',
-'...KbbbK.KbbbK..',
-'...KKKK..KKKK...',
-'................']);
-def('npc_king',{K:'#0a0a14',s:'#f2cda4',S:'#d6a878',w:'#f0f0f0',c:'#8848c0',C:'#5c2f8a',y:'#f0d040'},[
-'..KyKyKyKyKyK...',
-'..KyyyyyyyyyyK..',
-'..KwKssssssKwK..',
-'..KwKsKssKsKwK..',
-'..KwKssssssKwK..',
-'..KwwKssssKwwK..',
-'..KwwwwwwwwwwK..',
-'..KwwwwwwwwwwK..',
-'...KwwwwwwwwK...',
-'...KwKwwwwKwK...',
-'....KwwwwwwK....',
-'...KccccccccK...',
-'..cKccccccccKc..',
-'..sKcccwwwccKs..',
-'...KccwwwwccK...',
-'...KccccccccK...',
-'..KccccccccccK..',
-'..KccccccccccK..',
-'.KccccccccccccK.',
-'.KccccccccccccK.',
-'.KccccccccccccK.',
-'.KKccccccccccKK.',
-'..KKKKKKKKKKKK..',
-'................']);
-def('npc_princess',{K:'#0a0a14',s:'#f2cda4',S:'#d6a878',h:'#f0d860',H:'#d0b040',c:'#e25c92',C:'#b03f6e',y:'#f0d040'},[
-'................',
-'....KyKKyK......',
-'...KhhyyyyhhK...',
-'..KhhhhhhhhhhK..',
-'..KhhKssssKhhK..',
-'..KhKssssssKhK..',
-'..KhKsKssKsKhK..',
-'..KhKssssssKhK..',
-'..KhhKsSSsKhhK..',
-'...KhKKKKKKhK...',
-'...KccccccccK...',
-'..cKccccccccKc..',
-'..sKccccccccKs..',
-'...KccccccccK...',
-'...KccccccccK...',
-'..KccccccccccK..',
-'..KccccccccccK..',
-'.KccccccccccccK.',
-'.KccccccccccccK.',
-'.KccccccccccccK.',
-'.KccccccccccccK.',
-'.KKcccccccccKK..',
-'..KKKKKKKKKK....',
-'................']);
-def('npc_sage',{K:'#0a0a14',s:'#f2cda4',S:'#d6a878',p:'#4a4ab8',P:'#2e2e7a',w:'#ececec',W:'#b0b4c4',y:'#f0d040'},[
-'......KKK.......',
-'.....KppK.......',
-'.....KppK.......',
-'....KppppK......',
-'....KppppK......',
-'...KppyyppK.....',
-'..KKppppppKK....',
-'...KssssssK.....',
-'...KsKssKsK.....',
-'...KssssssK.....',
-'...KwwwwwwK.....',
-'..KwwwwwwwwK....',
-'..KwwKwwKwwK....',
-'..KwwwwwwwwK....',
-'...KwwwwwwK.....',
-'..KppppppppK....',
-'..KpKwwwwKpK....',
-'..KppwwwwppK....',
-'..KppppppppK....',
-'.KppppppppppK...',
-'.KppppppppppK...',
-'.KpppppppppppK..',
-'.KKppppppppKK...',
-'..KKKKKKKKKK....']);
-def('npc_demon',{K:'#0a0a14',d:'#7a30a8',D:'#4e1c72',r:'#e83020',y:'#f0d040',c:'#9a2030',C:'#641018'},[
-'..K..........K..',
-'.KdK........KdK.',
-'.KddKKddddKKddK.',
-'..KddddddddddK..',
-'..KdrdddddrddK..',
-'..KddddddddddK..',
-'...KddKKKKddK...',
-'...cKddddddKc...',
-'..cCKddddddKCc..',
-'..cCdddddddddCc.',
-'..cCdKddddKdCc..',
-'..cddKddddKddc..',
-'...KddddddddK...',
-'...KdddyydddK...',
-'...KddddddddK...',
-'..KddddddddddK..',
-'..KddddddddddK..',
-'.KddddddddddddK.',
-'.KddddddddddddK.',
-'.KKddddddddKK...',
-'...KddKKddK.....',
-'...KdK..KdK.....',
-'...KK....KK.....',
-'................']);
+'....KHHHHHHK....',
+'....KssssssK....',
+'....KssssssK....',
+'.....KSSSSK.....',
+'...KKbbbbbbKK...',
+'..KybbbbbbbbyK..',
+'..KybbBBbbbbyK..',
+'...KKbbbbbbKK...',
+'....KyyyyyyK....',
+'....KbBKKBbK....',
+'....KrrK.KrrK...',
+'....KKK..KKK....']);
+def('hero_l',HERO_PAL,[
+'......KKKK......',
+'.....KhhhhK.....',
+'....KhhhhhhK....',
+'....KHhhhhHK....',
+'....KssssssK....',
+'....KsKsssSK....',
+'....KssssssK....',
+'.....KSSSSK.....',
+'....KKbbbbKK....',
+'...KybbbbbbyK...',
+'...KybBbbBbyK...',
+'....KKbbbbKK....',
+'.....KyyyyK.....',
+'....KbBKBbK.....',
+'....KrrKrrK.....',
+'....KKK.KKK.....']);
+// 歩行フレーム（脚部の3行だけ差し替え）
+function legVariant(src,dst,legs){
+  ART[dst]={p:ART[src].p, r:ART[src].r.slice(0,13).concat(legs)};
+}
+legVariant('hero_d','hero_d_w',['.....KbBBbK.....','.....KrrrrK.....','.....KKKK.......']);
+legVariant('hero_u','hero_u_w',['.....KbBBbK.....','.....KrrrrK.....','.....KKKK.......']);
+legVariant('hero_l','hero_l_w',['.....KbBbK......','.....KrrrK......','.....KKKK.......']);
+// --- 町のひとびと（共通テンプレートで頭身・陰影を統一） ---
+function humanArt(name,o){
+  const P={K:'#101018',s:'#f0c8a0',S:'#d8a878',h:o.hair,H:o.hairD||o.hair,
+           c:o.body,C:o.bodyD,y:o.trim||'#e8c030',w:'#f0f0f0',b:'#583828',r:'#c03030'};
+  let head;
+  switch(o.head){
+    case 'female': head=[
+      '....KhhhhhhK....',
+      '...KhhhhhhhhK...',
+      '..KhhKssssKhhK..',
+      '..KhKsKssKsKhK..',
+      '..KhKssssssKhK..',
+      '...KKsSSSSsKK...']; break;
+    case 'helmet': head=[
+      '....KhhhhhhK....',
+      '...KhhhhhhhhK...',
+      '...KhHHHHHHhK...',
+      '...KsKssssKsK...',
+      '...KssssssssK...',
+      '....KsSSSSsK....']; break;
+    case 'crown': head=[
+      '...KyKyyyyKyK...',
+      '...KyyyyyyyyK...',
+      '...KwKssssKwK...',
+      '...KsKssssKsK...',
+      '...KwwsssswwK...',
+      '....KwwwwwwK....']; break;
+    case 'tiara': head=[
+      '....KhhyyhhK....',
+      '...KhhhyyhhhK...',
+      '..KhhKssssKhhK..',
+      '..KhKsKssKsKhK..',
+      '..KhKssssssKhK..',
+      '...KKsSSSSsKK...']; break;
+    default: head=[
+      '....KhhhhhhK....',
+      '...KhhhhhhhhK...',
+      '...KhKssssKhK...',
+      '...KsKssssKsK...',
+      '...KssssssssK...',
+      '....KsSSSSsK....'];
+  }
+  const body = o.dress ? [
+      '...KKccccccKK...',
+      '..KsccccccccsK..',
+      '..KscCccccCcsK..',
+      '...KcccccccccK..',
+      '..KcccCccCcccK..',
+      '..KcccccccccccK.',
+      '..KKKKKKKKKKKKK.',
+      '....KbK..KbK....',
+      '................'] : [
+      '...KKccccccKK...',
+      '..KsccccccccsK..',
+      '..KscCccccCcsK..',
+      '...KKccccccKK...',
+      '....KyyyyyyK....',
+      '....KcCKKCcK....',
+      '....KbbK.KbbK...',
+      '....KKK..KKK....',
+      '................'];
+  const top = o.plume ? '......KrrK......' : '................';
+  def(name,P,[top].concat(head,body));
+}
+humanArt('npc_villager',{head:'male',   hair:'#6a4828', body:'#3aa048', bodyD:'#26702e'});
+humanArt('npc_lady',    {head:'female', hair:'#6a3818', body:'#c84890', bodyD:'#93306a', dress:true});
+humanArt('npc_guard',   {head:'helmet', hair:'#9aa0b4', hairD:'#6a7088', body:'#8890a4', bodyD:'#5a6276', plume:true});
+humanArt('npc_king',    {head:'crown',  hair:'#f0f0f0', body:'#8848c0', bodyD:'#5c2f8a', dress:true});
+humanArt('npc_princess',{head:'tiara',  hair:'#f8e088', hairD:'#d8b850', body:'#e878b0', bodyD:'#b04f86', dress:true});
+def('npc_demon',{K:'#101018',d:'#7030a0',r:'#e03020',y:'#e8c030'},[
+'..K..........K..','..KK........KK..','..KdK..KK..KdK..','..KddKKddKKddK..',
+'...KddddddddK...','...KdrddddrdK...','...KddddddddK...','....KdKKKKdK....',
+'....KddddddK....','...KKddddddKK...','..KdKddddddKdK..','..KdKddddddKdK..',
+'..KKKddddddKKK..','....KddKKddK....','....KdK..KdK....','....KKK..KKK....']);
 // --- モンスター（戦闘用・どこか見覚えのある王道アーキタイプ、デザインはオリジナル） ---
 def('punyo',{K:'#101018',g:'#48c848',G:'#28a028',W:'#f8f8f8'},[
 '................','................','................','......KKKK......',
@@ -1107,7 +914,7 @@ INDOOR.shrine2={ name:'けんじゃのほこら', music:'town', floor:'floor', r
 '#........#',
 '#........#',
 '####EE####'],
- npcs:[{x:4,y:2,art:'npc_sage',id:'sage'}],
+ npcs:[{x:4,y:2,art:'npc_villager',id:'sage'}],
  exit:{map:'world',x:10,y:43}};
 
 //==================================================================
@@ -1716,14 +1523,14 @@ function fieldDraw(){
       const sx=(n.x-camx)*TS+ox, sy=(n.y-camy)*TS+oy;
       if(dark===1&&(Math.abs(n.x-G.x)>1||Math.abs(n.y-G.y)>1)) continue;
       if(dark===2&&(Math.abs(n.x-G.x)>3||Math.abs(n.y-G.y)>3)) continue;
-      drawArt(n.art,sx,sy-16,2,false);
+      drawArt(n.art,sx,sy,2,false);
     }
   }
   // 勇者（画面中央固定・2フレーム歩行アニメ）
   const hx=Math.floor(VW/2)*TS, hy=Math.floor(VH/2)*TS;
   const useWalk = moveAnim>WALK/2;
   const base = G.dir==='u'?'hero_u':(G.dir==='d'?'hero_d':'hero_l');
-  drawArt(base+(useWalk?'_w':''),hx,hy-16,2,G.dir==='r');
+  drawArt(base+(useWalk?'_w':''),hx,hy,2,G.dir==='r');
   // ダメージフラッシュ
   if(flashTimer>0){ flashTimer--;
     ctx.fillStyle='rgba(255,0,0,0.25)'; ctx.fillRect(0,0,512,448); }
@@ -1990,8 +1797,8 @@ function titleDraw(){
   ctx.font="15px 'DotGothic16',monospace";
   ctx.fillStyle='#999'; ctx.fillText('- オリジナル8bit風RPG -',256,200);
   // 勇者と魔王
-  drawArt('hero_d',172,212,4,false);
-  drawArt('boss1',280,244,4,false);
+  drawArt('hero_d',176,240,4,false);
+  drawArt('boss1',272,240,4,false);
   ctx.font="19px 'DotGothic16',monospace";
   ctx.fillStyle = titleSel===0?'#fff':'#777';
   ctx.fillText((titleSel===0?'▶ ':'  ')+'はじめから',256,340);
@@ -2026,7 +1833,7 @@ function endingDraw(){
       ctx.fillText(s,256,y); }
     y+=36;
   }
-  if(endTimer>200){ drawArt('hero_d',196,24,3,false); drawArt('npc_princess',268,24,3,false); }
+  if(endTimer>200){ drawArt('hero_d',200,40,3,false); drawArt('npc_princess',264,40,3,false); }
   if(endTimer>620){
     ctx.font="14px 'DotGothic16',monospace"; ctx.fillStyle='#888';
     ctx.fillText('Zキーで タイトルへ',256,430);
