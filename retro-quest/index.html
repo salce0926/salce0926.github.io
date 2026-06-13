@@ -182,6 +182,7 @@ const ITEMS={
   torch:{name:'たいまつ', price:8,  info:'どうくつで まわりを てらす'},
   wing: {name:'そらとぶはね', price:50, info:'おしろの まちへ ワープ'},
   key:  {name:'まほうのかぎ', price:85, info:'かぎのかかった とびらを ひらく'},
+  elixir:{name:'いのちのみず', price:480, info:'HPを かんぜんに かいふく'},
 };
 
 // モンスター（名前・数値・ドット絵すべてオリジナル）
@@ -815,7 +816,7 @@ INDOOR.dcastle1={ name:'まおうじょう 1F', music:'boss', floor:'carpet', en
 '################'],
  chests:{'4,6':{gold:500},'5,6':{itemKey:'herb'},'10,6':{itemKey:'wing'},'11,6':{gold:300}},
  stairs:{'7,1':{map:'dcastle2',x:1,y:1}},
- npcs:[], exit:{map:'world',x:12,y:53}};
+ npcs:[], exit:{map:'world',x:12,y:53}, escape:{map:'world',x:12,y:53}};
 INDOOR.dcastle2={ name:'まおうじょう 2F', music:'boss', floor:'carpet', encounter:'dcastle', rows:[
 '################',
 '#>.....#......<#',
@@ -833,6 +834,7 @@ INDOOR.dcastle2={ name:'まおうじょう 2F', music:'boss', floor:'carpet', en
 '#..............#',
 '################'],
  stairs:{'1,1':{map:'dcastle1',x:7,y:1},'14,1':{map:'dcastle3',x:7,y:8}},
+ escape:{map:'world',x:12,y:53},
  npcs:[{x:13,y:1,art:'devil',id:'devil',hideIf:'devilDead'}]};
 INDOOR.dcastle3={ name:'まおうじょう さいじょうかい', music:'boss', floor:'carpet', rows:[
 '################',
@@ -846,6 +848,7 @@ INDOOR.dcastle3={ name:'まおうじょう さいじょうかい', music:'boss',
 '#......>.......#',
 '################'],
  stairs:{'7,8':{map:'dcastle2',x:14,y:1}},
+ escape:{map:'world',x:12,y:53},
  npcs:[
   {x:7,y:2,art:'npc_demon',id:'demon'},
  ]};
@@ -1211,7 +1214,7 @@ function talkNpc(n){
     case 'shop_weapon2':shopTalk('ぶきや',WEAPONS,[3,4,5],'weapon'); break;
     case 'shop_armor2': shopTalk('ぼうぐや',ARMORS,[2,3,4],'armor',SHIELDS,[2]); break;
     case 'shop_item': itemShop(['herb','torch','wing']); break;
-    case 'shop_item2': itemShop(['herb','torch','wing','key']); break;
+    case 'shop_item2': itemShop(['herb','torch','wing','key','elixir']); break;
     case 'healer':
       G.hp=maxHP(); G.mp=maxMP(); sfx('heal');
       showMsg(['ろうじん「よく きたな たびのひと。\nつかれを いやして いくがよい」','ふしぎなひかりが ゆうしゃをつつんだ！\nHPとMPが まんたんに なった！']);
@@ -1369,7 +1372,7 @@ function fieldSpellMenu(){
         const rm=curMap();
         if(rm&&rm.escape){ // どうくつからは そとへ だっしゅつ
           G.mp-=s.mp; sfx('spell');
-          showMsg('ゆうしゃのからだが ひかりにつつまれ\nどうくつの そとへ はこばれた！',()=>{ enterMap(rm.escape.map,rm.escape.x,rm.escape.y); });
+          showMsg('ゆうしゃのからだが ひかりにつつまれ\nそとへ はこばれた！',()=>{ enterMap(rm.escape.map,rm.escape.x,rm.escape.y); });
           break;
         }
         if(rm){ showMsg('ここでは つかえない。'); return; }
@@ -1403,6 +1406,11 @@ function fieldItemMenu(){
       showMsg('そらとぶはねを なげた！',()=>{ enterMap('world',12,13); });
     } else if(k==='key'){
       showMsg('とびらの まえに たって\nZキーを おせば つかえる。');
+    } else if(k==='elixir'){
+      if(G.hp>=maxHP()){ showMsg('HPは まんたんだ。'); return; }
+      G.items[k]--; sfx('heal');
+      G.hp=maxHP();
+      showMsg('いのちのみずを のんだ！\nHPが かんぜんに かいふくした！');
     }
   },{title:'どうぐ',x:280,y:30,w:210});
 }
@@ -1553,14 +1561,20 @@ function battleSpell(){
   },{title:'じゅもん',x:20,y:130,w:200});
 }
 function battleItem(){
-  const ks=Object.keys(G.items).filter(k=>G.items[k]>0&&k==='herb');
+  const ks=Object.keys(G.items).filter(k=>G.items[k]>0&&(k==='herb'||k==='elixir'));
   if(!ks.length){ showMsg('つかえる どうぐが ない！',()=>battleCommand()); return; }
   showChoice(ks.map(k=>ITEMS[k].name+' x'+G.items[k]).concat(['やめる']),sel=>{
     if(sel<0||sel===ks.length){ battleCommand(); return; }
-    G.items.herb--; sfx('heal');
-    const v=irnd(25,35); G.hp=Math.min(maxHP(),G.hp+v);
-    showMsg('やくそうを つかった！\nHPが '+v+' かいふくした。',()=>afterPlayerAction());
-  },{title:'どうぐ',x:20,y:160,w:200});
+    const k=ks[sel];
+    G.items[k]--; sfx('heal');
+    if(k==='herb'){
+      const v=irnd(25,35); G.hp=Math.min(maxHP(),G.hp+v);
+      showMsg('やくそうを つかった！\nHPが '+v+' かいふくした。',()=>afterPlayerAction());
+    } else {
+      G.hp=maxHP();
+      showMsg('いのちのみずを のんだ！\nHPが かんぜんに かいふくした！',()=>afterPlayerAction());
+    }
+  },{title:'どうぐ',x:20,y:160,w:230});
 }
 function tryRun(){
   if(B.boss){ showMsg('しかし てきに ゆくてを ふさがれた！',()=>enemyTurn()); return; }
