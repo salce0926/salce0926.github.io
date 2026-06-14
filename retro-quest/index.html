@@ -66,7 +66,7 @@
   <div class="row"><select id="dbgWarp"></select> <button id="dbgGo">いどう</button></div>
   <div class="hint">屋内マップへ直接ワープ（安全な床に出現）</div>
   <h3>ステータス</h3>
-  <div class="row">Lv <input type="number" id="dbgLv" min="1" max="20" value="20">
+  <div class="row">Lv <input type="number" id="dbgLv" min="1" max="30" value="30">
     <button id="dbgLvSet">セット</button> <button id="dbgLvMax">MAX</button></div>
   <div class="row"><button id="dbgHeal">HP/MP全回復</button> <button id="dbgGold">+1000G</button></div>
   <div class="row"><button id="dbgItems">全アイテム入手</button> <button id="dbgGear">最強装備</button></div>
@@ -1361,7 +1361,7 @@ function talkNpc(n){
       break;
     case 'sage':
       if(!G.flags.princessSaved){
-        showMsg(['けんじゃ「まおうのしろには みえない\nちからの まもりが かかっておる。','まずは きたの ぬまのどうくつから\nひめを すくいだすのじゃ。\nはなしは それからよ」']);
+        showMsg(['けんじゃ「まおうのしろには みえない\nちからの まもりが かかっておる。','まずは みなみの ぬまのどうくつから\nひめを すくいだすのじゃ。\nはなしは それからよ」']);
       } else if(!G.flags.gotCharm){
         G.flags.gotCharm=true; G.items.charm=(G.items.charm||0)+1; sfx('levelup');
         showMsg(['けんじゃ「おお、ひめを すくったか！\nみごとじゃ ゆうしゃよ。','さずけよう……「せいなるおまもり」！\nまおうじょうは まやかしに つつまれて\nおる。しろの なかで これを つかうのじゃ。','ガルドは にどめの すがたこそ しん。\nHPを たもったまま いっせんめを\nきりぬけるのじゃぞ」']);
@@ -2052,11 +2052,11 @@ requestAnimationFrame(tick);
   panel.querySelector('.close').onclick=close;
   document.getElementById('dbgGo').onclick=()=>warp(sel.value);
   document.getElementById('dbgLvSet').onclick=()=>{
-    G.lv=clamp(parseInt(document.getElementById('dbgLv').value)||1,1,20);
+    G.lv=clamp(parseInt(document.getElementById('dbgLv').value)||1,1,MAXLV);
     G.hp=maxHP(); G.mp=maxMP();
   };
   document.getElementById('dbgLvMax').onclick=()=>{
-    G.lv=20; G.hp=maxHP(); G.mp=maxMP(); document.getElementById('dbgLv').value=20;
+    G.lv=MAXLV; G.hp=maxHP(); G.mp=maxMP(); document.getElementById('dbgLv').value=MAXLV;
   };
   document.getElementById('dbgHeal').onclick=()=>{ G.hp=maxHP(); G.mp=maxMP(); };
   document.getElementById('dbgGold').onclick=()=>{ G.gold=Math.min(999999,G.gold+1000); };
