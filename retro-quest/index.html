@@ -21,6 +21,27 @@
   .ab{display:flex;gap:14px;padding-right:10px;}
   .ab .btn{width:62px;height:62px;border-radius:50%;font-size:16px;}
   @media (pointer:coarse){#pad{display:flex;}}
+  /* ---- デバッグパネル ---- */
+  #dbgBtn{position:fixed;top:6px;right:6px;z-index:30;background:#303;color:#f9f;
+    border:1px solid #a4a;border-radius:6px;font:12px monospace;padding:4px 8px;cursor:pointer;opacity:.55;}
+  #dbgBtn:hover{opacity:1;}
+  #dbg{position:fixed;top:0;left:0;z-index:40;width:300px;max-width:92vw;height:100%;
+    box-sizing:border-box;overflow-y:auto;background:rgba(10,10,20,.96);color:#cde;
+    border-right:2px solid #66a;padding:10px 12px 40px;font:13px/1.5 monospace;display:none;}
+  #dbg.open{display:block;}
+  #dbg h3{margin:12px 0 4px;color:#fd6;font-size:13px;border-bottom:1px solid #445;padding-bottom:2px;}
+  #dbg h3:first-child{margin-top:0;}
+  #dbg button{background:#234;color:#cde;border:1px solid #468;border-radius:5px;
+    padding:3px 7px;margin:2px 3px 2px 0;cursor:pointer;font:12px monospace;}
+  #dbg button:hover{background:#356;}
+  #dbg button:active{background:#48a;}
+  #dbg select,#dbg input{background:#112;color:#cde;border:1px solid #468;border-radius:4px;
+    padding:2px 4px;font:12px monospace;}
+  #dbg input[type=number]{width:54px;}
+  #dbg label{display:inline-flex;align-items:center;gap:3px;margin:1px 6px 1px 0;white-space:nowrap;}
+  #dbg .row{margin:4px 0;}
+  #dbg .close{position:absolute;top:8px;right:10px;background:#522;border-color:#a55;}
+  #dbg .hint{color:#789;font-size:11px;margin-top:8px;}
 </style>
 </head>
 <body>
@@ -37,6 +58,21 @@
     <div class="btn" data-k="z">A<br>けってい</div>
   </div>
 </div>
+</div>
+<button id="dbgBtn">🐞DEBUG</button>
+<div id="dbg">
+  <button class="close">×とじる</button>
+  <h3>ワープ</h3>
+  <div class="row"><select id="dbgWarp"></select> <button id="dbgGo">いどう</button></div>
+  <div class="hint">屋内マップへ直接ワープ（安全な床に出現）</div>
+  <h3>ステータス</h3>
+  <div class="row">Lv <input type="number" id="dbgLv" min="1" max="20" value="20">
+    <button id="dbgLvSet">セット</button> <button id="dbgLvMax">MAX</button></div>
+  <div class="row"><button id="dbgHeal">HP/MP全回復</button> <button id="dbgGold">+1000G</button></div>
+  <div class="row"><button id="dbgItems">全アイテム入手</button> <button id="dbgGear">最強装備</button></div>
+  <h3>フラグ</h3>
+  <div class="row" id="dbgFlags"></div>
+  <div class="hint">変更は即反映。`キーでもパネル開閉。<br>セーブは王様で。リロードで初期化。</div>
 </div>
 <script>
 'use strict';
@@ -142,11 +178,12 @@ function playMusic(name){
 //  ゲームデータ
 //==================================================================
 // レベルテーブル（Lv1〜20）すべてオリジナル数値
-const LV_EXP=[0,7,23,47,110,220,450,800,1300,2000,2900,4000,5500,7500,10000,13000,16000,19500,23000,27000];
-const LV_HP =[16,22,26,32,36,40,44,50,56,62,68,74,82,90,98,108,118,130,142,155];
-const LV_MP =[0,0,6,12,18,22,26,30,36,42,50,56,62,68,74,84,94,104,114,125];
-const LV_STR=[5,7,9,12,15,18,22,26,30,35,40,46,52,58,64,70,76,82,88,95];
-const LV_AGI=[4,6,8,10,13,16,19,22,26,30,34,38,43,48,54,60,66,72,79,86];
+const MAXLV=30;
+const LV_EXP=[0,7,23,47,110,220,450,800,1300,2000,2900,4000,5500,7500,10000,13000,16000,19500,23000,27000,31000,36000,42000,49000,57000,66000,77000,90000,105000,122000];
+const LV_HP =[16,22,26,32,36,40,44,50,56,62,68,74,82,90,98,108,118,130,142,155,168,180,192,204,216,228,240,252,264,280];
+const LV_MP =[0,0,6,12,18,22,26,30,36,42,50,56,62,68,74,84,94,104,114,125,134,142,150,158,166,174,182,190,198,210];
+const LV_STR=[5,7,9,12,15,18,22,26,30,35,40,46,52,58,64,70,76,82,88,95,102,109,116,123,130,138,146,154,162,172];
+const LV_AGI=[4,6,8,10,13,16,19,22,26,30,34,38,43,48,54,60,66,72,79,86,92,98,104,110,116,122,128,134,140,148];
 
 const SPELLS=[
   {id:'heal',  name:'ヒール',   mp:3, lv:3,  info:'HPを 25〜35 かいふく'},
@@ -155,6 +192,9 @@ const SPELLS=[
   {id:'return',name:'リターン', mp:6, lv:9,  info:'おしろに もどる'},
   {id:'heal2', name:'ヒーラス', mp:8, lv:12, info:'HPを 80〜100 かいふく'},
   {id:'fire2', name:'フレイム', mp:10,lv:15, info:'てきに 50〜70 のダメージ'},
+  {id:'ice',   name:'ブリザド', mp:14,lv:18, info:'てきに 80〜110 のダメージ'},
+  {id:'heal3', name:'フルケア', mp:18,lv:22, info:'HPを かんぜんに かいふく'},
+  {id:'fire3', name:'メガフレア',mp:24,lv:27, info:'てきに 150〜200 のダメージ'},
 ];
 const WEAPONS=[
   {name:'すで',         atk:0,  price:0},
@@ -164,6 +204,7 @@ const WEAPONS=[
   {name:'てつのおの',   atk:16, price:620},
   {name:'はがねのけん', atk:22, price:1600},
   {name:'レガリアのけん',atk:34, price:0}, // 洞窟の宝
+  {name:'フロストエッジ',atk:28, price:0}, // 氷竜の神殿の宝（index 7）
 ];
 const ARMORS=[
   {name:'ぬののふく',   def:0,  price:0},
@@ -172,6 +213,7 @@ const ARMORS=[
   {name:'てつのよろい', def:16, price:1100},
   {name:'はがねのよろい',def:24, price:2600},
   {name:'ほしのよろい', def:30, price:0}, // 廃墟の町の宝
+  {name:'りゅうりんのよろい',def:27,price:0}, // 氷竜の神殿の宝（index 6）
 ];
 const SHIELDS=[
   {name:'なし',       def:0,  price:0},
@@ -206,6 +248,12 @@ const MONSTERS={
   devil: {name:'デビルナイト',   hp:110,atk:62, def:42, agi:24, exp:220,gold:220,spell:'heal',boss:true},
   boss1: {name:'まおうガルド',   hp:140,atk:62, def:42, agi:26, exp:0,  gold:0, spell:'fire', boss:true},
   boss2: {name:'しんのガルド',   hp:220,atk:78, def:52, agi:32, exp:0,  gold:0, spell:'fire2',boss:true},
+  // 雪山チャプター
+  frostbat:{name:'こおりバット', hp:32, atk:30, def:16, agi:24, exp:30, gold:40},
+  iceliz: {name:'アイスドレイク', hp:54, atk:42, def:24, agi:21, exp:54, gold:64, spell:'fire'},
+  icemage:{name:'ひょうけつの まどうし',hp:44,atk:34,def:18,agi:17,exp:50,gold:62,spell:'fire'},
+  yeti:   {name:'ゆきおとこ',    hp:66, atk:48, def:33, agi:11, exp:60, gold:74},
+  frostwurm:{name:'こおりりゅう フロストヴルム',hp:200,atk:70,def:44,agi:23,exp:300,gold:360,spell:'fire2',boss:true},
 };
 // 地域ごとの出現テーブル（よわい→つよい 順。平地ではよわい側が出やすい）
 const ZONES=[
@@ -217,7 +265,8 @@ const ZONES=[
 ];
 const DESERT_ZONE=['scor','wolf','golem','wyv']; // ワイバーンは砂漠の主
 const CAVE_ZONE=['scor','mage','wolf','golem','knight'];
-const ENC_TABLES={cave:CAVE_ZONE, dcastle:['knight','wyv','shadow'], pcave:['bone','scor','mage','wolf']};
+const ICE_ZONE=['frostbat','icemage','iceliz','yeti']; // 氷竜の神殿
+const ENC_TABLES={cave:CAVE_ZONE, dcastle:['knight','wyv','shadow'], pcave:['bone','scor','mage','wolf'], ice:ICE_ZONE};
 
 //==================================================================
 //  ドット絵（16x16・パレット文字 → 色）すべてオリジナルデザイン
@@ -312,6 +361,12 @@ def('boss2',{K:'#101018',d:'#a02838',g:'#681020',y:'#e8c030',w:'#e8e8e8'},[
 '..KKddddddddKK..','...KdddKKdddK...','...KddK..KddK...','...KKK....KKK...']);
 ART.drago={p:{K:'#101018',g:'#509838',d:'#2f7028',y:'#e8d048',r:'#d04848'},r:ART.wyv.r};
 ART.devil={p:{K:'#101018',m:'#582028',h:'#883038',r:'#e8c030',y:'#c03028'},r:ART.knight.r};
+// --- 雪山チャプターのモンスター（既存の形を氷色に染めた流用スプライト） ---
+ART.frostbat={p:{K:'#101018',b:'#5aa8d8',W:'#f4fbff',r:'#a8e8ff'},r:ART.bat.r};
+ART.yeti={p:{K:'#101018',g:'#e2edf5',d:'#9fb4c8',r:'#7a93ad'},r:ART.golem.r};
+ART.icemage={p:{K:'#101018',p:'#3a78c8',y:'#bfe6ff',s:'#cfe8f0'},r:ART.mage.r};
+ART.iceliz={p:{K:'#101018',g:'#58b8e0',d:'#2f80b4',y:'#e8f6ff',r:'#ffffff'},r:ART.wyv.r};
+ART.frostwurm={p:{K:'#101018',d:'#4a96cc',r:'#bfe6ff',y:'#eaf6ff',m:'#274f73'},r:ART.boss1.r};
 
 // 描画関数（パレット絵）
 function drawArt(name,x,y,px,flip){
@@ -336,7 +391,7 @@ const TS=32; // 画面上のタイルサイズ
 const TILE_KEYS=['grass','forest','hill','mtn','water','bridge','desert','swamp',
   'castle','town','cave','wall','floor','counter','stairs_d','stairs_u','chest','chest_open',
   'throne','carpet','cell','dark',
-  'water2','flower','sign_w','sign_a','sign_i','sign_n','door','shrine','barrier','exit'];
+  'water2','flower','sign_w','sign_a','sign_i','sign_n','door','shrine','barrier','exit','icecave'];
 const atlas=document.createElement('canvas');
 atlas.width=TILE_KEYS.length*TS; atlas.height=TS;
 const atx=atlas.getContext('2d');
@@ -375,6 +430,9 @@ function tileIndex(k){ return TILE_KEYS.indexOf(k); }
         px(i,6,10,4,5,'#583820'); px(i,3,9,2,2,'#f8e8a0'); px(i,11,9,2,2,'#f8e8a0'); break;
       case 'cave': px(i,0,0,16,16,'#787068');
         px(i,2,2,12,13,'#888078'); px(i,5,6,6,9,'#181018'); px(i,4,4,8,3,'#605850'); break;
+      case 'icecave': px(i,0,0,16,16,'#e6eef6');
+        px(i,1,10,14,5,'#b8c8dc'); px(i,2,2,12,13,'#cfe0f0'); px(i,5,6,6,9,'#10283c');
+        px(i,4,4,8,3,'#9fc0e0'); px(i,6,1,2,3,'#ffffff'); px(i,3,3,1,2,'#ffffff'); break;
       case 'wall': px(i,0,0,16,16,'#888090');
         for(let yy=0;yy<4;yy++) for(let xx=0;xx<2;xx++)
           px(i,xx*8+(yy%2?4:0)-2,yy*4,7,3,'#a8a0b0');
@@ -539,6 +597,7 @@ let world=[];
   world[42][10]='shrine2'; // けんじゃのほこら
   world[40][20]='pcave';   // ぬまのどうくつ（姫がとらわれている）
   world[24][52]='town3';   // はいきょのまち
+  world[4][46]='icecave';  // 氷竜の神殿（北の雪山。山に囲まれた立地は残す）
   // 入口の周囲は歩けるように
   [[12,12],[16,14],[42,16],[50,34],[12,52],[46,30],[10,42],[20,40],[52,24]].forEach(([x,y])=>{
     for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
@@ -552,6 +611,7 @@ function worldTileKey(t,x,y){
   if(t==='dcastle') return 'castle';
   if(t==='pcave') return 'cave';
   if(t==='shrine'||t==='shrine2') return 'shrine';
+  if(t==='icecave') return 'icecave';
   if(t==='grass' && ((x*7+y*13)%29===0)) return 'flower'; // ところどころ花ばたけ
   if(t==='water' && ((x+y+(frame>>5))%2===0)) return 'water2'; // 波のアニメ
   return t;
@@ -817,6 +877,39 @@ INDOOR.shrine2={ name:'けんじゃのほこら', music:'town', floor:'floor', r
 '####EE####'],
  npcs:[{x:4,y:2,art:'npc_villager',id:'sage'}],
  exit:{map:'world',x:10,y:43}};
+INDOOR.icetemple1={ name:'こおりの しんでん B1', music:'cave', floor:'floor', dark:true, encounter:'ice', rows:[
+'################',
+'#.............c#',
+'#.#..#..#..#...#',
+'#..............#',
+'#.#..#..#..#...#',
+'#..............#',
+'#.#..#..#..#...#',
+'#..............#',
+'#.#..#..#..#...#',
+'#..............#',
+'#.....E....>...#',
+'################'],
+ chests:{'14,1':{itemKey:'key'}},
+ stairs:{'11,10':{map:'icetemple2',x:7,y:9}},
+ exit:{map:'world',x:46,y:5}, escape:{map:'world',x:46,y:5}};
+INDOOR.icetemple2={ name:'こおりの しんでん さいかんぶ', music:'cave', floor:'floor', dark:true, encounter:'ice', rows:[
+'################',
+'#....#####.....#',
+'#....#ccc#.....#',
+'#....#...#.....#',
+'#....##.##.....#',
+'#..............#',
+'#.#..#..#..#...#',
+'#..............#',
+'#.#..#..#..#...#',
+'#.....<........#',
+'#..............#',
+'################'],
+ chests:{'6,2':{gold:500},'7,2':{weapon:7},'8,2':{armor:6}},
+ stairs:{'6,9':{map:'icetemple1',x:10,y:10}},
+ escape:{map:'world',x:46,y:5},
+ npcs:[{x:7,y:4,art:'frostwurm',id:'frostwurm',hideIf:'frostDead'}]};
 
 //==================================================================
 //  ゲーム状態
@@ -827,7 +920,7 @@ function newGame(){
   G={ lv:1, exp:0, hp:LV_HP[0], mp:LV_MP[0], gold:120,
       weapon:0, armor:0, shield:0,
       items:{herb:2, torch:1, wing:0, key:0, charm:0},
-      flags:{sword:false, shield:false, cleared:false, princessSaved:false, dragoDead:false, devilDead:false, gotCharm:false, illusionBroken:false},
+      flags:{sword:false, shield:false, cleared:false, princessSaved:false, dragoDead:false, devilDead:false, gotCharm:false, illusionBroken:false, frostDead:false},
       chests:{}, doors:{},
       map:'world', x:12, y:13, dir:'d', light:0,
   };
@@ -1047,6 +1140,7 @@ function onStep(){
     if(t==='pcave'){ enterMap('pcave',2,1); sfx('stairs'); return; }
     if(t==='shrine'){ enterMap('shrine1',4,4); sfx('stairs'); return; }
     if(t==='shrine2'){ enterMap('shrine2',4,4); sfx('stairs'); return; }
+    if(t==='icecave'){ enterMap('icetemple1',6,9); sfx('stairs'); return; }
     if(t==='dcastle'){
       if(G.flags.illusionBroken) enterMap('dcastle1',7,12);
       else enterMap('dcastle_fake',8,10);
@@ -1150,6 +1244,12 @@ function openChest(cx,cy){
       showMsg(['なんと「'+ARMORS[def.armor].name+'」を てにいれた！','ゆうしゃは '+ARMORS[def.armor].name+'を そうびした！']); }
     else showMsg('「'+ARMORS[def.armor].name+'」を てにいれた！\nだが いまのそうびのほうが つよい。');
   }
+  else if(def.weapon!==undefined){
+    sfx('levelup');
+    if(atk()<str()+WEAPONS[def.weapon].atk){ G.weapon=def.weapon;
+      showMsg(['なんと「'+WEAPONS[def.weapon].name+'」を てにいれた！','ゆうしゃは '+WEAPONS[def.weapon].name+'を そうびした！']); }
+    else showMsg('「'+WEAPONS[def.weapon].name+'」を てにいれた！\nだが いまのそうびのほうが つよい。');
+  }
 }
 
 //==================================================================
@@ -1176,8 +1276,10 @@ function talkNpc(n){
       } else if(!G.flags.gotCharm){
         G.flags.gotCharm=true; G.items.charm=(G.items.charm||0)+1; sfx('levelup');
         showMsg(['けんじゃ「おお、ひめを すくったか！\nみごとじゃ ゆうしゃよ。','さずけよう……「せいなるおまもり」！\nまおうじょうは まやかしに つつまれて\nおる。しろの なかで これを つかうのじゃ。','ガルドは にどめの すがたこそ しん。\nHPを たもったまま いっせんめを\nきりぬけるのじゃぞ」']);
+      } else if(!G.flags.frostDead){
+        showMsg(['けんじゃ「まおうじょうの なかで\nせいなるおまもりを つかえば\nまやかしが はれ しんのすがたが あらわれる。','ところで…きたの ゆきやまに\n「こおりの しんでん」が あるのを\nしっておるか？','りゅうの まもる たからは ガルドとの\nけっせんで きっと ちからに なろう。\nよくばりも たまには よいぞ」']);
       } else {
-        showMsg(['けんじゃ「まおうじょうの なかで\nせいなるおまもりを つかえば\nまやかしが はれ しんのすがたが あらわれる。','とびらには まほうのかぎも わすれるな。','けっせんのまえに HPとMPを まんたんに！」']);
+        showMsg(['けんじゃ「こおりの りゅうを たおしたか！\nその そうびと ちからが あれば\nもはや おそれるものは ない。','とびらには まほうのかぎも わすれるな。','けっせんのまえに HPとMPを まんたんに！」']);
       }
       break;
     case 'fake_king':
@@ -1188,6 +1290,9 @@ function talkNpc(n){
       break;
     case 'drago':
       showMsg('どうくつの ぬしが めをさました！\n「グルルルル…！」',()=>startBattle('drago','dragoDead'));
+      break;
+    case 'frostwurm':
+      showMsg(['しんでんの おくから\nこおりの りゅうが まいおりた！','フロストヴルム\n「ここから さきには とおさぬ…\nこおりづけに してくれよう！」'],()=>startBattle('frostwurm','frostDead'));
       break;
     case 'princess2':
       showMsg('リナひめ「あなたは…ゆうしゃさま！\nたすけに きてくださったのですね！」',()=>{
@@ -1297,7 +1402,7 @@ function openMenu(){
   },{title:'メニュー',x:330,y:30,w:160});
 }
 function showStatus(){
-  showMsg(['LV:'+G.lv+'  EXP:'+G.exp+'  つぎのLVまで:'+(G.lv>=20?'--':Math.max(0,LV_EXP[G.lv]-G.exp)),
+  showMsg(['LV:'+G.lv+'  EXP:'+G.exp+'  つぎのLVまで:'+(G.lv>=MAXLV?'--':Math.max(0,LV_EXP[G.lv]-G.exp)),
     'こうげき力:'+atk()+'  しゅび力:'+dfn(),
     'E:'+WEAPONS[G.weapon].name+' / '+ARMORS[G.armor].name+' / '+SHIELDS[G.shield].name]);
 }
@@ -1309,10 +1414,10 @@ function fieldSpellMenu(){
     const s=sp[sel];
     if(G.mp<s.mp){ showMsg('MPが たりない！'); return; }
     switch(s.id){
-      case 'heal': case 'heal2': {
+      case 'heal': case 'heal2': case 'heal3': {
         if(G.hp>=maxHP()){ showMsg('HPは まんたんだ。'); return; }
         G.mp-=s.mp; sfx('heal');
-        const v=s.id==='heal'?irnd(25,35):irnd(80,100);
+        const v=s.id==='heal3'?(maxHP()-G.hp):(s.id==='heal'?irnd(25,35):irnd(80,100));
         G.hp=Math.min(maxHP(),G.hp+v);
         showMsg('ヒールの ひかりが つつむ！\nHPが '+v+' かいふくした。'); break;
       }
@@ -1500,22 +1605,28 @@ function playerAttack(){
   B.hp-=d;
   showMsg(lines,()=>afterPlayerAction());
 }
+// 攻撃呪文のダメージ幅・回復呪文の回復量
+const SPELL_DMG={fire:[16,28], fire2:[50,70], ice:[80,110], fire3:[150,200]};
+const SPELL_HEAL={heal:[25,35], heal2:[80,100]};
 function battleSpell(){
-  const sp=knownSpells().filter(s=>['heal','heal2','fire','fire2'].includes(s.id));
+  const sp=knownSpells().filter(s=>SPELL_DMG[s.id]||SPELL_HEAL[s.id]||s.id==='heal3');
   if(!sp.length){ showMsg('まだ じゅもんを つかえない！',()=>battleCommand()); return; }
   showChoice(sp.map(s=>s.name+' ('+s.mp+')').concat(['やめる']),sel=>{
     if(sel<0||sel===sp.length){ battleCommand(); return; }
     const s=sp[sel];
     if(G.mp<s.mp){ showMsg('MPが たりない！',()=>battleCommand()); return; }
     G.mp-=s.mp;
-    if(s.id==='heal'||s.id==='heal2'){
+    if(s.id==='heal3'){
+      sfx('heal'); const v=maxHP()-G.hp; G.hp=maxHP();
+      showMsg('ゆうしゃは '+s.name+'を となえた！\nHPが かんぜんに かいふくした。',()=>afterPlayerAction());
+    } else if(SPELL_HEAL[s.id]){
       sfx('heal');
-      const v=s.id==='heal'?irnd(25,35):irnd(80,100);
+      const v=irnd(SPELL_HEAL[s.id][0],SPELL_HEAL[s.id][1]);
       G.hp=Math.min(maxHP(),G.hp+v);
       showMsg('ゆうしゃは '+s.name+'を となえた！\nHPが '+v+' かいふくした。',()=>afterPlayerAction());
     } else {
       sfx('spell');
-      let v=s.id==='fire'?irnd(16,28):irnd(50,70);
+      const v=irnd(SPELL_DMG[s.id][0],SPELL_DMG[s.id][1]);
       B.hp-=v; B.flash=10;
       showMsg('ゆうしゃは '+s.name+'を となえた！\n'+B.name+'に '+v+'の ダメージ！',()=>afterPlayerAction());
     }
@@ -1599,7 +1710,7 @@ function enemyDefeated(){
   G.exp+=B.exp; G.gold+=B.gold;
   // レベルアップ判定
   const ups=[];
-  while(G.lv<20 && G.exp>=LV_EXP[G.lv]){
+  while(G.lv<MAXLV && G.exp>=LV_EXP[G.lv]){
     G.lv++;
     ups.push('レベルが '+G.lv+'に あがった！');
     const learned=SPELLS.filter(s=>s.lv===G.lv);
@@ -1773,6 +1884,84 @@ let musicStarted=false;
 window.addEventListener('keydown',()=>{ if(!musicStarted){ musicStarted=true; if(mode==='title') playMusic('title'); } });
 window.addEventListener('touchstart',()=>{ if(!musicStarted){ musicStarted=true; audio(); if(mode==='title') playMusic('title'); } });
 requestAnimationFrame(tick);
+
+//==================================================================
+//  デバッグパネル（開発用・はじめからやり直さずに状態を作れる）
+//==================================================================
+(function(){
+  const panel=document.getElementById('dbg');
+  const btn=document.getElementById('dbgBtn');
+  const sel=document.getElementById('dbgWarp');
+  // ワープ先（屋内マップ全部＋ワールド）。表示名はマップのnameを使う
+  const warpList=[['world','🗺 ワールド(城前)']].concat(
+    Object.keys(INDOOR).map(k=>[k, k+'  '+(INDOOR[k].name||'')]));
+  sel.innerHTML=warpList.map(([k,label])=>`<option value="${k}">${label}</option>`).join('');
+  // マップ内の安全な床座標を探す（'.'を優先、なければ入口Eの上）
+  function safeSpot(name){
+    if(name==='world') return [12,13];
+    const m=INDOOR[name];
+    for(let y=0;y<m.rows.length;y++)for(let x=0;x<m.rows[y].length;x++)
+      if(m.rows[y][x]==='.') return [x,y];
+    return [1,1];
+  }
+  function warp(name){
+    if(mode==='title') mode='field';
+    if(mode==='ending') mode='field';
+    MSG=null; CHOICE=null; MENU=null;
+    const [x,y]=safeSpot(name);
+    enterMap(name,x,y); G.dir='d'; G.light=80;
+    close();
+  }
+  // フラグのチェックボックス（副作用つき）
+  const FLAGS=[
+    ['sword','レガリアの剣'],['shield','まもりのたて'],
+    ['princessSaved','姫を救出'],['gotCharm','お守り入手'],
+    ['illusionBroken','魔王城の幻を解く'],['dragoDead','ぬまの主撃破'],
+    ['devilDead','デビルナイト撃破'],['frostDead','氷竜撃破'],['cleared','クリア済み'],
+  ];
+  const flagsBox=document.getElementById('dbgFlags');
+  flagsBox.innerHTML=FLAGS.map(([k,label])=>
+    `<label><input type="checkbox" data-f="${k}">${label}</label>`).join('');
+  function applyFlag(k,on){
+    G.flags[k]=on;
+    if(k==='sword'&&on){ G.weapon=Math.max(G.weapon,6); }
+    if(k==='shield'&&on){ G.shield=Math.max(G.shield,3); }
+    if(k==='gotCharm'&&on){ G.items.charm=Math.max(G.items.charm||0,1); }
+  }
+  function syncFlags(){
+    flagsBox.querySelectorAll('input').forEach(c=>{ c.checked=!!(G.flags[c.dataset.f]); });
+  }
+  flagsBox.addEventListener('change',e=>{
+    const c=e.target; if(c.dataset.f){ applyFlag(c.dataset.f,c.checked); }
+  });
+  function open(){ syncFlags(); document.getElementById('dbgLv').value=G.lv; panel.classList.add('open'); }
+  function close(){ panel.classList.remove('open'); }
+  function toggle(){ panel.classList.contains('open')?close():open(); }
+
+  // 公開版(github.io)では🐞ボタンを隠す。`キーでは常に開ける
+  if(/github\.io$/.test(location.hostname)) btn.style.display='none';
+  btn.onclick=toggle;
+  panel.querySelector('.close').onclick=close;
+  document.getElementById('dbgGo').onclick=()=>warp(sel.value);
+  document.getElementById('dbgLvSet').onclick=()=>{
+    G.lv=clamp(parseInt(document.getElementById('dbgLv').value)||1,1,20);
+    G.hp=maxHP(); G.mp=maxMP();
+  };
+  document.getElementById('dbgLvMax').onclick=()=>{
+    G.lv=20; G.hp=maxHP(); G.mp=maxMP(); document.getElementById('dbgLv').value=20;
+  };
+  document.getElementById('dbgHeal').onclick=()=>{ G.hp=maxHP(); G.mp=maxMP(); };
+  document.getElementById('dbgGold').onclick=()=>{ G.gold=Math.min(999999,G.gold+1000); };
+  document.getElementById('dbgItems').onclick=()=>{
+    for(const k in ITEMS) G.items[k]=9;
+  };
+  document.getElementById('dbgGear').onclick=()=>{
+    G.weapon=WEAPONS.length-1; G.armor=ARMORS.length-1; G.shield=SHIELDS.length-1;
+    applyFlag('sword',true); applyFlag('shield',true); syncFlags();
+  };
+  // バッククォートキーでも開閉
+  window.addEventListener('keydown',e=>{ if(e.key==='`'||e.key==='@'){ e.preventDefault(); toggle(); } });
+})();
 </script>
 </body>
 </html>
