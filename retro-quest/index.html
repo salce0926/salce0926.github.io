@@ -184,6 +184,7 @@ const ITEMS={
   torch:{name:'たいまつ', price:8,  info:'どうくつで まわりを てらす'},
   wing: {name:'そらとぶはね', price:50, info:'おしろの まちへ ワープ'},
   key:  {name:'まほうのかぎ', price:85, info:'かぎのかかった とびらを ひらく'},
+  charm:{name:'せいなるおまもり', price:0, info:'まやかしを はらう ひかり'},
   elixir:{name:'いのちのみず', price:480, info:'HPを かんぜんに かいふく'},
 };
 
@@ -589,6 +590,25 @@ INDOOR.castle={ name:'ラダムじょう', music:'town', floor:'floor', rows:[
   {x:4,y:6,art:'npc_guard',text:['へいし「まおうじょうの とびらには\nかぎが かかっているそうだ。\nまほうのかぎを わすれるな」']},
   {x:11,y:6,art:'npc_guard',text:['へいし「でんせつのつるぎは みなみの\nさばくの どうくつに ねむっている。\nふつうのぶきでは まおうに かなわぬ」']},
  ], exit:{map:'world',x:12,y:13}};
+INDOOR.dcastle_fake={ name:'ラダムじょう？', music:'town', floor:'floor', rows:[
+'################',
+'#......tt..#.cc#',
+'#..........#...#',
+'#..........##D##',
+'#....######....#',
+'#..............#',
+'#..............#',
+'#..............#',
+'#......rr......#',
+'#......rr......#',
+'#......rr......#',
+'#######EE#######'],
+ npcs:[
+  {x:7,y:2,art:'npc_king',id:'fake_king'},
+  {x:4,y:6,art:'npc_guard',text:['へいし「ようこそ おいでくださいました\nゆうしゃさま…ずっと まって\nおりました…ずっと……ずっと……」']},
+  {x:11,y:6,art:'npc_guard',text:['へいし「おうさまに したがうのです。\nそうすれば らくに なれますよ…\nぐ、ぐふふ……」']},
+  {x:3,y:8,art:'npc_lady',text:['おんなのひと「ここは… あんぜんです。\nなにも こわいことは ありません。\n…ありません… ありません…」']},
+ ], exit:{map:'world',x:12,y:53}};
 INDOOR.town1={ name:'カナンのまち', music:'town', floor:'floor', rows:[
 '########################',
 '#....#....#......#gTTTg#',
@@ -806,8 +826,8 @@ let G=null;
 function newGame(){
   G={ lv:1, exp:0, hp:LV_HP[0], mp:LV_MP[0], gold:120,
       weapon:0, armor:0, shield:0,
-      items:{herb:2, torch:1, wing:0, key:0},
-      flags:{sword:false, shield:false, cleared:false, princessSaved:false, dragoDead:false, devilDead:false, charm:false},
+      items:{herb:2, torch:1, wing:0, key:0, charm:0},
+      flags:{sword:false, shield:false, cleared:false, princessSaved:false, dragoDead:false, devilDead:false, gotCharm:false, illusionBroken:false},
       chests:{}, doors:{},
       map:'world', x:12, y:13, dir:'d', light:0,
   };
@@ -1028,12 +1048,9 @@ function onStep(){
     if(t==='shrine'){ enterMap('shrine1',4,4); sfx('stairs'); return; }
     if(t==='shrine2'){ enterMap('shrine2',4,4); sfx('stairs'); return; }
     if(t==='dcastle'){
-      if(!G.flags.charm){
-        sfx('cancel');
-        showMsg('みえない ちからに はばまれて\nしろに はいれない！\n（なにかの まもりが ひつようだ）');
-        return;
-      }
-      enterMap('dcastle1',7,12); sfx('stairs'); return;
+      if(G.flags.illusionBroken) enterMap('dcastle1',7,12);
+      else enterMap('dcastle_fake',8,10);
+      sfx('stairs'); return;
     }
     if(t==='swamp'){ G.hp=Math.max(1,G.hp-2); flashTimer=8; sfx('swamp'); }
     // 地域でBGMがかわる（川の東・魔の島）
@@ -1156,12 +1173,15 @@ function talkNpc(n){
     case 'sage':
       if(!G.flags.princessSaved){
         showMsg(['けんじゃ「まおうのしろには みえない\nちからの まもりが かかっておる。','まずは きたの ぬまのどうくつから\nひめを すくいだすのじゃ。\nはなしは それからよ」']);
-      } else if(!G.flags.charm){
-        G.flags.charm=true; sfx('levelup');
-        showMsg(['けんじゃ「おお、ひめを すくったか！\nみごとじゃ ゆうしゃよ。','さずけよう……「せいなるおまもり」！\nこれで まのしまの しろに はいれる。','ガルドは にどめの すがたこそ しん。\nHPを たもったまま いっせんめを\nきりぬけるのじゃぞ」']);
+      } else if(!G.flags.gotCharm){
+        G.flags.gotCharm=true; G.items.charm=(G.items.charm||0)+1; sfx('levelup');
+        showMsg(['けんじゃ「おお、ひめを すくったか！\nみごとじゃ ゆうしゃよ。','さずけよう……「せいなるおまもり」！\nまおうじょうは まやかしに つつまれて\nおる。しろの なかで これを つかうのじゃ。','ガルドは にどめの すがたこそ しん。\nHPを たもったまま いっせんめを\nきりぬけるのじゃぞ」']);
       } else {
-        showMsg(['けんじゃ「しろの とびらには まほうの\nかぎが いる。みなとまちで そろえよ。','けっせんの まえには HPとMPを\nまんたんに しておくのじゃぞ」']);
+        showMsg(['けんじゃ「まおうじょうの なかで\nせいなるおまもりを つかえば\nまやかしが はれ しんのすがたが あらわれる。','とびらには まほうのかぎも わすれるな。','けっせんのまえに HPとMPを まんたんに！」']);
       }
+      break;
+    case 'fake_king':
+      showMsg(['おう「おお ゆうしゃよ もどったか…\nさあ こちらへ きて ひざまずくのじゃ…\nこのくにを わしに ささげよ…」','（…なにか おかしい。\nこのおうは ほんものだろうか？）','（せいなるおまもりを つかってみよう）']);
       break;
     case 'devil':
       showMsg('デビルナイト「ガルドさまの もとへは\nだれも とおさぬ……！」',()=>startBattle('devil','devilDead'));
@@ -1340,6 +1360,13 @@ function fieldItemMenu(){
       showMsg('そらとぶはねを なげた！',()=>{ enterMap('world',12,13); });
     } else if(k==='key'){
       showMsg('とびらの まえに たって\nZキーを おせば つかえる。');
+    } else if(k==='charm'){
+      if(G.map==='dcastle_fake'){
+        G.flags.illusionBroken=true; sfx('levelup');
+        showMsg(['せいなるおまもりが まばゆく かがやいた！','にせの しろが くずれおち\nしんの まおうじょうが すがたを あらわした！'],function(){ enterMap('dcastle1',7,12); });
+      } else {
+        showMsg('いまは つかうときではない。');
+      }
     } else if(k==='elixir'){
       if(G.hp>=maxHP()){ showMsg('HPは まんたんだ。'); return; }
       G.items[k]--; sfx('heal');
