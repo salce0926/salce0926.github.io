@@ -519,114 +519,89 @@ function drawTile(key,x,y){
 //==================================================================
 const MAPW=64,MAPH=64;
 let world=[];
+// 施設のワールド座標を一元管理（出口座標はここから自動設定）
+const SITES={
+  castle:[30,26],  canan:[34,28],  porte:[48,13],  shiren:[49,25],
+  haikyo:[51,36],  iyashi:[45,39], kenja:[18,30],  numa:[16,40],
+  melodia:[28,10], ice:[33,6],     sun:[54,38],    rain:[8,22],
+  dcastle:[30,48]                 // 魔王城（南の魔王島）
+};
+const START=[30,28];              // ゲーム開始位置（ラダム城のすぐ南）
+const ISLE_BRIDGE_X=30, ISLE_STRAIT_Y=[43,44,45,46]; // 魔王島へ渡る虹のかけ橋
 (function genWorld(){
   const r=mulberry(20260612);
   world=[];
-  for(let y=0;y<MAPH;y++){ world.push(new Array(MAPW).fill('grass')); }
-  // 外周は海（ゆらぎつき）
-  for(let y=0;y<MAPH;y++) for(let x=0;x<MAPW;x++){
-    const d=Math.min(x,y,MAPW-1-x,MAPH-1-y);
-    if(d < 2+Math.floor(r()*3)) world[y][x]='water';
+  for(let y=0;y<MAPH;y++){ world.push(new Array(MAPW).fill('water')); }
+  // --- 大陸（楕円の和で陸地をつくる。縁はゆらぎ） ---
+  function land(cx,cy,rx,ry){ for(let y=0;y<MAPH;y++) for(let x=0;x<MAPW;x++){
+    const dx=(x-cx)/rx, dy=(y-cy)/ry; const d=dx*dx+dy*dy;
+    if(d<=1 || (d<=1.15 && r()<0.5)) world[y][x]='grass';
+  } }
+  land(30,24,26,19);   // 本土・中央
+  land(48,22,17,18);   // 東〜南東（ポルテ・しれん・砂漠）
+  land(30,9,19,8);     // 北の半島（メロディア・氷）
+  land(11,25,11,13);   // 西（けんじゃ・あまぐも）
+  land(16,38,13,7);    // 南西（ぬま）
+  land(30,49,9,4);     // 魔王島（南）
+  // 外周は必ず海
+  for(let y=0;y<MAPH;y++) for(let x=0;x<MAPW;x++) if(x<2||y<2||x>=MAPW-2||y>=MAPH-2) world[y][x]='water';
+  // 魔王島を隔てる海峡（横帯。ここは虹の橋でしか渡れない）
+  for(let x=0;x<MAPW;x++) for(const y of ISLE_STRAIT_Y) world[y][x]='water';
+  // --- 地形ヘルパ（grassのみ書き換え） ---
+  function blob(t,cx,cy,rad){ for(let y=Math.round(cy-rad);y<=cy+rad;y++) for(let x=Math.round(cx-rad);x<=cx+rad;x++){
+    if(x<2||y<2||x>=MAPW-2||y>=MAPH-2) continue; if(world[y][x]!=='grass') continue;
+    const dd=Math.hypot(x-cx,y-cy); if(dd<=rad-1||(dd<=rad&&r()<0.6)) world[y][x]=t;
+  } }
+  function ridge(t,x1,y1,x2,y2,w){ const steps=Math.ceil(Math.hypot(x2-x1,y2-y1))*2;
+    for(let i=0;i<=steps;i++){ const x=x1+(x2-x1)*i/steps+(r()*2-1), y=y1+(y2-y1)*i/steps+(r()*2-1); blob(t,Math.round(x),Math.round(y),w); }
   }
-  // 縦の大河（x=27〜28）と橋
-  for(let y=2;y<46;y++){ world[y][27]='water'; world[y][28]='water'; }
-  // 南の魔の島を隔てる横の河（y=44〜45, 西側）
-  for(let x=2;x<28;x++){ world[44][x]='water'; world[45][x]='water'; }
-  // 地形: 中を塗りつぶし、縁だけランダムにする「かたまり」
-  function blob(t,cx,cy,rad){
-    for(let y=Math.round(cy-rad);y<=cy+rad;y++) for(let x=Math.round(cx-rad);x<=cx+rad;x++){
-      if(x<2||y<2||x>=MAPW-2||y>=MAPH-2) continue;
-      if(world[y][x]!=='grass') continue;
-      const dd=Math.hypot(x-cx,y-cy);
-      if(dd<=rad-1 || (dd<=rad && r()<0.6)) world[y][x]=t;
-    }
-  }
-  // 尾根に沿って blob を連ねて山脈をつくる
-  function ridge(t,x1,y1,x2,y2,w){
-    const steps=Math.ceil(Math.hypot(x2-x1,y2-y1))*2;
-    for(let i=0;i<=steps;i++){
-      const x=x1+(x2-x1)*i/steps+(r()*2-1), y=y1+(y2-y1)*i/steps+(r()*2-1);
-      blob(t,Math.round(x),Math.round(y),w);
-    }
-  }
-  // 山脈（連なり）
-  ridge('mtn',48,6,58,16,2);   // 北東山脈
-  ridge('mtn',31,34,40,40,1);  // 中央の尾根
-  ridge('mtn',4,32,12,40,2);   // 西山脈
-  ridge('mtn',44,46,56,56,2);  // 南東山脈
-  ridge('mtn',5,48,8,57,1);    // 魔の島をはさむ尾根（西）
-  ridge('mtn',17,48,21,57,1);  // 魔の島をはさむ尾根（東）
-  // 進行を導く大山脈（とうげ＝街道だけが とおれる）
-  ridge('mtn',35,1,34,37,2);   // 東西をわける山脈（うみから みなみの山なみまで）
-  ridge('mtn',42,27,60,27,1);  // 砂漠の北をふさぐ尾根（とうげは みなみ街道）
-  ridge('mtn',2,36,26,36,1);   // 南西をふさぐ尾根（とうげは ぬまへのみち）
-  // 丘は山のふもとに
-  blob('hill',44,14,3); blob('hill',40,28,4); blob('hill',14,36,3); blob('hill',22,8,4);
-  // 森（かたまり）
-  blob('forest',20,28,5); blob('forest',38,8,5); blob('forest',46,40,4);
-  blob('forest',8,26,4);  blob('forest',34,20,4); blob('forest',18,20,3);
-  // 追加の地形（フィールドの密度アップ）
-  blob('forest',52,20,4); blob('forest',26,20,4); blob('forest',12,18,3);
-  blob('forest',33,28,3); blob('forest',56,40,3); blob('forest',22,12,3);
-  blob('hill',34,12,3); blob('hill',18,33,3); blob('hill',48,36,3); blob('hill',8,16,3);
-  blob('water',22,24,2); blob('water',36,24,2); blob('water',46,11,2); blob('water',16,28,2); // 湖
-  blob('swamp',20,40,3); // ぬまのどうくつ の周辺
   // 砂漠（南東）
-  for(let y=28;y<44;y++) for(let x=42;x<60;x++)
-    if(world[y][x]==='grass'&&r()<0.92) world[y][x]='desert';
-  // 魔の島（南西）は毒の沼だらけ
-  for(let y=47;y<60;y++) for(let x=4;x<26;x++)
-    if(world[y][x]==='grass'&&r()<0.55) world[y][x]='swamp';
-  // ぽつぽつ除去: となりに同じ地形がない山・森・丘は草原に戻す
-  for(let y=2;y<MAPH-2;y++) for(let x=2;x<MAPW-2;x++){
-    const t=world[y][x];
-    if(t!=='mtn'&&t!=='forest'&&t!=='hill') continue;
-    let same=0;
-    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]])
-      if(world[y+dy][x+dx]===t) same++;
+  for(let y=22;y<43;y++) for(let x=40;x<60;x++) if(world[y][x]==='grass'&&r()<0.9) world[y][x]='desert';
+  // 森・丘・山脈（テクスチャ。連結は後でcarve＆検証）
+  blob('forest',24,17,5); blob('forest',38,13,4); blob('forest',12,20,3);
+  blob('forest',30,33,3); blob('forest',46,33,3); blob('forest',22,30,3);
+  blob('hill',40,20,3); blob('hill',50,30,3); blob('hill',22,34,3);
+  ridge('mtn',6,9,11,15,2); ridge('mtn',52,8,60,15,2); ridge('mtn',39,8,39,17,1); ridge('mtn',24,38,30,40,1);
+  blob('swamp',16,40,4);   // ぬまの周辺
+  // 魔王島は沼地
+  for(let y=46;y<55;y++) for(let x=22;x<40;x++) if(world[y][x]==='grass'&&r()<0.4) world[y][x]='swamp';
+  // ぽつぽつ除去
+  for(let y=2;y<MAPH-2;y++) for(let x=2;x<MAPW-2;x++){ const t=world[y][x];
+    if(t!=='mtn'&&t!=='forest'&&t!=='hill') continue; let same=0;
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) if(world[y+dy][x+dx]===t) same++;
     if(same===0) world[y][x]='grass';
   }
-  // 橋
-  world[14][27]='bridge'; world[14][28]='bridge';
-  world[34][27]='bridge'; world[34][28]='bridge';
-  world[44][14]='bridge'; world[45][14]='bridge';
-  // 道を確保（主要ルートを草原化）
-  function carve(x1,y1,x2,y2){
-    let x=x1,y=y1;
-    while(x!==x2){ if(world[y][x]!=='bridge'&&world[y][x]!=='water') world[y][x]='grass'; x+= x<x2?1:-1; }
-    while(y!==y2){ if(world[y][x]!=='bridge'&&world[y][x]!=='water') world[y][x]='grass'; y+= y<y2?1:-1; }
+  // 主要ルートの山だけ削って連結を確保（海は削らない＝地形を壊さない）
+  function carve(x1,y1,x2,y2){ let x=x1,y=y1;
+    const clr=()=>{ if(world[y][x]==='mtn') world[y][x]='grass'; };
+    while(x!==x2){ clr(); x+=x<x2?1:-1; } while(y!==y2){ clr(); y+=y<y2?1:-1; } clr();
   }
-  carve(12,12,26,14); carve(29,14,42,16); carve(42,16,50,34);
-  carve(29,34,26,34); carve(26,34,14,43); carve(14,46,12,52);
-  carve(50,30,47,30);  // いやしのほこらへ（さばく）
-  carve(14,40,20,40);  // ぬまのどうくつへ
-  carve(14,42,10,42);  // けんじゃのほこらへ
-  carve(50,24,52,24);  // はいきょのまちへ
-  // ランドマーク
-  world[12][12]='castle';  // ラダム城
-  world[14][16]='town';    // 城下町カナン
-  world[16][42]='town2';   // 港町ポルテ（タイルはtownを使う）
-  world[34][50]='cave';    // 試練の洞窟
-  world[52][12]='dcastle'; // 魔王城（タイルはcastleを暗く）
-  world[30][46]='shrine';  // いやしのほこら（さばく）
-  world[42][10]='shrine2'; // けんじゃのほこら
-  world[40][20]='pcave';   // ぬまのどうくつ（姫がとらわれている）
-  world[24][52]='town3';   // はいきょのまち
-  world[4][46]='icecave';  // 氷竜の神殿（北の雪山。山に囲まれた立地は残す）
-  world[7][31]='melodia';  // おとのまちメロディア
-  world[28][50]='sunruin'; // ひざしのいせき（太陽の石）
-  world[18][5]='rainca';   // あまぐものどうくつ（雨雲の杖）
-  // 入口の周囲は歩けるように（魔王城は堀で隔てるのでリストに含めない）
-  [[12,12],[16,14],[42,16],[50,34],[46,30],[10,42],[20,40],[52,24],[31,7],[50,28],[5,18]].forEach(([x,y])=>{
-    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
-      const t=world[y+dy][x+dx];
-      if((t==='water'||t==='mtn')&&!(dx===0&&dy===0)) world[y+dy][x+dx]='grass';
-    }
-  });
-  // 魔王城(12,52)を水堀で隔離し、虹のかけ橋(12,51)だけを渡り口にする（本家のりゅうおうの島）
-  world[52][11]='water'; world[52][13]='water'; world[53][12]='water';
-  world[51][12]='rainbow';
-  world[50][12]='grass'; // 橋の手前は確実に立てるように
+  const S=SITES;
+  carve(S.castle[0],S.castle[1],S.canan[0],S.canan[1]);
+  carve(S.castle[0],S.castle[1],S.kenja[0],S.kenja[1]);
+  carve(S.kenja[0],S.kenja[1],S.rain[0],S.rain[1]);
+  carve(S.castle[0],S.castle[1],S.melodia[0],S.melodia[1]);
+  carve(S.melodia[0],S.melodia[1],S.ice[0],S.ice[1]);
+  carve(S.canan[0],S.canan[1],S.porte[0],S.porte[1]);
+  carve(S.porte[0],S.porte[1],S.shiren[0],S.shiren[1]);
+  carve(S.shiren[0],S.shiren[1],S.haikyo[0],S.haikyo[1]);
+  carve(S.haikyo[0],S.haikyo[1],S.iyashi[0],S.iyashi[1]);
+  carve(S.iyashi[0],S.iyashi[1],S.sun[0],S.sun[1]);
+  carve(S.castle[0],S.castle[1],S.numa[0],S.numa[1]);
+  carve(S.castle[0],S.castle[1],ISLE_BRIDGE_X,42); // 橋の手前まで
+  // ランドマーク配置
+  const TILE={castle:'castle',canan:'town',porte:'town2',shiren:'cave',haikyo:'town3',
+    iyashi:'shrine',kenja:'shrine2',numa:'pcave',melodia:'melodia',ice:'icecave',
+    sun:'sunruin',rain:'rainca',dcastle:'dcastle'};
+  for(const k in S){ const [x,y]=S[k]; world[y][x]=TILE[k]; }
+  // 入口の周囲の山だけ草原化（海は触らない＝海峡や入江を壊さない）
+  for(const k in S){ const [x,y]=S[k]; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+    if(dx===0&&dy===0) continue; if(world[y+dy] && world[y+dy][x+dx]==='mtn') world[y+dy][x+dx]='grass';
+  } }
+  // 虹のかけ橋（海峡をまたぐ。未取得時はworldTileKeyで水に見える＝渡れない）
+  for(const y of ISLE_STRAIT_Y) world[y][ISLE_BRIDGE_X]='rainbow';
+  world[42][ISLE_BRIDGE_X]='grass';            // 本土側の橋のたもと
+  world[47][ISLE_BRIDGE_X]='grass';            // 魔王島側の橋のたもと
 })();
 function worldTileKey(t,x,y){
   if(t==='town2'||t==='town3') return 'town';
@@ -643,11 +618,13 @@ function worldTileKey(t,x,y){
   return t;
 }
 function zoneAt(x,y){
-  if(y>=46 && x<27) return 4;            // 魔の島
-  if(x>=40 && y>=24) return 3;           // 砂漠・洞窟
-  if(x>=29) return 2;                    // 川の東
-  const d=Math.hypot(x-12,y-12);
-  return d>13 ? 1 : 0;                   // 城の近く
+  if(y>=47) return 4;                    // 魔王島（最強）
+  if(x>=40 && y>=22) return 3;           // 南東の砂漠
+  if(x<=12) return 3;                    // 西のはて（あまぐも）
+  const d=Math.hypot(x-30,y-26);         // 始まりの城からの距離
+  if(d>20) return 2;
+  if(d>11) return 1;
+  return 0;
 }
 
 //==================================================================
@@ -717,7 +694,7 @@ INDOOR.town1={ name:'カナンのまち', music:'town', floor:'floor', rows:[
   {x:7,y:1,art:'npc_villager',id:'shop_armor'},
   {x:13,y:1,art:'npc_lady',id:'shop_item'},
   {x:5,y:10,art:'npc_lady',id:'inn',price:8},
-  {x:10,y:5,art:'npc_villager',text:['まちのひと「ひがしの はしを わたると\nつよい まものが でるぞ。\nそうびを ととのえて いきな」']},
+  {x:10,y:5,art:'npc_villager',text:['まちのひと「ひがしの さばくのほうは\nつよい まものが でるぞ。\nそうびを ととのえて いきな」']},
   {x:3,y:12,art:'npc_lady',text:['おんなのひと「リナひめさまは みなみの\nぬまちの どうくつに とらわれて\nいるんですって…。おねがいします」']},
   {x:20,y:12,art:'npc_villager',text:['たびのひと「さばくの ほこらでは ただで\nきずを いやしてくれるぞ。\nしれんのどうくつへ いくなら たちよれ」']},
   {x:8,y:13,art:'npc_villager',text:['こども「おにいちゃん つよそう！\nまおうを やっつけてね！」']},
@@ -996,6 +973,29 @@ INDOOR.melodia={ name:'おとの まちメロディア', music:'town', floor:'fl
   {x:8,y:12,art:'npc_villager',text:['こども「ふたつの ひほうを けんじゃさまに\nもっていくと いいんだって！」']},
  ], exit:{map:'world',x:31,y:8}};
 
+// 各ダンジョン/施設の world出口を SITES から自動設定（座標の二重管理を防ぐ）
+(function setWorldExits(){
+  function front(x,y){ // 施設の隣で歩ける陸（南→北→東→西の順）
+    for(const [dx,dy] of [[0,1],[0,-1],[1,0],[-1,0]]){ const nx=x+dx,ny=y+dy;
+      const t=world[ny] && world[ny][nx];
+      if(t && t!=='water' && t!=='mtn' && t!=='rainbow') return [nx,ny];
+    }
+    return [x,y];
+  }
+  function setExit(mapKey,siteKey){ const m=INDOOR[mapKey]; if(!m||!SITES[siteKey]) return;
+    const [fx,fy]=front(SITES[siteKey][0],SITES[siteKey][1]);
+    if(m.exit) m.exit={map:'world',x:fx,y:fy};
+    if(m.escape) m.escape={map:'world',x:fx,y:fy};
+  }
+  setExit('castle','castle'); setExit('town1','canan'); setExit('town2','porte');
+  setExit('cave1','shiren'); setExit('cave2','shiren'); setExit('town3','haikyo');
+  setExit('shrine1','iyashi'); setExit('shrine2','kenja'); setExit('pcave','numa');
+  setExit('melodia','melodia'); setExit('sunruin','sun'); setExit('rainca','rain');
+  setExit('icetemple1','ice'); setExit('icetemple2','ice');
+  setExit('dcastle_fake','dcastle'); setExit('dcastle1','dcastle');
+  setExit('dcastle2','dcastle'); setExit('dcastle3','dcastle');
+})();
+
 //==================================================================
 //  ゲーム状態
 //==================================================================
@@ -1008,7 +1008,7 @@ function newGame(){
       flags:{sword:false, shield:false, cleared:false, princessSaved:false, dragoDead:false, devilDead:false, gotCharm:false, illusionBroken:false, frostDead:false,
              sunDead:false, stormDead:false, rainbow:false},
       chests:{}, doors:{},
-      map:'world', x:12, y:13, dir:'d', light:0,
+      map:'world', x:START[0], y:START[1], dir:'d', light:0,
   };
 }
 function maxHP(){ return LV_HP[G.lv-1]; }
@@ -1023,7 +1023,7 @@ function saveGame(){
 function loadGame(){
   const s=localStorage.getItem(SAVE_KEY);
   if(!s) return false;
-  try{ G=JSON.parse(s); G.map='world'; G.x=12; G.y=13; G.dir='d'; G.light=0;
+  try{ G=JSON.parse(s); G.map='world'; G.x=START[0]; G.y=START[1]; G.dir='d'; G.light=0;
     G.doors=G.doors||{}; G.items.key=G.items.key||0; // ふるいセーブへの対応
     return true; }
   catch(e){ return false; }
@@ -1536,7 +1536,7 @@ function fieldSpellMenu(){
         }
         if(rm){ showMsg('ここでは つかえない。'); return; }
         G.mp-=s.mp; sfx('spell');
-        showMsg('からだが ふわりと うきあがった！',()=>{ enterMap('world',12,13); });
+        showMsg('からだが ふわりと うきあがった！',()=>{ enterMap('world',START[0],START[1]); });
         break;
       }
       default: showMsg('たたかいの ときに つかうのだ。');
@@ -1562,7 +1562,7 @@ function fieldItemMenu(){
     } else if(k==='wing'){
       if(curMap()){ showMsg('ここでは つかえない。'); return; }
       G.items[k]--; sfx('spell');
-      showMsg('そらとぶはねを なげた！',()=>{ enterMap('world',12,13); });
+      showMsg('そらとぶはねを なげた！',()=>{ enterMap('world',START[0],START[1]); });
     } else if(k==='key'){
       showMsg('とびらの まえに たって\nZキーを おせば つかえる。');
     } else if(k==='charm'){
