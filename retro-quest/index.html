@@ -205,6 +205,7 @@ const WEAPONS=[
   {name:'はがねのけん', atk:22, price:1600},
   {name:'レガリアのけん',atk:34, price:0}, // 洞窟の宝
   {name:'フロストエッジ',atk:28, price:0}, // 氷竜の神殿の宝（index 7）
+  {name:'ミスリルブレード',atk:26,price:3400}, // メロディアで購入（index 8）
 ];
 const ARMORS=[
   {name:'ぬののふく',   def:0,  price:0},
@@ -214,12 +215,14 @@ const ARMORS=[
   {name:'はがねのよろい',def:24, price:2600},
   {name:'ほしのよろい', def:30, price:0}, // 廃墟の町の宝
   {name:'りゅうりんのよろい',def:27,price:0}, // 氷竜の神殿の宝（index 6）
+  {name:'ミスリルメイル',def:26,price:4200}, // メロディアで購入（index 7）
 ];
 const SHIELDS=[
   {name:'なし',       def:0,  price:0},
   {name:'かわのたて', def:3,  price:80},
   {name:'てつのたて', def:8,  price:700},
   {name:'まもりのたて',def:14, price:0}, // 洞窟の宝
+  {name:'ミスリルのたて',def:11,price:2400}, // メロディアで購入（index 4）
 ];
 const ITEMS={
   herb: {name:'やくそう', price:20, info:'HPを 30 かいふく'},
@@ -520,33 +523,27 @@ function drawTile(key,x,y){
 const MAPW=64,MAPH=64;
 let world=[];
 // 施設のワールド座標を一元管理（出口座標はここから自動設定）
+// 大陸構成: ホーム(西)→[橋]→中央→[橋]→東(砂漠)／[橋]→北の島／[虹の橋]→魔王島
 const SITES={
-  castle:[30,26],  canan:[34,28],  porte:[48,13],  shiren:[49,25],
-  haikyo:[51,36],  iyashi:[45,39], kenja:[18,30],  numa:[16,40],
-  melodia:[28,10], ice:[33,6],     sun:[54,38],    rain:[8,22],
-  dcastle:[30,48]                 // 魔王城（南の魔王島）
+  castle:[10,10],  canan:[15,12],  dcastle:[10,21],          // ホーム大陸＋魔王島(すぐ南・開始時に見える)
+  kenja:[32,12],   porte:[38,9],   numa:[30,26],             // 中央大陸
+  shiren:[52,12],  haikyo:[56,30], iyashi:[52,36], sun:[58,40], rain:[58,20], // 東の大陸(砂漠)
+  melodia:[36,3],  ice:[28,3]                                // 北の島
 };
-const START=[30,28];              // ゲーム開始位置（ラダム城のすぐ南）
-const ISLE_BRIDGE_X=30, ISLE_STRAIT_Y=[43,44,45,46]; // 魔王島へ渡る虹のかけ橋
+const START=[10,16];               // 開始位置(ホーム南端・魔王島を望む)
+// 橋(1マス)。rainbowは にじのしずく取得後のみ通行可
+const BRIDGES=[ [24,11,'bridge'], [36,5,'bridge'], [46,12,'bridge'], [10,18,'rainbow'] ];
 (function genWorld(){
   const r=mulberry(20260612);
   world=[];
   for(let y=0;y<MAPH;y++){ world.push(new Array(MAPW).fill('water')); }
-  // --- 大陸（楕円の和で陸地をつくる。縁はゆらぎ） ---
-  function land(cx,cy,rx,ry){ for(let y=0;y<MAPH;y++) for(let x=0;x<MAPW;x++){
-    const dx=(x-cx)/rx, dy=(y-cy)/ry; const d=dx*dx+dy*dy;
-    if(d<=1 || (d<=1.15 && r()<0.5)) world[y][x]='grass';
-  } }
-  land(30,24,26,19);   // 本土・中央
-  land(48,22,17,18);   // 東〜南東（ポルテ・しれん・砂漠）
-  land(30,9,19,8);     // 北の半島（メロディア・氷）
-  land(11,25,11,13);   // 西（けんじゃ・あまぐも）
-  land(16,38,13,7);    // 南西（ぬま）
-  land(30,49,9,4);     // 魔王島（南）
-  // 外周は必ず海
-  for(let y=0;y<MAPH;y++) for(let x=0;x<MAPW;x++) if(x<2||y<2||x>=MAPW-2||y>=MAPH-2) world[y][x]='water';
-  // 魔王島を隔てる海峡（横帯。ここは虹の橋でしか渡れない）
-  for(let x=0;x<MAPW;x++) for(const y of ISLE_STRAIT_Y) world[y][x]='water';
+  // --- 大陸（矩形。1マスの海で隔て、橋でつなぐ） ---
+  function rect(x0,y0,x1,y1,t){ for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++) if(x>=2&&y>=2&&x<MAPW-2&&y<MAPH-2) world[y][x]=t; }
+  rect(4,6,23,17,'grass');    // ホーム大陸（西）
+  rect(5,19,17,27,'grass');   // 魔王島（ホームのすぐ南。海でしきり虹の橋のみ）
+  rect(25,6,45,32,'grass');   // 中央大陸
+  rect(25,2,44,4,'grass');    // 北の島（メロディア・氷）
+  rect(47,6,61,44,'grass');   // 東の大陸（砂漠）
   // --- 地形ヘルパ（grassのみ書き換え） ---
   function blob(t,cx,cy,rad){ for(let y=Math.round(cy-rad);y<=cy+rad;y++) for(let x=Math.round(cx-rad);x<=cx+rad;x++){
     if(x<2||y<2||x>=MAPW-2||y>=MAPH-2) continue; if(world[y][x]!=='grass') continue;
@@ -555,53 +552,43 @@ const ISLE_BRIDGE_X=30, ISLE_STRAIT_Y=[43,44,45,46]; // 魔王島へ渡る虹の
   function ridge(t,x1,y1,x2,y2,w){ const steps=Math.ceil(Math.hypot(x2-x1,y2-y1))*2;
     for(let i=0;i<=steps;i++){ const x=x1+(x2-x1)*i/steps+(r()*2-1), y=y1+(y2-y1)*i/steps+(r()*2-1); blob(t,Math.round(x),Math.round(y),w); }
   }
-  // 砂漠（南東）
-  for(let y=22;y<43;y++) for(let x=40;x<60;x++) if(world[y][x]==='grass'&&r()<0.9) world[y][x]='desert';
-  // 森・丘・山脈（テクスチャ。連結は後でcarve＆検証）
-  blob('forest',24,17,5); blob('forest',38,13,4); blob('forest',12,20,3);
-  blob('forest',30,33,3); blob('forest',46,33,3); blob('forest',22,30,3);
-  blob('hill',40,20,3); blob('hill',50,30,3); blob('hill',22,34,3);
-  ridge('mtn',6,9,11,15,2); ridge('mtn',52,8,60,15,2); ridge('mtn',39,8,39,17,1); ridge('mtn',24,38,30,40,1);
-  blob('swamp',16,40,4);   // ぬまの周辺
-  // 魔王島は沼地
-  for(let y=46;y<55;y++) for(let x=22;x<40;x++) if(world[y][x]==='grass'&&r()<0.4) world[y][x]='swamp';
+  // 砂漠（東の大陸）
+  for(let y=8;y<44;y++) for(let x=48;x<61;x++) if(world[y][x]==='grass'&&r()<0.85) world[y][x]='desert';
+  // 森・丘・山脈（テクスチャ。橋・施設の近くは避ける）
+  blob('forest',7,8,2); blob('forest',30,20,4); blob('forest',40,26,3); blob('forest',20,8,2);
+  blob('hill',34,18,3); blob('hill',28,29,2);
+  ridge('mtn',43,9,44,15,1); ridge('mtn',27,29,30,31,1);
+  blob('swamp',30,27,3);                              // ぬまの周辺
+  for(let y=19;y<28;y++) for(let x=5;x<18;x++) if(world[y][x]==='grass'&&r()<0.4) world[y][x]='swamp'; // 魔王島は沼地
   // ぽつぽつ除去
   for(let y=2;y<MAPH-2;y++) for(let x=2;x<MAPW-2;x++){ const t=world[y][x];
     if(t!=='mtn'&&t!=='forest'&&t!=='hill') continue; let same=0;
     for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) if(world[y+dy][x+dx]===t) same++;
     if(same===0) world[y][x]='grass';
   }
-  // 主要ルートの山だけ削って連結を確保（海は削らない＝地形を壊さない）
-  function carve(x1,y1,x2,y2){ let x=x1,y=y1;
-    const clr=()=>{ if(world[y][x]==='mtn') world[y][x]='grass'; };
-    while(x!==x2){ clr(); x+=x<x2?1:-1; } while(y!==y2){ clr(); y+=y<y2?1:-1; } clr();
-  }
-  const S=SITES;
-  carve(S.castle[0],S.castle[1],S.canan[0],S.canan[1]);
-  carve(S.castle[0],S.castle[1],S.kenja[0],S.kenja[1]);
-  carve(S.kenja[0],S.kenja[1],S.rain[0],S.rain[1]);
-  carve(S.castle[0],S.castle[1],S.melodia[0],S.melodia[1]);
-  carve(S.melodia[0],S.melodia[1],S.ice[0],S.ice[1]);
-  carve(S.canan[0],S.canan[1],S.porte[0],S.porte[1]);
-  carve(S.porte[0],S.porte[1],S.shiren[0],S.shiren[1]);
-  carve(S.shiren[0],S.shiren[1],S.haikyo[0],S.haikyo[1]);
-  carve(S.haikyo[0],S.haikyo[1],S.iyashi[0],S.iyashi[1]);
-  carve(S.iyashi[0],S.iyashi[1],S.sun[0],S.sun[1]);
-  carve(S.castle[0],S.castle[1],S.numa[0],S.numa[1]);
-  carve(S.castle[0],S.castle[1],ISLE_BRIDGE_X,42); // 橋の手前まで
   // ランドマーク配置
   const TILE={castle:'castle',canan:'town',porte:'town2',shiren:'cave',haikyo:'town3',
     iyashi:'shrine',kenja:'shrine2',numa:'pcave',melodia:'melodia',ice:'icecave',
     sun:'sunruin',rain:'rainca',dcastle:'dcastle'};
-  for(const k in S){ const [x,y]=S[k]; world[y][x]=TILE[k]; }
-  // 入口の周囲の山だけ草原化（海は触らない＝海峡や入江を壊さない）
-  for(const k in S){ const [x,y]=S[k]; for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
-    if(dx===0&&dy===0) continue; if(world[y+dy] && world[y+dy][x+dx]==='mtn') world[y+dy][x+dx]='grass';
-  } }
-  // 虹のかけ橋（海峡をまたぐ。未取得時はworldTileKeyで水に見える＝渡れない）
-  for(const y of ISLE_STRAIT_Y) world[y][ISLE_BRIDGE_X]='rainbow';
-  world[42][ISLE_BRIDGE_X]='grass';            // 本土側の橋のたもと
-  world[47][ISLE_BRIDGE_X]='grass';            // 魔王島側の橋のたもと
+  for(const k in SITES){ const [x,y]=SITES[k]; world[y][x]=TILE[k];
+    // 施設の隣の山だけ草原化（海は触らない）
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ if(dx===0&&dy===0) continue;
+      if(world[y+dy] && world[y+dy][x+dx]==='mtn') world[y+dy][x+dx]='grass'; }
+  }
+  // 橋（1マス。両たもとは確実に陸に）
+  for(const [bx,by,t] of BRIDGES){ world[by][bx]=t;
+    for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]){ const nx=bx+dx,ny=by+dy;
+      if(world[ny] && world[ny][nx]==='water') {/* 反対側のたもとだけ陸に */} }
+  }
+  // 橋のたもとを陸に固定
+  world[11][23]='grass'; world[11][25]='grass';   // ホーム⇔中央
+  world[4][36]='grass';  world[6][36]='grass';     // 中央⇔北の島
+  world[12][45]='grass'; world[12][47]='grass';    // 中央⇔東
+  world[17][10]='grass'; world[19][10]='swamp';    // ホーム⇔魔王島(虹)
+  // 開始地点の周囲は確実に歩けるように
+  for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const nx=START[0]+dx,ny=START[1]+dy;
+    if(world[ny] && (world[ny][nx]==='mtn'||world[ny][nx]==='water')) world[ny][nx]='grass'; }
+  world[START[1]][START[0]]='grass';
 })();
 function worldTileKey(t,x,y){
   if(t==='town2'||t==='town3') return 'town';
@@ -618,13 +605,12 @@ function worldTileKey(t,x,y){
   return t;
 }
 function zoneAt(x,y){
-  if(y>=47) return 4;                    // 魔王島（最強）
-  if(x>=40 && y>=22) return 3;           // 南東の砂漠
-  if(x<=12) return 3;                    // 西のはて（あまぐも）
-  const d=Math.hypot(x-30,y-26);         // 始まりの城からの距離
-  if(d>20) return 2;
-  if(d>11) return 1;
-  return 0;
+  if(y>=19 && x<=20) return 4;           // 魔王島（最強）
+  if(x>=47) return 3;                    // 東の大陸（砂漠）
+  if(y<=5) return 1;                     // 北の島（メロディア・氷）
+  if(x<=23) return 0;                    // ホーム大陸
+  const d=Math.hypot(x-33,y-14);         // 中央大陸（中心から距離で）
+  return d>13 ? 2 : 1;
 }
 
 //==================================================================
@@ -694,8 +680,8 @@ INDOOR.town1={ name:'カナンのまち', music:'town', floor:'floor', rows:[
   {x:7,y:1,art:'npc_villager',id:'shop_armor'},
   {x:13,y:1,art:'npc_lady',id:'shop_item'},
   {x:5,y:10,art:'npc_lady',id:'inn',price:8},
-  {x:10,y:5,art:'npc_villager',text:['まちのひと「ひがしの さばくのほうは\nつよい まものが でるぞ。\nそうびを ととのえて いきな」']},
-  {x:3,y:12,art:'npc_lady',text:['おんなのひと「リナひめさまは みなみの\nぬまちの どうくつに とらわれて\nいるんですって…。おねがいします」']},
+  {x:10,y:5,art:'npc_villager',text:['まちのひと「ひがしの はしを わたると\nひろい くにが ひらける。\nおくへ いくほど まものも つよいぞ」']},
+  {x:3,y:12,art:'npc_lady',text:['おんなのひと「リナひめさまは はしの\nむこうの ぬまの どうくつに…。\nどうか たすけて さしあげて」']},
   {x:20,y:12,art:'npc_villager',text:['たびのひと「さばくの ほこらでは ただで\nきずを いやしてくれるぞ。\nしれんのどうくつへ いくなら たちよれ」']},
   {x:8,y:13,art:'npc_villager',text:['こども「おにいちゃん つよそう！\nまおうを やっつけてね！」']},
  ], exit:{map:'world',x:16,y:15}};
@@ -719,7 +705,7 @@ INDOOR.town2={ name:'みなとまちポルテ', music:'town', floor:'floor', row
   {x:7,y:1,art:'npc_villager',id:'shop_armor2'},
   {x:13,y:1,art:'npc_lady',id:'shop_item2'},
   {x:14,y:9,art:'npc_lady',id:'inn',price:20},
-  {x:3,y:10,art:'npc_villager',text:['ふなのり「みなみの さばくの おくに\nしれんの どうくつが ある。\nでんせつのつるぎは そこに ねむるという」']},
+  {x:3,y:10,art:'npc_villager',text:['ふなのり「ひがしの はしの むこう、\nさばくの くにに しれんの どうくつ。\nでんせつのつるぎが ねむるという」']},
   {x:16,y:5,art:'npc_guard',text:['へいし「どうくつのなかは まっくらだ。\nたいまつか ライトのじゅもんが\nひつようだぞ」']},
   {x:20,y:6,art:'npc_villager',text:['しょうにん「まほうのかぎは うちの\nどうぐやで うっているよ。\nまおうじょうの とびらも ひらくらしい」']},
   {x:18,y:1,art:'npc_lady',text:['おんなのひと「さばくの はいきょには\nすごい よろいが のこされている…\nそんな うわさが あるわ」']},
@@ -948,30 +934,32 @@ INDOOR.rainca={ name:'あまぐもの どうくつ', music:'cave', floor:'floor'
  exit:{map:'world',x:5,y:19}, escape:{map:'world',x:5,y:19}};
 INDOOR.melodia={ name:'おとの まちメロディア', music:'town', floor:'floor', rows:[
 '########################',
-'#....#....#......#.....#',
-'#.C..#.C..#..C...#.TT..#',
-'#....#....#......#.TT..#',
-'#W.###A.####I.####.....#',
+'#TT................TT..#',
+'#TT................TT..#',
+'#....................N.#',
+'#...C.....C.....C......#',
 '#......................#',
-'#......##..............#',
-'#......##.....####.....#',
-'#..............#ww#....#',
-'#.#.#........N.........#',
-'#.................TT...#',
-'#wwwww.................#',
-'#wwwww.................#',
+'#.....wwww....wwww.....#',
+'#.....wwww....wwww.....#',
+'#.....wwww....wwww.....#',
+'#......................#',
+'#..TT............TT....#',
+'#..TT............TT....#',
+'#......................#',
+'#.........TTTT.........#',
+'#.........TTTT.........#',
 '###########EE###########'],
  npcs:[
-  {x:2,y:1,art:'npc_villager',id:'shop_weapon2'},
-  {x:7,y:1,art:'npc_villager',id:'shop_armor2'},
-  {x:13,y:1,art:'npc_lady',id:'shop_item2'},
-  {x:14,y:9,art:'npc_lady',id:'inn',price:20},
-  {x:3,y:10,art:'npc_villager',text:['ぎんゆうしじん「まおうじょうは うみの\nむこうの しま。\nふつうには わたれぬのだ…」']},
-  {x:16,y:5,art:'npc_guard',text:['へいし「にじの かけはしを かけるには\n「たいようのいし」と「あまぐものつえ」\nの ふたつの ひほうが いるという」']},
-  {x:20,y:6,art:'npc_villager',text:['ろうじん「たいようのいしは ひがしの\nさばくの「ひざしの いせき」に。\nガーディアンが まもっておるそうじゃ」']},
-  {x:18,y:1,art:'npc_lady',text:['おんなのひと「あまぐものつえは にしの\n「あまぐもの どうくつ」に ねむるとか。\nあらしの りゅうに ごようじん…」']},
-  {x:8,y:12,art:'npc_villager',text:['こども「ふたつの ひほうを けんじゃさまに\nもっていくと いいんだって！」']},
- ], exit:{map:'world',x:31,y:8}};
+  {x:4,y:3,art:'npc_villager',id:'shop_weapon3'},
+  {x:10,y:3,art:'npc_villager',id:'shop_armor3'},
+  {x:16,y:3,art:'npc_lady',id:'shop_item3'},
+  {x:19,y:3,art:'npc_lady',id:'inn',price:30},
+  {x:4,y:10,art:'npc_villager',text:['ぎんゆうしじん「♪～うみの かなたの\nくろき しろ いつか ひかりが さす～♪\n…おっと、きいて くれて ありがとう」']},
+  {x:17,y:11,art:'npc_lady',text:['うたひめ「にじの かけはしはね、\nふたつの ひほうが そろったとき\nうたのように あらわれるの」']},
+  {x:11,y:9,art:'npc_guard',text:['へいし「ひがしの さばくには\nふるい いせきや どうくつが ねむる。\nおおきな たからには ぬしが いるぞ」']},
+  {x:7,y:13,art:'npc_villager',text:['ろうじん「ひほうを てに いれたら\nけんじゃの ほこらへ いきなされ。\nにじに かえられるのは あの かただけ」']},
+  {x:16,y:13,art:'npc_villager',text:['こども「このまちの ぶきや、\nとなりの みなとまちより いいの\nうってるんだって！」']},
+ ], exit:{map:'world',x:36,y:4}};
 
 // 各ダンジョン/施設の world出口を SITES から自動設定（座標の二重管理を防ぐ）
 (function setWorldExits(){
@@ -1353,8 +1341,11 @@ function talkNpc(n){
     case 'shop_armor':  shopTalk('ぼうぐや',ARMORS,[1,2],'armor',SHIELDS,[1]); break;
     case 'shop_weapon2':shopTalk('ぶきや',WEAPONS,[3,4,5],'weapon'); break;
     case 'shop_armor2': shopTalk('ぼうぐや',ARMORS,[2,3,4],'armor',SHIELDS,[2]); break;
-    case 'shop_item': itemShop(['herb','torch','wing']); break;
-    case 'shop_item2': itemShop(['herb','torch','wing','key','elixir']); break;
+    case 'shop_weapon3':shopTalk('ぶきや',WEAPONS,[5,8],'weapon'); break;       // メロディア(上位)
+    case 'shop_armor3': shopTalk('ぼうぐや',ARMORS,[4,7],'armor',SHIELDS,[4]); break; // メロディア(上位)
+    case 'shop_item': itemShop(['herb','torch']); break;
+    case 'shop_item2': itemShop(['herb','torch','wing','key']); break;
+    case 'shop_item3': itemShop(['herb','torch','wing','key','elixir']); break;
     case 'healer':
       G.hp=maxHP(); G.mp=maxMP(); sfx('heal');
       showMsg(['ろうじん「よく きたな たびのひと。\nつかれを いやして いくがよい」','ふしぎなひかりが ゆうしゃをつつんだ！\nHPとMPが まんたんに なった！']);
@@ -1425,10 +1416,10 @@ function kingTalk(){
     },{title:'きろく',w:280,x:210});
   };
   if(G.flags.princessSaved){
-    showMsg(['おう「リナを すくってくれて\nまことに ありがとう！','のこるは まおうガルドのみ。だが しろは\nみえないちからに まもられておる。','みなみの けんじゃのほこらを たずね、\nしまに はいるすべを さずかるのじゃ」'],saveChoice);
+    showMsg(['おう「リナを すくってくれて\nまことに ありがとう！','のこるは まおうガルドのみ。だが あの\nしろは うみの むこうの しま。\nふつうには わたれぬ。','ひがしの はしを わたった けんじゃの\nほこらを たずね、しまへ わたるすべを\nさずかるのじゃ」'],saveChoice);
     return;
   }
-  showMsg(['おう「おお ゆうしゃよ、\nよくぞ まいられた。','まおうの てしたが むすめリナをさらい\nみなみの ぬまちの どうくつに\nとじこめてしまった。','どうくつは おそろしい ドラゴンが\nみはっているという。\nじゅんびを おこたるでないぞ。','みちに まよったら まちのひとや\nほこらの けんじゃに たずねるとよい。','どうか むすめと このくにを\nすくってくれ！」'],saveChoice);
+  showMsg(['おう「おお ゆうしゃよ、\nよくぞ まいられた。','みなみの うみの むこうに みえる\nくろき しろ――あれこそ まおうガルドの\nすみかじゃ。だが いまは わたる すべがない。','まずは ひがしの はしを わたり、\nぬまの どうくつに とらわれた\nむすめリナを すくっておくれ。','どうくつには おそろしい ドラゴンが\nおる。みなとまちポルテで そうびを\nととのえ、けんじゃにも たずねるとよい。','どうか むすめと このくにを\nすくってくれ！」'],saveChoice);
 }
 function innTalk(price){
   showChoice(['とまる ('+price+'G)','やめる'],sel=>{
@@ -1904,7 +1895,7 @@ function titleUpdate(){
 }
 function startIntro(){
   mode='field'; enterMap('castle',8,6); G.dir='u';
-  showMsg(['むかしむかし レガリアのくにに\nやみの まおう ガルドが あらわれた。','まおうのてしたは リナひめを さらい\nみなみの ぬまちのどうくつに きえた…。','たびだちのとき。 きみは おうさまに\nよばれて おしろに きたのだった。',
+  showMsg(['むかしむかし レガリアのくにに\nやみの まおう ガルドが あらわれた。','まおうは うみの むこうの しまに\nくろき しろを かまえ、てしたは\nリナひめを ぬまの どうくつへ さらった…。','たびだちのとき。 きみは おうさまに\nよばれて おしろに きたのだった。',
     '【そうさ】 やじるしキー:いどう\nZ/エンター:はなす・しらべる\nX:メニュー  M:おと ON/OFF',
     '【セーブ】 おうさまに はなしかけて\n「きろく」する。やめるときは\nそのまま ブラウザを とじれば いい。']);
 }
