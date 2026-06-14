@@ -228,6 +228,9 @@ const ITEMS={
   key:  {name:'まほうのかぎ', price:85, info:'かぎのかかった とびらを ひらく'},
   charm:{name:'せいなるおまもり', price:0, info:'まやかしを はらう ひかり'},
   elixir:{name:'いのちのみず', price:480, info:'HPを かんぜんに かいふく'},
+  sunstone:{name:'たいようのいし', price:0, info:'ひざしを やどす せきぞう'},
+  rainstaff:{name:'あまぐものつえ', price:0, info:'あまぐもを よぶ つえ'},
+  rainbow:{name:'にじのしずく', price:0, info:'にじの かけはしを かける しずく'},
 };
 
 // モンスター（名前・数値・ドット絵すべてオリジナル）
@@ -254,6 +257,9 @@ const MONSTERS={
   icemage:{name:'ひょうけつの まどうし',hp:44,atk:34,def:18,agi:17,exp:50,gold:62,spell:'fire'},
   yeti:   {name:'ゆきおとこ',    hp:66, atk:48, def:33, agi:11, exp:60, gold:74},
   frostwurm:{name:'こおりりゅう フロストヴルム',hp:200,atk:70,def:44,agi:23,exp:300,gold:360,spell:'fire2',boss:true},
+  // 虹のかけ橋クエストの秘宝ガーディアン
+  sunguard:{name:'ひのかみの せきぞう',hp:170,atk:64,def:48,agi:14,exp:240,gold:280,spell:'fire',boss:true},
+  stormwyrm:{name:'あらしの りゅう ストームヴルム',hp:210,atk:72,def:40,agi:28,exp:320,gold:380,spell:'fire2',boss:true},
 };
 // 地域ごとの出現テーブル（よわい→つよい 順。平地ではよわい側が出やすい）
 const ZONES=[
@@ -367,6 +373,9 @@ ART.yeti={p:{K:'#101018',g:'#e2edf5',d:'#9fb4c8',r:'#7a93ad'},r:ART.golem.r};
 ART.icemage={p:{K:'#101018',p:'#3a78c8',y:'#bfe6ff',s:'#cfe8f0'},r:ART.mage.r};
 ART.iceliz={p:{K:'#101018',g:'#58b8e0',d:'#2f80b4',y:'#e8f6ff',r:'#ffffff'},r:ART.wyv.r};
 ART.frostwurm={p:{K:'#101018',d:'#4a96cc',r:'#bfe6ff',y:'#eaf6ff',m:'#274f73'},r:ART.boss1.r};
+// 秘宝ガーディアン
+ART.sunguard={p:{K:'#101018',g:'#e8a838',d:'#b06820',r:'#ffe070'},r:ART.golem.r};
+ART.stormwyrm={p:{K:'#101018',g:'#7088b0',d:'#3a4a78',y:'#e8e8f0',r:'#f0e040'},r:ART.wyv.r};
 
 // 描画関数（パレット絵）
 function drawArt(name,x,y,px,flip){
@@ -391,7 +400,7 @@ const TS=32; // 画面上のタイルサイズ
 const TILE_KEYS=['grass','forest','hill','mtn','water','bridge','desert','swamp',
   'castle','town','cave','wall','floor','counter','stairs_d','stairs_u','chest','chest_open',
   'throne','carpet','cell','dark',
-  'water2','flower','sign_w','sign_a','sign_i','sign_n','door','shrine','barrier','exit','icecave'];
+  'water2','flower','sign_w','sign_a','sign_i','sign_n','door','shrine','barrier','exit','icecave','rainbow','sunruin'];
 const atlas=document.createElement('canvas');
 atlas.width=TILE_KEYS.length*TS; atlas.height=TS;
 const atx=atlas.getContext('2d');
@@ -433,6 +442,12 @@ function tileIndex(k){ return TILE_KEYS.indexOf(k); }
       case 'icecave': px(i,0,0,16,16,'#e6eef6');
         px(i,1,10,14,5,'#b8c8dc'); px(i,2,2,12,13,'#cfe0f0'); px(i,5,6,6,9,'#10283c');
         px(i,4,4,8,3,'#9fc0e0'); px(i,6,1,2,3,'#ffffff'); px(i,3,3,1,2,'#ffffff'); break;
+      case 'sunruin': px(i,0,0,16,16,'#d8c078');
+        px(i,2,3,3,12,'#c8a860'); px(i,11,3,3,12,'#c8a860'); px(i,2,2,12,2,'#e0c888');
+        px(i,6,5,4,10,'#181018'); px(i,7,1,2,2,'#f0d040'); break;
+      case 'rainbow': px(i,0,0,16,16,'#2858c0');
+        px(i,0,4,16,2,'#e84040'); px(i,0,6,16,2,'#e8a030'); px(i,0,8,16,2,'#e8e040');
+        px(i,0,10,16,2,'#40c850'); px(i,0,12,16,2,'#4080e8'); break;
       case 'wall': px(i,0,0,16,16,'#888090');
         for(let yy=0;yy<4;yy++) for(let xx=0;xx<2;xx++)
           px(i,xx*8+(yy%2?4:0)-2,yy*4,7,3,'#a8a0b0');
@@ -598,13 +613,20 @@ let world=[];
   world[40][20]='pcave';   // ぬまのどうくつ（姫がとらわれている）
   world[24][52]='town3';   // はいきょのまち
   world[4][46]='icecave';  // 氷竜の神殿（北の雪山。山に囲まれた立地は残す）
-  // 入口の周囲は歩けるように
-  [[12,12],[16,14],[42,16],[50,34],[12,52],[46,30],[10,42],[20,40],[52,24]].forEach(([x,y])=>{
+  world[7][31]='melodia';  // おとのまちメロディア
+  world[28][50]='sunruin'; // ひざしのいせき（太陽の石）
+  world[18][5]='rainca';   // あまぐものどうくつ（雨雲の杖）
+  // 入口の周囲は歩けるように（魔王城は堀で隔てるのでリストに含めない）
+  [[12,12],[16,14],[42,16],[50,34],[46,30],[10,42],[20,40],[52,24],[31,7],[50,28],[5,18]].forEach(([x,y])=>{
     for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
       const t=world[y+dy][x+dx];
       if((t==='water'||t==='mtn')&&!(dx===0&&dy===0)) world[y+dy][x+dx]='grass';
     }
   });
+  // 魔王城(12,52)を水堀で隔離し、虹のかけ橋(12,51)だけを渡り口にする（本家のりゅうおうの島）
+  world[52][11]='water'; world[52][13]='water'; world[53][12]='water';
+  world[51][12]='rainbow';
+  world[50][12]='grass'; // 橋の手前は確実に立てるように
 })();
 function worldTileKey(t,x,y){
   if(t==='town2'||t==='town3') return 'town';
@@ -612,6 +634,10 @@ function worldTileKey(t,x,y){
   if(t==='pcave') return 'cave';
   if(t==='shrine'||t==='shrine2') return 'shrine';
   if(t==='icecave') return 'icecave';
+  if(t==='melodia') return 'town';
+  if(t==='sunruin') return 'sunruin';
+  if(t==='rainca') return 'cave';
+  if(t==='rainbow') return (G&&G.flags.rainbow) ? 'rainbow' : 'water2';
   if(t==='grass' && ((x*7+y*13)%29===0)) return 'flower'; // ところどころ花ばたけ
   if(t==='water' && ((x+y+(frame>>5))%2===0)) return 'water2'; // 波のアニメ
   return t;
@@ -668,7 +694,7 @@ INDOOR.dcastle_fake={ name:'ラダムじょう？', music:'town', floor:'floor',
   {x:4,y:6,art:'npc_guard',text:['へいし「ようこそ おいでくださいました\nゆうしゃさま…ずっと まって\nおりました…ずっと……ずっと……」']},
   {x:11,y:6,art:'npc_guard',text:['へいし「おうさまに したがうのです。\nそうすれば らくに なれますよ…\nぐ、ぐふふ……」']},
   {x:3,y:8,art:'npc_lady',text:['おんなのひと「ここは… あんぜんです。\nなにも こわいことは ありません。\n…ありません… ありません…」']},
- ], exit:{map:'world',x:12,y:53}};
+ ], exit:{map:'world',x:12,y:50}};
 INDOOR.town1={ name:'カナンのまち', music:'town', floor:'floor', rows:[
 '########################',
 '#....#....#......#gTTTg#',
@@ -823,7 +849,7 @@ INDOOR.dcastle1={ name:'まおうじょう 1F', music:'boss', floor:'carpet', en
 '################'],
  chests:{'4,6':{gold:500},'5,6':{itemKey:'herb'},'10,6':{itemKey:'wing'},'11,6':{gold:300}},
  stairs:{'7,1':{map:'dcastle2',x:1,y:1}},
- npcs:[], exit:{map:'world',x:12,y:53}, escape:{map:'world',x:12,y:53}};
+ npcs:[], exit:{map:'world',x:12,y:50}, escape:{map:'world',x:12,y:50}};
 INDOOR.dcastle2={ name:'まおうじょう 2F', music:'boss', floor:'carpet', encounter:'dcastle', rows:[
 '################',
 '#>.....#......<#',
@@ -841,7 +867,7 @@ INDOOR.dcastle2={ name:'まおうじょう 2F', music:'boss', floor:'carpet', en
 '#..............#',
 '################'],
  stairs:{'1,1':{map:'dcastle1',x:7,y:1},'14,1':{map:'dcastle3',x:7,y:8}},
- escape:{map:'world',x:12,y:53},
+ escape:{map:'world',x:12,y:50},
  npcs:[{x:13,y:1,art:'devil',id:'devil',hideIf:'devilDead'}]};
 INDOOR.dcastle3={ name:'まおうじょう さいじょうかい', music:'boss', floor:'carpet', rows:[
 '################',
@@ -855,7 +881,7 @@ INDOOR.dcastle3={ name:'まおうじょう さいじょうかい', music:'boss',
 '#......>.......#',
 '################'],
  stairs:{'7,8':{map:'dcastle2',x:14,y:1}},
- escape:{map:'world',x:12,y:53},
+ escape:{map:'world',x:12,y:50},
  npcs:[
   {x:7,y:2,art:'npc_demon',id:'demon'},
  ]};
@@ -910,6 +936,65 @@ INDOOR.icetemple2={ name:'こおりの しんでん さいかんぶ', music:'cav
  stairs:{'6,9':{map:'icetemple1',x:10,y:10}},
  escape:{map:'world',x:46,y:5},
  npcs:[{x:7,y:4,art:'frostwurm',id:'frostwurm',hideIf:'frostDead'}]};
+// --- 虹のかけ橋クエスト: 秘宝ダンジョン2つ＋町メロディア ---
+INDOOR.sunruin={ name:'ひざしの いせき', music:'cave', floor:'desert', encounter:'dcastle', rows:[
+'################',
+'#....#####.....#',
+'#....#ccc#.....#',
+'#....#...#.....#',
+'#....##.##.....#',
+'#..............#',
+'#.#..#..#..#...#',
+'#..............#',
+'#.#..#..#..#...#',
+'#.....EE.......#',
+'#..............#',
+'################'],
+ chests:{'6,2':{gold:600},'7,2':{itemKey:'sunstone'},'8,2':{gold:400}},
+ npcs:[{x:7,y:4,art:'sunguard',id:'sunguard',hideIf:'sunDead'}],
+ exit:{map:'world',x:50,y:29}, escape:{map:'world',x:50,y:29}};
+INDOOR.rainca={ name:'あまぐもの どうくつ', music:'cave', floor:'floor', dark:true, encounter:'dcastle', rows:[
+'################',
+'#....#####.....#',
+'#....#ccc#.....#',
+'#....#...#.....#',
+'#....##.##.....#',
+'#..............#',
+'#.#..#..#..#...#',
+'#..............#',
+'#.#..#..#..#...#',
+'#.....EE.......#',
+'#..............#',
+'################'],
+ chests:{'6,2':{gold:600},'7,2':{itemKey:'rainstaff'},'8,2':{gold:400}},
+ npcs:[{x:7,y:4,art:'stormwyrm',id:'stormwyrm',hideIf:'stormDead'}],
+ exit:{map:'world',x:5,y:19}, escape:{map:'world',x:5,y:19}};
+INDOOR.melodia={ name:'おとの まちメロディア', music:'town', floor:'floor', rows:[
+'########################',
+'#....#....#......#.....#',
+'#.C..#.C..#..C...#.TT..#',
+'#....#....#......#.TT..#',
+'#W.###A.####I.####.....#',
+'#......................#',
+'#......##..............#',
+'#......##.....####.....#',
+'#..............#ww#....#',
+'#.#.#........N.........#',
+'#.................TT...#',
+'#wwwww.................#',
+'#wwwww.................#',
+'###########EE###########'],
+ npcs:[
+  {x:2,y:1,art:'npc_villager',id:'shop_weapon2'},
+  {x:7,y:1,art:'npc_villager',id:'shop_armor2'},
+  {x:13,y:1,art:'npc_lady',id:'shop_item2'},
+  {x:14,y:9,art:'npc_lady',id:'inn',price:20},
+  {x:3,y:10,art:'npc_villager',text:['ぎんゆうしじん「まおうじょうは うみの\nむこうの しま。\nふつうには わたれぬのだ…」']},
+  {x:16,y:5,art:'npc_guard',text:['へいし「にじの かけはしを かけるには\n「たいようのいし」と「あまぐものつえ」\nの ふたつの ひほうが いるという」']},
+  {x:20,y:6,art:'npc_villager',text:['ろうじん「たいようのいしは ひがしの\nさばくの「ひざしの いせき」に。\nガーディアンが まもっておるそうじゃ」']},
+  {x:18,y:1,art:'npc_lady',text:['おんなのひと「あまぐものつえは にしの\n「あまぐもの どうくつ」に ねむるとか。\nあらしの りゅうに ごようじん…」']},
+  {x:8,y:12,art:'npc_villager',text:['こども「ふたつの ひほうを けんじゃさまに\nもっていくと いいんだって！」']},
+ ], exit:{map:'world',x:31,y:8}};
 
 //==================================================================
 //  ゲーム状態
@@ -920,7 +1005,8 @@ function newGame(){
   G={ lv:1, exp:0, hp:LV_HP[0], mp:LV_MP[0], gold:120,
       weapon:0, armor:0, shield:0,
       items:{herb:2, torch:1, wing:0, key:0, charm:0},
-      flags:{sword:false, shield:false, cleared:false, princessSaved:false, dragoDead:false, devilDead:false, gotCharm:false, illusionBroken:false, frostDead:false},
+      flags:{sword:false, shield:false, cleared:false, princessSaved:false, dragoDead:false, devilDead:false, gotCharm:false, illusionBroken:false, frostDead:false,
+             sunDead:false, stormDead:false, rainbow:false},
       chests:{}, doors:{},
       map:'world', x:12, y:13, dir:'d', light:0,
   };
@@ -1091,7 +1177,7 @@ function npcActive(n){
 }
 function isBlocked(x,y){
   const t=tileAt(x,y);
-  if(G.map==='world') return t==='water'||t==='mtn';
+  if(G.map==='world') return t==='water'||t==='mtn'||(t==='rainbow'&&!(G.flags&&G.flags.rainbow));
   if(t==='#'||t==='C'||t==='t'||t==='B'||t==='W'||t==='A'||t==='I'||t==='N'||t==='D'||t==='T'||t==='w') return true;
   const m=curMap();
   if(m.npcs && m.npcs.some(n=>npcActive(n)&&n.x===x&&n.y===y)) return true;
@@ -1141,6 +1227,9 @@ function onStep(){
     if(t==='shrine'){ enterMap('shrine1',4,4); sfx('stairs'); return; }
     if(t==='shrine2'){ enterMap('shrine2',4,4); sfx('stairs'); return; }
     if(t==='icecave'){ enterMap('icetemple1',6,9); sfx('stairs'); return; }
+    if(t==='melodia'){ enterMap('melodia',11,12); sfx('stairs'); return; }
+    if(t==='sunruin'){ enterMap('sunruin',3,9); sfx('stairs'); return; }
+    if(t==='rainca'){ enterMap('rainca',3,9); sfx('stairs'); return; }
     if(t==='dcastle'){
       if(G.flags.illusionBroken) enterMap('dcastle1',7,12);
       else enterMap('dcastle_fake',8,10);
@@ -1276,10 +1365,15 @@ function talkNpc(n){
       } else if(!G.flags.gotCharm){
         G.flags.gotCharm=true; G.items.charm=(G.items.charm||0)+1; sfx('levelup');
         showMsg(['けんじゃ「おお、ひめを すくったか！\nみごとじゃ ゆうしゃよ。','さずけよう……「せいなるおまもり」！\nまおうじょうは まやかしに つつまれて\nおる。しろの なかで これを つかうのじゃ。','ガルドは にどめの すがたこそ しん。\nHPを たもったまま いっせんめを\nきりぬけるのじゃぞ」']);
-      } else if(!G.flags.frostDead){
-        showMsg(['けんじゃ「まおうじょうの なかで\nせいなるおまもりを つかえば\nまやかしが はれ しんのすがたが あらわれる。','ところで…きたの ゆきやまに\n「こおりの しんでん」が あるのを\nしっておるか？','りゅうの まもる たからは ガルドとの\nけっせんで きっと ちからに なろう。\nよくばりも たまには よいぞ」']);
+      } else if(!G.flags.rainbow){
+        if((G.items.sunstone||0)>0 && (G.items.rainstaff||0)>0){
+          G.items.sunstone=0; G.items.rainstaff=0; G.items.rainbow=(G.items.rainbow||0)+1; sfx('levelup');
+          showMsg(['けんじゃ「おお…！ たいようのいしと\nあまぐものつえ、その ふたつを\nそろえたか！','ふたつの ちからを あわせ……\n「にじのしずく」が うまれた！','うみべに たち これを つかうがよい。\nまおうじょうの しまへ にじの\nかけはしが かかるであろう」']);
+        } else {
+          showMsg(['けんじゃ「まおうじょうは うみの むこうの\nしま。わたるには「にじの かけはし」が\nいる。','ふたつの ひほう――「たいようのいし」と\n「あまぐものつえ」を さがすのじゃ。\nおとのまち メロディアで はなしを きけ。','…なお きたの ゆきやまの しんでんにも\nつよき たからが あるそうじゃ。\nよくばりも たまには よいぞ」']);
+        }
       } else {
-        showMsg(['けんじゃ「こおりの りゅうを たおしたか！\nその そうびと ちからが あれば\nもはや おそれるものは ない。','とびらには まほうのかぎも わすれるな。','けっせんのまえに HPとMPを まんたんに！」']);
+        showMsg(['けんじゃ「にじの かけはしは かかった。\nあとは まおうじょうへ のりこむのみ！','しろの なかで せいなるおまもりを\nつかえば まやかしが はれる。\nとびらには まほうのかぎも わすれるな。','けっせんのまえに HPとMPを まんたんに！」']);
       }
       break;
     case 'fake_king':
@@ -1293,6 +1387,12 @@ function talkNpc(n){
       break;
     case 'frostwurm':
       showMsg(['しんでんの おくから\nこおりの りゅうが まいおりた！','フロストヴルム\n「ここから さきには とおさぬ…\nこおりづけに してくれよう！」'],()=>startBattle('frostwurm','frostDead'));
+      break;
+    case 'sunguard':
+      showMsg(['たいようのいしを まもる せきぞうが\nめを ひらいた！','ひのかみの せきぞう\n「いしを のぞむ もの…\nほのおの しれんを うけよ！」'],()=>startBattle('sunguard','sunDead'));
+      break;
+    case 'stormwyrm':
+      showMsg(['どうくつに あらしが まきおこる！','ストームヴルム\n「あまぐもの つえは わたさぬ…\nいかずちに うたれて きえるがよい！」'],()=>startBattle('stormwyrm','stormDead'));
       break;
     case 'princess2':
       showMsg('リナひめ「あなたは…ゆうしゃさま！\nたすけに きてくださったのですね！」',()=>{
@@ -1477,6 +1577,13 @@ function fieldItemMenu(){
       G.items[k]--; sfx('heal');
       G.hp=maxHP();
       showMsg('いのちのみずを のんだ！\nHPが かんぜんに かいふくした！');
+    } else if(k==='rainbow'){
+      if(curMap()){ showMsg('ここでは つかえない。\nひろい うみべで つかうのだ。'); return; }
+      if(G.flags.rainbow){ showMsg('にじの かけはしは すでに かかっている。'); return; }
+      G.items[k]--; G.flags.rainbow=true; sfx('levelup');
+      showMsg(['にじのしずくを かかげた！','そらに にじが かかり……\nまおうじょうの しまへ\n「にじの かけはし」が あらわれた！','みなみの まおうじょうへ いそぐのだ！']);
+    } else if(k==='sunstone'||k==='rainstaff'){
+      showMsg('ひほうだ。けんじゃに みせれば\nなにか わかるかもしれない。');
     }
   },{title:'どうぐ',x:280,y:30,w:210});
 }
@@ -1917,7 +2024,8 @@ requestAnimationFrame(tick);
     ['sword','レガリアの剣'],['shield','まもりのたて'],
     ['princessSaved','姫を救出'],['gotCharm','お守り入手'],
     ['illusionBroken','魔王城の幻を解く'],['dragoDead','ぬまの主撃破'],
-    ['devilDead','デビルナイト撃破'],['frostDead','氷竜撃破'],['cleared','クリア済み'],
+    ['devilDead','デビルナイト撃破'],['frostDead','氷竜撃破'],
+    ['sunDead','ひのかみ撃破'],['stormDead','嵐竜撃破'],['rainbow','虹のかけ橋'],['cleared','クリア済み'],
   ];
   const flagsBox=document.getElementById('dbgFlags');
   flagsBox.innerHTML=FLAGS.map(([k,label])=>
