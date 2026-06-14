@@ -248,18 +248,18 @@ const MONSTERS={
   wyv:   {name:'ワイバーン',     hp:62, atk:51, def:26, agi:25, exp:78, gold:98, spell:'fire'},
   shadow:{name:'デスシャドウ',   hp:72, atk:58, def:31, agi:31, exp:98, gold:115,spell:'fire'},
   drago: {name:'ぬまのドラゴン', hp:80, atk:46, def:30, agi:16, exp:110,gold:140,spell:'fire',boss:true},
-  devil: {name:'デビルナイト',   hp:110,atk:62, def:42, agi:24, exp:220,gold:220,spell:'heal',boss:true},
-  boss1: {name:'まおうガルド',   hp:140,atk:62, def:42, agi:26, exp:0,  gold:0, spell:'fire', boss:true},
-  boss2: {name:'しんのガルド',   hp:220,atk:78, def:52, agi:32, exp:0,  gold:0, spell:'fire2',boss:true},
+  devil: {name:'デビルナイト',   hp:130,atk:64, def:44, agi:24, exp:220,gold:220,spell:'heal',boss:true},
+  boss1: {name:'まおうガルド',   hp:185,atk:82, def:48, agi:28, exp:0,  gold:0, spell:'fire', boss:true},
+  boss2: {name:'しんのガルド',   hp:330,atk:99, def:56, agi:34, exp:0,  gold:0, spell:'fire2',boss:true},
   // 雪山チャプター
   frostbat:{name:'こおりバット', hp:32, atk:30, def:16, agi:24, exp:30, gold:40},
   iceliz: {name:'アイスドレイク', hp:54, atk:42, def:24, agi:21, exp:54, gold:64, spell:'fire'},
   icemage:{name:'ひょうけつの まどうし',hp:44,atk:34,def:18,agi:17,exp:50,gold:62,spell:'fire'},
   yeti:   {name:'ゆきおとこ',    hp:66, atk:48, def:33, agi:11, exp:60, gold:74},
-  frostwurm:{name:'こおりりゅう フロストヴルム',hp:200,atk:70,def:44,agi:23,exp:300,gold:360,spell:'fire2',boss:true},
-  // 虹のかけ橋クエストの秘宝ガーディアン
-  sunguard:{name:'ひのかみの せきぞう',hp:170,atk:64,def:48,agi:14,exp:240,gold:280,spell:'fire',boss:true},
-  stormwyrm:{name:'あらしの りゅう ストームヴルム',hp:210,atk:72,def:40,agi:28,exp:320,gold:380,spell:'fire2',boss:true},
+  frostwurm:{name:'こおりりゅう フロストヴルム',hp:190,atk:68,def:42,agi:23,exp:300,gold:360,spell:'fire2',boss:true},
+  // 虹のかけ橋クエストの秘宝ガーディアン（中盤の壁。最終ボスより弱く設定）
+  sunguard:{name:'ひのかみの せきぞう',hp:115,atk:52,def:38,agi:14,exp:150,gold:200,spell:'fire',boss:true},
+  stormwyrm:{name:'あらしの りゅう ストームヴルム',hp:130,atk:55,def:34,agi:22,exp:180,gold:220,spell:'fire',boss:true},
 };
 // 地域ごとの出現テーブル（よわい→つよい 順。平地ではよわい側が出やすい）
 const ZONES=[
