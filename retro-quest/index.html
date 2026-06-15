@@ -523,85 +523,94 @@ function drawTile(key,x,y){
 const MAPW=64,MAPH=64;
 let world=[];
 // 施設のワールド座標を一元管理（出口座標はここから自動設定）
-// 大陸構成: ホーム(西)→[橋]→中央→[橋]→東(砂漠)／[橋]→北の島／[虹の橋]→魔王島
+// 本家アレフガルド風: 一枚の有機的大陸。魔王城は始まりの城のすぐ南・入り江の小島で
+// 虹のかけ橋(1マス)でのみ渡れる（開始画面から見える）。
 const SITES={
-  castle:[10,10],  canan:[15,12],  dcastle:[10,21],          // ホーム大陸＋魔王島(すぐ南・開始時に見える)
-  kenja:[32,12],   porte:[38,9],   numa:[30,26],             // 中央大陸
-  shiren:[52,12],  haikyo:[56,30], iyashi:[52,36], sun:[58,40], rain:[58,20], // 東の大陸(砂漠)
-  melodia:[36,3],  ice:[28,3]                                // 北の島
+  castle:[32,28],  canan:[37,28],  dcastle:[32,35],            // 中央＝始まりの城・城下町・魔王島
+  numa:[24,23],    kenja:[21,33],                              // 中央西（姫の沼・賢者）
+  porte:[47,21],   shiren:[49,37], iyashi:[41,46], sun:[53,45],// 東〜南東
+  haikyo:[14,40],  rain:[13,16],                               // 西（廃墟・あまぐも）
+  melodia:[27,11], ice:[45,9]                                  // 北
 };
-const START=[10,16];               // 開始位置(ホーム南端・魔王島を望む)
-// 橋(1マス)。rainbowは にじのしずく取得後のみ通行可
-const BRIDGES=[ [24,11,'bridge'], [36,5,'bridge'], [46,12,'bridge'], [10,18,'rainbow'] ];
+const START=[32,31];               // 始まりの城の南側・魔王島を望む
+const BRIDGES=[ [32,33,'rainbow'], [40,15,'bridge'] ]; // 虹の橋(魔王島)＋川の橋
 (function genWorld(){
   const r=mulberry(20260612);
   world=[];
   for(let y=0;y<MAPH;y++){ world.push(new Array(MAPW).fill('water')); }
-  // --- 大陸（矩形。1マスの海で隔て、橋でつなぐ） ---
-  function rect(x0,y0,x1,y1,t){ for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++) if(x>=2&&y>=2&&x<MAPW-2&&y<MAPH-2) world[y][x]=t; }
-  rect(4,6,23,17,'grass');    // ホーム大陸（西）
-  rect(5,19,17,27,'grass');   // 魔王島（ホームのすぐ南。海でしきり虹の橋のみ）
-  rect(25,6,45,32,'grass');   // 中央大陸
-  rect(25,2,44,4,'grass');    // 北の島（メロディア・氷）
-  rect(47,6,61,44,'grass');   // 東の大陸（砂漠）
-  // --- 海岸線を侵食して有機的な形に（矩形っぽさを消す）。施設・橋・開始地点は守る ---
-  const protect=new Set();
-  function prot(x,y,rr){ for(let dy=-rr;dy<=rr;dy++) for(let dx=-rr;dx<=rr;dx++) protect.add((x+dx)+','+(y+dy)); }
-  function protLine(x0,y0,x1,y1){ let x=x0,y=y0; while(true){ prot(x,y,1); if(x===x1&&y===y1)break; if(x!==x1)x+=x<x1?1:-1; else if(y!==y1)y+=y<y1?1:-1; } }
-  for(const k in SITES) prot(SITES[k][0],SITES[k][1],2);
-  for(const b of BRIDGES) prot(b[0],b[1],2);
-  prot(START[0],START[1],2);
-  // 橋から各大陸の中心施設までの通路を保護（侵食で寸断しない）
-  protLine(24,11,32,12); protLine(46,12,52,12); protLine(36,5,36,9); protLine(10,18,10,21);
-  // ゆるやかに1回だけ侵食（海に接する陸を確率で削る）
-  const snap=world.map(row=>row.slice());
-  for(let y=2;y<MAPH-2;y++) for(let x=2;x<MAPW-2;x++){
-    if(snap[y][x]!=='grass'||protect.has(x+','+y)) continue;
-    let wa=0; for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) if(snap[y+dy][x+dx]==='water') wa++;
-    if(wa>0 && r()<0.12+wa*0.06) world[y][x]='water';
+  // --- 一枚の有機的大陸（楕円を重ねて入り組んだ海岸線に） ---
+  function land(cx,cy,rx,ry){ for(let y=0;y<MAPH;y++) for(let x=0;x<MAPW;x++){
+    if(x<2||y<2||x>=MAPW-2||y>=MAPH-2) continue;
+    const dx=(x-cx)/rx, dy=(y-cy)/ry, d=dx*dx+dy*dy;
+    if(d<=1 || (d<=1.18 && r()<0.55)) world[y][x]='grass';
+  } }
+  land(32,28,27,21);   // 本体
+  land(16,16,10,8); land(48,15,10,8); land(15,42,10,8); land(49,43,11,8); land(32,47,16,7); // 半島で凹凸
+  // 海岸線をさらにゆらす（孤立陸/孤立海をならす）
+  for(let pass=0;pass<2;pass++){ const snap=world.map(rw=>rw.slice());
+    for(let y=2;y<MAPH-2;y++) for(let x=2;x<MAPW-2;x++){ let land4=0;
+      for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]) if(snap[y+dy]&&snap[y+dy][x+dx]==='grass') land4++;
+      if(snap[y][x]==='grass'&&land4<=1&&r()<0.7) world[y][x]='water';
+      else if(snap[y][x]==='water'&&land4>=4&&r()<0.5) world[y][x]='grass';
+    }
   }
-  // --- 地形ヘルパ（grassのみ書き換え） ---
+  // --- 地形ヘルパ ---
   function blob(t,cx,cy,rad){ for(let y=Math.round(cy-rad);y<=cy+rad;y++) for(let x=Math.round(cx-rad);x<=cx+rad;x++){
     if(x<2||y<2||x>=MAPW-2||y>=MAPH-2) continue; if(world[y][x]!=='grass') continue;
-    const dd=Math.hypot(x-cx,y-cy); if(dd<=rad-1||(dd<=rad&&r()<0.6)) world[y][x]=t;
-  } }
-  function ridge(t,x1,y1,x2,y2,w){ const steps=Math.ceil(Math.hypot(x2-x1,y2-y1))*2;
-    for(let i=0;i<=steps;i++){ const x=x1+(x2-x1)*i/steps+(r()*2-1), y=y1+(y2-y1)*i/steps+(r()*2-1); blob(t,Math.round(x),Math.round(y),w); }
-  }
-  // 砂漠（東の大陸）
-  for(let y=8;y<44;y++) for(let x=48;x<61;x++) if(world[y][x]==='grass'&&r()<0.85) world[y][x]='desert';
-  // 森・丘・山脈（テクスチャ。橋・施設の近くは避ける）
-  blob('forest',7,8,2); blob('forest',30,20,4); blob('forest',40,26,3); blob('forest',20,8,2);
-  blob('hill',34,18,3); blob('hill',28,29,2);
-  ridge('mtn',43,9,44,15,1); ridge('mtn',27,29,30,31,1);
-  blob('swamp',30,27,3);                              // ぬまの周辺
-  for(let y=19;y<28;y++) for(let x=5;x<18;x++) if(world[y][x]==='grass'&&r()<0.4) world[y][x]='swamp'; // 魔王島は沼地
+    if(Math.hypot(x-cx,y-cy)<=rad-1||(Math.hypot(x-cx,y-cy)<=rad&&r()<0.6)) world[y][x]=t; } }
+  function ridge(t,x1,y1,x2,y2,w){ const s=Math.ceil(Math.hypot(x2-x1,y2-y1))*2;
+    for(let i=0;i<=s;i++) blob(t,Math.round(x1+(x2-x1)*i/s+(r()*2-1)),Math.round(y1+(y2-y1)*i/s+(r()*2-1)),w); }
+  // 中央山脈（地域を仕切る）と各地の山並み
+  ridge('mtn',20,18,30,16,1); ridge('mtn',38,18,46,26,1); ridge('mtn',24,38,33,40,1); ridge('mtn',50,30,52,38,1);
+  // 森
+  blob('forest',30,20,4); blob('forest',18,30,3); blob('forest',40,34,3); blob('forest',28,44,3); blob('forest',44,14,2);
+  // 砂漠（南東）
+  for(let y=40;y<54;y++) for(let x=44;x<60;x++) if(world[y][x]==='grass'&&r()<0.8) world[y][x]='desert';
+  // 沼（姫の沼・魔王島周辺）
+  blob('swamp',24,23,3);
+  // 川（北から内陸へ）＋橋は後で
+  for(let y=2;y<16;y++){ if(world[y][40]==='grass') world[y][40]='water'; }
+  // --- 魔王島を入り江で隔離（始まりの城のすぐ南・虹の橋のみ） ---
+  for(let x=27;x<=37;x++) world[33][x]='water';            // 北の海峡
+  for(let y=33;y<=39;y++){ world[y][27]='water'; world[y][37]='water'; }
+  for(let x=27;x<=37;x++) world[39][x]='water';            // 南
+  for(let y=34;y<=38;y++) for(let x=28;x<=36;x++) world[y][x]='grass'; // 島の内側は陸
+  blob('swamp',32,36,3);
   // ぽつぽつ除去
   for(let y=2;y<MAPH-2;y++) for(let x=2;x<MAPW-2;x++){ const t=world[y][x];
     if(t!=='mtn'&&t!=='forest'&&t!=='hill') continue; let same=0;
-    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) if(world[y+dy][x+dx]===t) same++;
-    if(same===0) world[y][x]='grass';
-  }
+    for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]) if(world[y+dy][x+dx]===t) same++;
+    if(same===0) world[y][x]='grass'; }
+  // --- 連結確保: 各施設どうしを街道(草原)でつなぐ。山のみ削り、海・魔王島の入り江は触らない ---
+  const ISLE=(x,y)=>(x>=26&&x<=38&&y>=33&&y<=40);
+  function road(x1,y1,x2,y2){ let x=x1,y=y1; const step=()=>{ if(!ISLE(x,y)&&(world[y][x]==='mtn'||world[y][x]==='water')&&!(x>=2&&world[y][x]==='water'&&false)) { if(world[y][x]==='mtn') world[y][x]='grass'; } };
+    while(x!==x2){ if(world[y][x]==='mtn') world[y][x]='grass'; x+=x<x2?1:-1; }
+    while(y!==y2){ if(world[y][x]==='mtn') world[y][x]='grass'; y+=y<y2?1:-1; } if(world[y][x]==='mtn')world[y][x]='grass'; }
+  const S=SITES;
+  road(S.castle[0],S.castle[1],S.canan[0],S.canan[1]);
+  road(S.castle[0],S.castle[1],S.numa[0],S.numa[1]);
+  road(S.numa[0],S.numa[1],S.kenja[0],S.kenja[1]);
+  road(S.kenja[0],S.kenja[1],S.haikyo[0],S.haikyo[1]);
+  road(S.numa[0],S.numa[1],S.rain[0],S.rain[1]);
+  road(S.castle[0],S.castle[1],S.melodia[0],S.melodia[1]);
+  road(S.castle[0],S.castle[1],S.porte[0],S.porte[1]);
+  road(S.porte[0],S.porte[1],S.ice[0],S.ice[1]);
+  road(S.porte[0],S.porte[1],S.shiren[0],S.shiren[1]);
+  road(S.shiren[0],S.shiren[1],S.sun[0],S.sun[1]);
+  road(S.sun[0],S.sun[1],S.iyashi[0],S.iyashi[1]);
+  road(S.iyashi[0],S.iyashi[1],S.haikyo[0],S.haikyo[1]);
   // ランドマーク配置
   const TILE={castle:'castle',canan:'town',porte:'town2',shiren:'cave',haikyo:'town3',
     iyashi:'shrine',kenja:'shrine2',numa:'pcave',melodia:'melodia',ice:'icecave',
     sun:'sunruin',rain:'rainca',dcastle:'dcastle'};
   for(const k in SITES){ const [x,y]=SITES[k]; world[y][x]=TILE[k];
-    // 施設の隣の山だけ草原化（海は触らない）
     for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ if(dx===0&&dy===0) continue;
-      if(world[y+dy] && world[y+dy][x+dx]==='mtn') world[y+dy][x+dx]='grass'; }
-  }
-  // 橋（1マス。両たもとは確実に陸に）
-  for(const [bx,by,t] of BRIDGES){ world[by][bx]=t;
-    for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]){ const nx=bx+dx,ny=by+dy;
-      if(world[ny] && world[ny][nx]==='water') {/* 反対側のたもとだけ陸に */} }
-  }
-  // 橋のたもとを陸に固定
-  world[11][23]='grass'; world[11][25]='grass';   // ホーム⇔中央
-  world[4][36]='grass';  world[6][36]='grass';     // 中央⇔北の島
-  world[12][45]='grass'; world[12][47]='grass';    // 中央⇔東
-  world[17][10]='grass'; world[19][10]='swamp';    // ホーム⇔魔王島(虹)
-  // 開始地点の周囲は確実に歩けるように
+      if(world[y+dy] && (world[y+dy][x+dx]==='mtn')) world[y+dy][x+dx]='grass'; } }
+  // 橋
+  for(const [bx,by,t] of BRIDGES) world[by][bx]=t;
+  world[32][32]='grass'; world[34][32]='grass';  // 虹の橋の北の岸・島側
+  world[14][40]='grass'; world[16][40]='grass';  // 川の橋のたもと
+  // 開始地点まわりを歩けるように
   for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const nx=START[0]+dx,ny=START[1]+dy;
     if(world[ny] && (world[ny][nx]==='mtn'||world[ny][nx]==='water')) world[ny][nx]='grass'; }
   world[START[1]][START[0]]='grass';
@@ -621,12 +630,12 @@ function worldTileKey(t,x,y){
   return t;
 }
 function zoneAt(x,y){
-  if(y>=19 && x<=20) return 4;           // 魔王島（最強）
-  if(x>=47) return 3;                    // 東の大陸（砂漠）
-  if(y<=5) return 1;                     // 北の島（メロディア・氷）
-  if(x<=23) return 0;                    // ホーム大陸
-  const d=Math.hypot(x-33,y-14);         // 中央大陸（中心から距離で）
-  return d>13 ? 2 : 1;
+  if(x>=26&&x<=38&&y>=33&&y<=40) return 4;   // 魔王島（最強）
+  const d=Math.hypot(x-32,y-28);             // 始まりの城からの距離で外側ほど強敵
+  if(d>23) return 3;
+  if(d>15) return 2;
+  if(d>8) return 1;
+  return 0;
 }
 
 //==================================================================
