@@ -403,7 +403,7 @@ const TS=32; // 画面上のタイルサイズ
 const TILE_KEYS=['grass','forest','hill','mtn','water','bridge','desert','swamp',
   'castle','town','cave','wall','floor','counter','stairs_d','stairs_u','chest','chest_open',
   'throne','carpet','cell','dark',
-  'water2','flower','sign_w','sign_a','sign_i','sign_n','door','shrine','barrier','exit','icecave','rainbow','sunruin'];
+  'water2','flower','sign_w','sign_a','sign_i','sign_n','door','shrine','barrier','exit','icecave','rainbow','sunruin','pot','barrel'];
 const atlas=document.createElement('canvas');
 atlas.width=TILE_KEYS.length*TS; atlas.height=TS;
 const atx=atlas.getContext('2d');
@@ -445,6 +445,10 @@ function tileIndex(k){ return TILE_KEYS.indexOf(k); }
       case 'icecave': px(i,0,0,16,16,'#e6eef6');
         px(i,1,10,14,5,'#b8c8dc'); px(i,2,2,12,13,'#cfe0f0'); px(i,5,6,6,9,'#10283c');
         px(i,4,4,8,3,'#9fc0e0'); px(i,6,1,2,3,'#ffffff'); px(i,3,3,1,2,'#ffffff'); break;
+      case 'pot': px(i,0,0,16,16,'#c8b088'); // 壺
+        px(i,6,2,4,2,'#7a5230'); px(i,4,4,8,8,'#a86838'); px(i,5,5,6,5,'#c0884a'); px(i,5,11,6,2,'#6a4520'); break;
+      case 'barrel': px(i,0,0,16,16,'#c8b088'); // 樽
+        px(i,4,3,8,11,'#8a5a2a'); px(i,4,5,8,1,'#6a4318'); px(i,4,9,8,1,'#6a4318'); px(i,5,3,1,11,'#a87a40'); px(i,10,3,1,11,'#a87a40'); break;
       case 'sunruin': px(i,0,0,16,16,'#d8c078');
         px(i,2,3,3,12,'#c8a860'); px(i,11,3,3,12,'#c8a860'); px(i,2,2,12,2,'#e0c888');
         px(i,6,5,4,10,'#181018'); px(i,7,1,2,2,'#f0d040'); break;
@@ -684,53 +688,54 @@ INDOOR.dcastle_fake={ name:'ラダムじょう？', music:'town', floor:'floor',
   {x:3,y:8,art:'npc_lady',text:['おんなのひと「ここは… あんぜんです。\nなにも こわいことは ありません。\n…ありません… ありません…」']},
  ], exit:{map:'world',x:12,y:50}};
 INDOOR.town1={ name:'カナンのまち', music:'town', floor:'floor', rows:[
-'####################',
-'####.###.###...###.#',
-'##.#.#.#.#.#...#.#.#',
-'##C#.#C#.#C#...#.#.#',
-'#..................#',
-'#..................#',
-'#......####........#',
-'#......#ww#........#',
-'#......####........#',
-'#..................#',
-'#..................#',
-'#..................#',
-'#########EE#########'],
- npcs:[
-  {x:2,y:2,art:'npc_villager',id:'shop_weapon'},
-  {x:6,y:2,art:'npc_villager',id:'shop_armor'},
-  {x:10,y:2,art:'npc_lady',id:'shop_item'},
-  {x:16,y:2,art:'npc_lady',id:'inn',price:8},
-  {x:4,y:5,art:'npc_villager',text:['まちのひと「ひがしの はしを わたると\nひろい くにが ひらける。\nおくへ いくほど まものも つよいぞ」']},
-  {x:13,y:5,art:'npc_lady',text:['おんなのひと「リナひめさまは はしの\nむこうの ぬまの どうくつに…。\nどうか たすけて さしあげて」']},
-  {x:4,y:10,art:'npc_villager',text:['たびのひと「さばくの ほこらでは ただで\nきずを いやしてくれるそうだ。\nおぼえておくと よい」']},
-  {x:14,y:10,art:'npc_villager',text:['こども「おにいちゃん つよそう！\nまおうを やっつけてね！」']},
- ], exit:{map:'world',x:16,y:15}};
-INDOOR.town2={ name:'みなとまちポルテ', music:'town', floor:'floor', rows:[
 '########################',
-'#.###..###..###...###..#',
-'#.#.#..#.#..#.#...#.#..#',
-'#.#C#..#C#..#C#...#.#..#',
+'#....#....#......#..oo.#',
+'#.C..#.C..#..C...#.....#',
+'#....#....#......#.....#',
+'#W.###A.####I.####.....#',
 '#......................#',
-'#......................#',
-'#......................#',
-'#......................#',
-'#wwwwww................#',
-'#wwwwww................#',
-'#wwwwww................#',
-'#......................#',
+'#..o................o..#',
+'#..#####...............#',
+'#..#...#..........####.#',
+'#..#.C.#..........#ww#.#',
+'#..#...#..........#ww#.#',
+'#..#N.##..........####.#',
 '#......................#',
 '###########EE###########'],
  npcs:[
-  {x:3,y:2,art:'npc_villager',id:'shop_weapon2'},
-  {x:8,y:2,art:'npc_villager',id:'shop_armor2'},
-  {x:13,y:2,art:'npc_lady',id:'shop_item2'},
-  {x:19,y:2,art:'npc_lady',id:'inn',price:20},
+  {x:2,y:1,art:'npc_villager',id:'shop_weapon'},
+  {x:7,y:1,art:'npc_villager',id:'shop_armor'},
+  {x:13,y:1,art:'npc_lady',id:'shop_item'},
+  {x:5,y:10,art:'npc_lady',id:'inn',price:8},
+  {x:10,y:5,art:'npc_villager',text:['まちのひと「ひがしの はしを わたると\nひろい くにが ひらける。\nおくへ いくほど まものも つよいぞ」']},
+  {x:15,y:6,art:'npc_lady',text:['おんなのひと「リナひめさまは はしの\nむこうの ぬまの どうくつに…。\nどうか たすけて さしあげて」']},
+  {x:10,y:12,art:'npc_villager',text:['たびのひと「さばくの ほこらでは ただで\nきずを いやしてくれるそうだ。\nおぼえておくと よい」']},
+  {x:15,y:12,art:'npc_villager',text:['こども「おにいちゃん つよそう！\nまおうを やっつけてね！」']},
+ ], exit:{map:'world',x:16,y:15}};
+INDOOR.town2={ name:'みなとまちポルテ', music:'town', floor:'floor', rows:[
+'########################',
+'#....#....#......#..oo.#',
+'#.C..#.C..#..C...#.....#',
+'#....#....#......#.....#',
+'#W.###A.####I.####.....#',
+'#......................#',
+'#......##.......o......#',
+'#......##.....####.....#',
+'#..............#ww#....#',
+'#....o.......N.........#',
+'#......................#',
+'#wwwww................b#',
+'#wwwww................o#',
+'###########EE###########'],
+ npcs:[
+  {x:2,y:1,art:'npc_villager',id:'shop_weapon2'},
+  {x:7,y:1,art:'npc_villager',id:'shop_armor2'},
+  {x:13,y:1,art:'npc_lady',id:'shop_item2'},
+  {x:14,y:9,art:'npc_lady',id:'inn',price:20},
   {x:9,y:6,art:'npc_villager',text:['ふなのり「ひがしの はしの むこう、\nさばくの くにに しれんの どうくつ。\nでんせつのつるぎが ねむるという」']},
-  {x:16,y:6,art:'npc_guard',text:['へいし「どうくつのなかは まっくらだ。\nたいまつか ライトのじゅもんが\nひつようだぞ」']},
-  {x:18,y:11,art:'npc_villager',text:['しょうにん「まほうのかぎは うちの\nどうぐやで うっているよ。\nまおうじょうの とびらも ひらくらしい」']},
-  {x:10,y:11,art:'npc_lady',text:['おんなのひと「さばくの はいきょには\nすごい よろいが のこされている…\nそんな うわさが あるわ」']},
+  {x:18,y:6,art:'npc_guard',text:['へいし「どうくつのなかは まっくらだ。\nたいまつか ライトのじゅもんが\nひつようだぞ」']},
+  {x:18,y:10,art:'npc_villager',text:['しょうにん「まほうのかぎは うちの\nどうぐやで うっているよ。\nまおうじょうの とびらも ひらくらしい」']},
+  {x:16,y:10,art:'npc_lady',text:['おんなのひと「さばくの はいきょには\nすごい よろいが のこされている…\nそんな うわさが あるわ」']},
  ], exit:{map:'world',x:42,y:17}};
 INDOOR.town3={ name:'サラムのはいきょ', music:'cave', floor:'desert', rows:[
 '####################',
@@ -956,27 +961,27 @@ INDOOR.rainca={ name:'あまぐもの どうくつ', music:'cave', floor:'floor'
  exit:{map:'world',x:5,y:19}, escape:{map:'world',x:5,y:19}};
 INDOOR.melodia={ name:'おとの まちメロディア', music:'town', floor:'floor', rows:[
 '########################',
-'#.###..###..###...###..#',
-'#.#.#..#.#..#.#...#.#..#',
-'#.#C#..#C#..#C#...#.#..#',
+'#....#....#......#..oo.#',
+'#.C..#.C..#..C...#.....#',
+'#....#....#......#.....#',
+'#W.###A.####I.####.....#',
 '#......................#',
+'#....wwww....wwww...o..#',
+'#....wwww....wwww......#',
 '#......................#',
-'#....wwww......wwww....#',
-'#....wwww......wwww....#',
-'#......................#',
-'#......................#',
+'#..o.......N........o..#',
 '#......................#',
 '#......................#',
 '#......................#',
 '###########EE###########'],
  npcs:[
-  {x:3,y:2,art:'npc_villager',id:'shop_weapon3'},
-  {x:8,y:2,art:'npc_villager',id:'shop_armor3'},
-  {x:13,y:2,art:'npc_lady',id:'shop_item3'},
-  {x:19,y:2,art:'npc_lady',id:'inn',price:30},
-  {x:4,y:9,art:'npc_villager',text:['ぎんゆうしじん「♪～うみの かなたの\nくろき しろ いつか ひかりが さす～♪\n…おっと、きいて くれて ありがとう」']},
-  {x:18,y:10,art:'npc_lady',text:['うたひめ「にじの かけはしはね、\nふたつの ひほうが そろったとき\nうたのように あらわれるの」']},
-  {x:11,y:8,art:'npc_guard',text:['へいし「ひがしの さばくには\nふるい いせきや どうくつが ねむる。\nおおきな たからには ぬしが いるぞ」']},
+  {x:2,y:1,art:'npc_villager',id:'shop_weapon3'},
+  {x:7,y:1,art:'npc_villager',id:'shop_armor3'},
+  {x:13,y:1,art:'npc_lady',id:'shop_item3'},
+  {x:11,y:10,art:'npc_lady',id:'inn',price:30},
+  {x:4,y:8,art:'npc_villager',text:['ぎんゆうしじん「♪～うみの かなたの\nくろき しろ いつか ひかりが さす～♪\n…おっと、きいて くれて ありがとう」']},
+  {x:18,y:9,art:'npc_lady',text:['うたひめ「にじの かけはしはね、\nふたつの ひほうが そろったとき\nうたのように あらわれるの」']},
+  {x:16,y:5,art:'npc_guard',text:['へいし「ひがしの さばくには\nふるい いせきや どうくつが ねむる。\nおおきな たからには ぬしが いるぞ」']},
   {x:6,y:11,art:'npc_villager',text:['ろうじん「ひほうを てに いれたら\nけんじゃの ほこらへ いきなされ。\nにじに かえられるのは あの かただけ」']},
   {x:16,y:11,art:'npc_villager',text:['こども「このまちの ぶきや、\nとなりの みなとまちより いいの\nうってるんだって！」']},
  ], exit:{map:'world',x:36,y:4}};
@@ -1186,7 +1191,7 @@ function npcActive(n){
 function isBlocked(x,y){
   const t=tileAt(x,y);
   if(G.map==='world') return t==='water'||t==='mtn'||(t==='rainbow'&&!(G.flags&&G.flags.rainbow));
-  if(t==='#'||t==='C'||t==='t'||t==='B'||t==='W'||t==='A'||t==='I'||t==='N'||t==='D'||t==='T'||t==='w') return true;
+  if(t==='#'||t==='C'||t==='t'||t==='B'||t==='W'||t==='A'||t==='I'||t==='N'||t==='D'||t==='T'||t==='w'||t==='o'||t==='b') return true;
   const m=curMap();
   if(m.npcs && m.npcs.some(n=>npcActive(n)&&n.x===x&&n.y===y)) return true;
   return false;
@@ -1227,7 +1232,7 @@ function onStep(){
   const t=tileAt(G.x,G.y);
   if(G.map==='world'){
     if(t==='castle'){ enterMap('castle',8,10); sfx('stairs'); return; }
-    if(t==='town'){ enterMap('town1',9,11); sfx('stairs'); return; }
+    if(t==='town'){ enterMap('town1',9,12); sfx('stairs'); return; }
     if(t==='town2'){ enterMap('town2',9,10); sfx('stairs'); return; }
     if(t==='cave'){ enterMap('cave1',18,6); sfx('stairs'); return; }
     if(t==='town3'){ enterMap('town3',10,10); sfx('stairs'); return; }
@@ -1641,6 +1646,8 @@ function fieldDraw(){
         case 'A': key='sign_a'; break;
         case 'I': key='sign_i'; break;
         case 'N': key='sign_n'; break;
+        case 'o': key='pot'; break;
+        case 'b': key='barrel'; break;
         case 'E': key='exit'; break; // 出口はどこでも見えるように
         default: key=m.floor;
       }
