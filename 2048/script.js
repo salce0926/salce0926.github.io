@@ -59,16 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
         generateRandomTile();
     }
 
-    // ランダムなタイルを生成
-    function generateRandomTile() {
-        let emptyTiles = tiles.filter(tile => tile.textContent === '');
-        if (emptyTiles.length === 0) return; // 空のタイルがなければ終了
-
-        const randomIndex = Math.floor(Math.random() * emptyTiles.length);
-        emptyTiles[randomIndex].textContent = '2';
-        checkForGameOver();
-    }
-
     // タイルを右に移動する
     function moveRight() {
         for (let i = 0; i < width * width; i++) {
@@ -157,25 +147,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 数字を結合する
-    function combineRow() {
-        for (let i = 0; i < width * width - 1; i++) {
-            if (tiles[i].textContent !== '' && tiles[i].textContent === tiles[i + 1].textContent) {
-                let combinedTotal = parseInt(tiles[i].textContent) + parseInt(tiles[i + 1].textContent);
-                tiles[i].textContent = combinedTotal;
-                tiles[i + 1].textContent = '';
-                updateScore(combinedTotal); // スコアを更新
+    // 数字を結合する（移動方向の端に近いペアから結合する）
+    function combineRow(dir) {
+        for (let r = 0; r < width; r++) {
+            for (let k = 0; k < width - 1; k++) {
+                const c = dir === 'right' ? width - 1 - k : k;
+                const i = r * width + c;
+                const j = dir === 'right' ? i - 1 : i + 1;
+                if (tiles[i].textContent !== '' && tiles[i].textContent === tiles[j].textContent) {
+                    let combinedTotal = parseInt(tiles[i].textContent) + parseInt(tiles[j].textContent);
+                    tiles[i].textContent = combinedTotal;
+                    tiles[j].textContent = '';
+                    updateScore(combinedTotal); // スコアを更新
+                }
             }
         }
     }
 
-    function combineColumn() {
-        for (let i = 0; i < width * (width - 1); i++) {
-            if (tiles[i].textContent !== '' && tiles[i].textContent === tiles[i + width].textContent) {
-                let combinedTotal = parseInt(tiles[i].textContent) + parseInt(tiles[i + width].textContent);
-                tiles[i].textContent = combinedTotal;
-                tiles[i + width].textContent = '';
-                updateScore(combinedTotal); // スコアを更新
+    function combineColumn(dir) {
+        for (let c = 0; c < width; c++) {
+            for (let k = 0; k < width - 1; k++) {
+                const r = dir === 'down' ? width - 1 - k : k;
+                const i = r * width + c;
+                const j = dir === 'down' ? i - width : i + width;
+                if (tiles[i].textContent !== '' && tiles[i].textContent === tiles[j].textContent) {
+                    let combinedTotal = parseInt(tiles[i].textContent) + parseInt(tiles[j].textContent);
+                    tiles[i].textContent = combinedTotal;
+                    tiles[j].textContent = '';
+                    updateScore(combinedTotal); // スコアを更新
+                }
             }
         }
     }
@@ -203,27 +203,35 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.keyCode === 39) {
             saveState(); // 移動前の状態を保存
             moveRight();
-            combineRow();
+            combineRow('right');
             moveRight();
-            generateRandomTile();
+            if (previousState.join() !== tiles.map(tile => tile.textContent).join()) {
+                generateRandomTile();
+            }
         } else if (e.keyCode === 37) {
             saveState(); // 移動前の状態を保存
             moveLeft();
-            combineRow();
+            combineRow('left');
             moveLeft();
-            generateRandomTile();
+            if (previousState.join() !== tiles.map(tile => tile.textContent).join()) {
+                generateRandomTile();
+            }
         } else if (e.keyCode === 38) {
             saveState(); // 移動前の状態を保存
             moveUp();
-            combineColumn();
+            combineColumn('up');
             moveUp();
-            generateRandomTile();
+            if (previousState.join() !== tiles.map(tile => tile.textContent).join()) {
+                generateRandomTile();
+            }
         } else if (e.keyCode === 40) {
             saveState(); // 移動前の状態を保存
             moveDown();
-            combineColumn();
+            combineColumn('down');
             moveDown();
-            generateRandomTile();
+            if (previousState.join() !== tiles.map(tile => tile.textContent).join()) {
+                generateRandomTile();
+            }
         }
         updateTileColors(); // タイルの色を更新
     }
