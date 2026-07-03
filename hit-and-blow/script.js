@@ -1,11 +1,12 @@
-const maxDigits = 4;
+let maxDigits = 4;
+let digitRange = 9;
 let playerAnswer, cpuAnswer;
 let possibleAnswers, previousGuesses;
 
-function generateAnswer() {
+function generateAnswer(maxDigits, digitRange) {
     let digits = [];
     while (digits.length < maxDigits) {
-        let randomDigit = Math.floor(Math.random() * 10);
+        let randomDigit = Math.floor(Math.random() * (digitRange + 1));
         if (!digits.includes(randomDigit)) {
             digits.push(randomDigit);
         }
@@ -27,14 +28,14 @@ function getHitsAndBlows(answer, guess) {
     return { hits, blows };
 }
 
-function generateAllPossibleAnswers() {
+function generateAllPossibleAnswers(maxDigits, digitRange) {
     let answers = [];
     function generate(current) {
         if (current.length === maxDigits) {
             answers.push(current);
             return;
         }
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i <= digitRange; i++) {
             if (!current.includes(i.toString())) {
                 generate(current + i.toString());
             }
@@ -75,12 +76,12 @@ function calculateEntropy(possibleAnswers, guess) {
 }
 
 function resetGame() {
-    playerAnswer = generateAnswer();
-    cpuAnswer = generateAnswer();
+    playerAnswer = generateAnswer(maxDigits, digitRange);
+    cpuAnswer = generateAnswer(maxDigits, digitRange);
     console.log(`Player Answer: ${playerAnswer}`);
     console.log(`CPU Answer: ${cpuAnswer}`);
     document.getElementById('playerAnswer').textContent = playerAnswer;
-    possibleAnswers = generateAllPossibleAnswers();
+    possibleAnswers = generateAllPossibleAnswers(maxDigits, digitRange);
     previousGuesses = [];
     document.getElementById('results').innerHTML = '';
     document.getElementById('cpuProcess').innerHTML = '';
@@ -89,12 +90,56 @@ function resetGame() {
     document.getElementById('inputContainer').style.display = 'block';
 }
 
+document.getElementById('startBtn').addEventListener('click', () => {
+    maxDigits = parseInt(document.getElementById('digitCount').value);
+    digitRange = parseInt(document.getElementById('digitRange').value);
+
+    if (isNaN(maxDigits) || maxDigits < 1 || isNaN(digitRange) || digitRange < 1) {
+        alert('桁数と数字の範囲を入力してください。');
+        return;
+    }
+
+    if (digitRange + 1 < maxDigits) {
+        alert(`0〜${digitRange}の${digitRange + 1}種類の数字では${maxDigits}桁を構成できません。`);
+        return;
+    }
+
+    // 組み合わせ数 = (digitRange+1)P(maxDigits)。多すぎるとCPUの思考(全候補×全候補)が固まる
+    let combinations = 1;
+    for (let i = 0; i < maxDigits; i++) {
+        combinations *= digitRange + 1 - i;
+    }
+    if (combinations > 50000) {
+        alert(`組み合わせが${combinations.toLocaleString()}通りになり、CPUの思考に時間がかかりすぎます。桁数か範囲を小さくしてください。`);
+        return;
+    }
+
+    document.getElementById('settingsContainer').style.display = 'none';
+    document.getElementById('playerAnswerDisplay').style.display = 'block';
+    document.getElementById('inputContainer').style.display = 'block';
+
+    document.getElementById('guessInput').setAttribute('maxlength', maxDigits);
+    document.getElementById('guessInput').setAttribute('placeholder', `${maxDigits}桁の数字を入力`);
+
+    resetGame();
+});
+
 document.getElementById('submitBtn').addEventListener('click', () => {
     const guessInput = document.getElementById('guessInput');
     const playerGuess = guessInput.value;
 
-    if (playerGuess.length !== maxDigits || isNaN(playerGuess)) {
-        alert('4桁の数字を入力してください。');
+    if (playerGuess.length !== maxDigits || !/^[0-9]+$/.test(playerGuess)) {
+        alert(`${maxDigits}桁の数字を入力してください。`);
+        return;
+    }
+
+    if ([...playerGuess].some(c => parseInt(c, 10) > digitRange)) {
+        alert(`0〜${digitRange}の数字で入力してください。`);
+        return;
+    }
+
+    if (new Set(playerGuess).size !== playerGuess.length) {
+        alert('同じ数字は2回使えません。');
         return;
     }
 
@@ -117,25 +162,19 @@ document.getElementById('submitBtn').addEventListener('click', () => {
     const { hits: cpuHits, blows: cpuBlows } = getHitsAndBlows(playerAnswer, cpuGuess);
     previousGuesses.push({ guess: cpuGuess, hits: cpuHits, blows: cpuBlows });
 
-    // 絞り込み前の可能性の数
     const possibleAnswersCountBefore = possibleAnswers.length;
 
     possibleAnswers = filterAnswers(possibleAnswers, cpuGuess, cpuHits, cpuBlows);
-
-    // 絞り込まれた可能性の例を取得
-    const exampleAnswers = possibleAnswers.slice(0, 5).join(', ');
-
+    const exampleAnswers = possibleAnswers.slice(0, 3).join(', ');
     const resultDiv = document.createElement('div');
     resultDiv.className = 'result';
     resultDiv.innerHTML = `
         <p>あなたの推測: ${playerGuess}, Hits: ${playerHits}, Blows: ${playerBlows}</p>
         <p>CPUの推測: ${cpuGuess}, Hits: ${cpuHits}, Blows: ${cpuBlows}</p>
     `;
-    // 最新の結果を上に追加
     const resultsContainer = document.getElementById('results');
     resultsContainer.insertBefore(resultDiv, resultsContainer.firstChild);
 
-    // CPUの絞り込み過程を表示
     const cpuProcessDiv = document.createElement('div');
     cpuProcessDiv.className = 'result';
     cpuProcessDiv.innerHTML = `
@@ -155,13 +194,22 @@ document.getElementById('submitBtn').addEventListener('click', () => {
         const cpuAnswerDiv = document.createElement('div');
         cpuAnswerDiv.className = 'result';
         cpuAnswerDiv.innerHTML = `<p>CPUの答えは: ${cpuAnswer}でした。</p>`;
-        document.getElementById('results').appendChild(cpuAnswerDiv);
+        const resultsContainer = document.getElementById('results');
+        resultsContainer.insertBefore(cpuAnswerDiv, resultsContainer.firstChild); 
     }
 
     guessInput.value = '';
 });
 
-document.getElementById('restartBtn').addEventListener('click', resetGame);
+document.getElementById('restartBtn').addEventListener('click', () => {
+    document.getElementById('settingsContainer').style.display = 'block';
+    document.getElementById('playerAnswerDisplay').style.display = 'none';
+    document.getElementById('inputContainer').style.display = 'none';
+    document.getElementById('restartBtn').style.display = 'none';
+});
 
 // 初期化
-resetGame();
+document.getElementById('settingsContainer').style.display = 'block';
+document.getElementById('playerAnswerDisplay').style.display = 'none';
+document.getElementById('inputContainer').style.display = 'none';
+document.getElementById('restartBtn').style.display = 'none';

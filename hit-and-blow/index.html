@@ -32,11 +32,10 @@
         #inputContainer {
             margin: 20px 0;
         }
-        input[type="text"] {
+        input[type="text"], input[type="number"] {
             padding: 10px;
             font-size: 1em;
-            width: 150px;
-            margin-right: 10px;
+            margin: 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
         }
@@ -79,14 +78,39 @@
             text-align: left;
             width: 100%;
         }
+        #settingsContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .setting {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .setting label {
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body>
     <div id="gameContainer">
         <h1>Hit & Blow</h1>
-        <div id="playerAnswerDisplay">あなたの答え: <span id="playerAnswer"></span></div>
-        <div id="inputContainer">
-            <input type="text" id="guessInput" maxlength="4" placeholder="4桁の数字を入力">
+        <div id="settingsContainer">
+            <div class="setting">
+                <label for="digitCount">桁数を選択:</label>
+                <input type="number" id="digitCount" min="1" max="10" value="4">
+            </div>
+            <div class="setting">
+                <label for="digitRange">数字の範囲を選択 (0 ~ n):</label>
+                <input type="number" id="digitRange" min="1" max="9" value="9">
+            </div>
+            <button id="startBtn">ゲーム開始</button>
+        </div>
+        <div id="playerAnswerDisplay" style="display:none;">あなたの答え: <span id="playerAnswer"></span></div>
+        <div id="inputContainer" style="display:none;">
+            <input type="text" id="guessInput" placeholder="桁数の数字を入力">
             <button id="submitBtn">推測</button>
         </div>
         <div id="results"></div>
