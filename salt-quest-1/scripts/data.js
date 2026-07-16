@@ -45,7 +45,7 @@ const enemyTable = [
     { name: 'ゴースト',     hp: 7,  maxHp: 7,  attack: 11, defense: 8,  agility: 8,  exp: 3,  gold: 5,   sprite: { x: 5,   y: 59,  w: 27, h: 30 } },
     { name: 'まほうつかい', hp: 13, maxHp: 13, attack: 11, defense: 12, agility: 12, exp: 13, gold: 21,  sprite: { x: 44,  y: 103, w: 36, h: 39 } },
     { name: 'おおさそり',   hp: 20, maxHp: 20, attack: 18, defense: 16, agility: 16, exp: 6,  gold: 25,  sprite: { x: 93,  y: 146, w: 40, h: 31 } },
-    { name: 'ドロル',       hp: 25, maxHp: 25, attack: 24, defense: 14, agility: 14, exp: 10, gold: 30,  sprite: { x: 6,   y: 250, w: 28, h: 45 } },
+    { name: 'がいこつ',     hp: 17, maxHp: 17, attack: 28, defense: 22, agility: 22, exp: 11, gold: 30,  sprite: { x: 6,   y: 250, w: 28, h: 45 } },
     { name: 'リカント',     hp: 34, maxHp: 34, attack: 40, defense: 30, agility: 30, exp: 16, gold: 50,  sprite: { x: 6,   y: 299, w: 39, h: 41 } },
     { name: 'キメラ',       hp: 42, maxHp: 42, attack: 56, defense: 48, agility: 48, exp: 31, gold: 105, sprite: { x: 45,  y: 346, w: 37, h: 44 } },
     { name: 'あくまのきし', hp: 47, maxHp: 47, attack: 76, defense: 78, agility: 78, exp: 37, gold: 150, sprite: { x: 108, y: 399, w: 48, h: 52 } },
@@ -69,44 +69,22 @@ function pickFieldEnemy(x, y) {
 }
 
 // =====================================================================
-// エンカウント判定（本家DQ1方式・SFC版解析値準拠）
-// 1歩ごとに 乱数(0〜255) < エンカ指数 なら遭遇。
-// 指数は歩数カウントで変動: 歩き始めは1/8→1/4→1/2と抑制、
-// 12歩以降は歩数閾値(≒256÷基礎指数)を超えるたび ×3/4→×1.5→×2→×4 と上昇。
+// エンカウント判定（本家FC版方式: 1歩ごとの固定確率）
+// FC版解析(Ryan8bit Formula Guide)より: 城周辺ゾーンは 草原・橋1/48 森・丘1/32、
+// 通常エリアはその2倍(草原・橋1/24 森・丘1/16)。歩数による変動はSFC版の仕様なので使わない。
 // =====================================================================
-// 地形タイル → 基礎エンカ指数（草原・茂み=5 / 丘・森・橋=10。町・城・洞窟は0）
-const encounterBaseIndex = { 27: 5, 28: 5, 29: 10, 33: 10, 35: 10 };
-let encounterSteps = 0; // 歩数カウント。遭遇でリセット、上限250
+// 地形タイル → 通常エリアの遭遇率(1歩あたり)。町・城・洞窟マスは0
+const encounterRates = { 27: 1/24, 28: 1/24, 29: 1/16, 33: 1/16, 35: 1/24 };
 
-function encounterIndexAt(x, y, tile) {
-    const base = encounterBaseIndex[tile] || 0;
-    if (base === 0) return 0;
-    let idx = base;
-    // 本家の「ラダトーム地域はエンカ指数半減」処理
-    const home = gameFlags.sunStone.location;
-    if (Math.max(Math.abs(x - home.x), Math.abs(y - home.y)) <= 12) idx = idx >> 1;
-    const s = encounterSteps;
-    if (s < 5) return idx >> 3;
-    if (s < 9) return idx >> 2;
-    if (s < 12) return idx >> 1;
-    const t = Math.floor(256 / base); // 歩数閾値
-    if (s < t) return Math.floor(idx * 3 / 4);
-    if (s < t * 2) return Math.floor(idx * 3 / 2);
-    if (s < t * 3) return idx * 2;
-    return idx * 4;
-}
-
-// 1歩ごとに呼ぶ。trueならエンカウント発生（歩数0の直後は必ず出ない）
+// 1歩ごとに呼ぶ。trueならエンカウント発生
 function checkEncounter(x, y) {
     const tile = (typeof mapData !== 'undefined' && mapData[y]) ? mapData[y][x] : undefined;
-    const idx = encounterIndexAt(x, y, tile);
-    const rand = Math.floor(Math.random() * 256);
-    if (rand >= idx || encounterSteps === 0) {
-        if (encounterSteps < 250) encounterSteps++;
-        return false;
-    }
-    encounterSteps = 0;
-    return true;
+    let rate = encounterRates[tile] || 0;
+    if (rate === 0) return false;
+    // 本家の「開始城周辺ゾーンは遭遇率半分」
+    const home = gameFlags.sunStone.location;
+    if (Math.max(Math.abs(x - home.x), Math.abs(y - home.y)) <= 12) rate /= 2;
+    return Math.random() < rate;
 }
 
 const items = [{name:'なし',description:''},{name:'たいまつ',description:''},{name:'せいすい',description:''},{name:'キメラのつばさ',description:''},{name:'りゅうのうろこ',description:''},{name:'ようせいのふえ',description:''},{name:'せんしのゆびわ',description:''},{name:'ロトのしるし',description:''},{name:'おうじょのあい',description:''},{name:'のろいのベルト',description:''},{name:'ぎんのたてごと',description:''},{name:'しのくびかざり',description:''},{name:'たいようのいし',description:''},{name:'あまぐものつえ',description:''},{name:'にじのしずく',description:''}];
