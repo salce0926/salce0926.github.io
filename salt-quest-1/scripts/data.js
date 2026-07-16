@@ -1,0 +1,145 @@
+// =====================================================================
+// ゲームデータ定義（フラグ・プレイヤー・アイテム・ふっかつのじゅもん変換）
+// =====================================================================
+var gameFlags = {
+    start:          { bit: 0, flag: false, location: { x: 0, y: 0 } },
+    fairyFlute:     { bit: 1, flag: false, location: { x: 112, y: 18 } },
+    magicKey:       { bit: 2, flag: false, location: { x: 110, y: 80 } },
+    roraRescued:    { bit: 3, flag: false, location: { x: 0, y: 0 } },
+    roraLove:       { bit: 4, flag: false, location: { x: 0, y: 0 } },
+    sunStone:       { bit: 5, flag: false, location: { x: 51, y: 51 } },
+    silverHerp:     { bit: 6, flag: false, location: { x: 10, y: 10 } },
+    rainCloudStuff: { bit: 7, flag: false, location: { x: 89, y: 9 } },
+    golemKilled:    { bit: 8, flag: false, location: { x: 81, y: 108 } },
+    rotoEmblem:     { bit: 9, flag: false, location: { x: 91, y: 121 } },
+    rotoArmor:      { bit: 10, flag: false, location: { x: 33, y: 97 } },
+    rainbowDrop:    { bit: 11, flag: false, location: { x: 116, y: 117 } },
+    rainbowBridge:  { bit: 12, flag: false, location: { x: 73, y: 57 } },
+    lightBall:      { bit: 13, flag: false, location: { x: 56, y: 56 } }
+};
+
+function setGameFlag(flagName) { gameFlags[flagName].flag = true; }
+function clearGameFlag(flagName) { gameFlags[flagName].flag = false; }
+function getGameFlag(flagName) { return gameFlags[flagName].flag; }
+
+// =====================================================================
+// プレイヤーと敵の状態
+// =====================================================================
+let playerPosition = { x: 51, y: 51 };
+let playerStyleNormal = 0, playerStyleSword = 2, playerStyleShield = 4, playerStyleFull = 6, playerStyleWithRora = 8;
+let playerIndex = playerStyleNormal, playerStyle = playerStyleNormal;
+
+let player = {
+    name: 'ソルト', level: 0, hp: 15, maxHp: 15, mp: 0, maxMp: 0, gold: 0, exp: 0,
+    strength: 4, agility: 4, attack: 4, defense: 2, herb: 6, key: 0,
+    items: [], spells: [], weapon: 'なし', armor: 'ぬののふく', shield: 'なし'
+};
+let enemy = { name: 'スライム', hp: 3, maxHp: 3, attack: 5, defense: 3, agility: 3, exp: 1, gold: 2 };
+
+const items = [{name:'なし',description:''},{name:'たいまつ',description:''},{name:'せいすい',description:''},{name:'キメラのつばさ',description:''},{name:'りゅうのうろこ',description:''},{name:'ようせいのふえ',description:''},{name:'せんしのゆびわ',description:''},{name:'ロトのしるし',description:''},{name:'おうじょのあい',description:''},{name:'のろいのベルト',description:''},{name:'ぎんのたてごと',description:''},{name:'しのくびかざり',description:''},{name:'たいようのいし',description:''},{name:'あまぐものつえ',description:''},{name:'にじのしずく',description:''}];
+const playerStatus = [
+    { level: 1, strength: 4, agility: 4, hp: 15, mp: 0, requiredExp: 0, spell: '-' },
+    { level: 2, strength: 5, agility: 4, hp: 22, mp: 0, requiredExp: 7, spell: '-' },
+    { level: 3, strength: 7, agility: 6, hp: 24, mp: 5, requiredExp: 23, spell: 'ホイミ' },
+    { level: 4, strength: 7, agility: 8, hp: 31, mp: 16, requiredExp: 47, spell: 'ギラ' },
+    { level: 5, strength: 12, agility: 10, hp: 35, mp: 20, requiredExp: 110, spell: '-' },
+    { level: 6, strength: 16, agility: 10, hp: 38, mp: 24, requiredExp: 220, spell: '-' },
+    { level: 7, strength: 18, agility: 17, hp: 40, mp: 26, requiredExp: 450, spell: 'ラリホー' },
+    { level: 8, strength: 22, agility: 20, hp: 46, mp: 29, requiredExp: 800, spell: '-' },
+    { level: 9, strength: 30, agility: 22, hp: 50, mp: 36, requiredExp: 1300, spell: 'レミーラ' },
+    { level: 10, strength: 35, agility: 31, hp: 54, mp: 40, requiredExp: 2000, spell: 'マホトーン' },
+    { level: 11, strength: 40, agility: 35, hp: 62, mp: 50, requiredExp: 2900, spell: '-' },
+    { level: 12, strength: 48, agility: 40, hp: 63, mp: 58, requiredExp: 4000, spell: 'リレミト' },
+    { level: 13, strength: 52, agility: 48, hp: 70, mp: 64, requiredExp: 5500, spell: 'ルーラ' },
+    { level: 14, strength: 60, agility: 55, hp: 78, mp: 70, requiredExp: 7500, spell: '-' },
+    { level: 15, strength: 68, agility: 64, hp: 86, mp: 72, requiredExp: 10000, spell: 'トヘロス' },
+    { level: 16, strength: 72, agility: 70, hp: 92, mp: 95, requiredExp: 13000, spell: '-' },
+    { level: 17, strength: 72, agility: 78, hp: 100, mp: 100, requiredExp: 17000, spell: 'ベホイミ' },
+    { level: 18, strength: 85, agility: 84, hp: 115, mp: 108, requiredExp: 21000, spell: '-' },
+    { level: 19, strength: 87, agility: 86, hp: 130, mp: 115, requiredExp: 25000, spell: 'ベギラマ' },
+    { level: 20, strength: 92, agility: 88, hp: 138, mp: 128, requiredExp: 29000, spell: '-' },
+    { level: 21, strength: 95, agility: 90, hp: 149, mp: 135, requiredExp: 33000, spell: '-' },
+    { level: 22, strength: 97, agility: 90, hp: 158, mp: 146, requiredExp: 37000, spell: '-' },
+    { level: 23, strength: 99, agility: 94, hp: 165, mp: 153, requiredExp: 41000, spell: '-' },
+    { level: 24, strength: 103, agility: 98, hp: 170, mp: 161, requiredExp: 45000, spell: '-' },
+    { level: 25, strength: 113, agility: 100, hp: 174, mp: 161, requiredExp: 49000, spell: '-' },
+    { level: 26, strength: 117, agility: 105, hp: 180, mp: 168, requiredExp: 53000, spell: '-' },
+    { level: 27, strength: 125, agility: 107, hp: 189, mp: 175, requiredExp: 57000, spell: '-' },
+    { level: 28, strength: 130, agility: 115, hp: 195, mp: 180, requiredExp: 61000, spell: '-' },
+    { level: 29, strength: 135, agility: 120, hp: 200, mp: 190, requiredExp: 65000, spell: '-' },
+    { level: 30, strength: 140, agility: 130, hp: 210, mp: 200, requiredExp: 65535, spell: '-' }
+];
+
+const passHiraganaList = {
+    0:"あ", 1:"い", 2:"う", 3:"え", 4:"お", 5:"か", 6:"き", 7:"く", 8:"け", 9:"こ",
+    10:"さ", 11:"し", 12:"す", 13:"せ", 14:"そ", 15:"た", 16:"ち", 17:"つ", 18:"て", 19:"と",
+    20:"な", 21:"に", 22:"ぬ", 23:"ね", 24:"の", 25:"は", 26:"ひ", 27:"ふ", 28:"へ", 29:"ほ",
+    30:"ま", 31:"み", 32:"む", 33:"め", 34:"も", 35:"や", 36:"ゆ", 37:"よ", 38:"ら", 39:"り",
+    40:"る", 41:"れ", 42:"ろ", 43:"わ", 44:"が", 45:"ぎ", 46:"ぐ", 47:"げ", 48:"ご", 49:"ざ",
+    50:"じ", 51:"ず", 52:"ぜ", 53:"ぞ", 54:"だ", 55:"ぢ", 56:"づ", 57:"で", 58:"ど", 59:"ば",
+    60:"び", 61:"ぶ", 62:"べ", 63:"ぼ"
+};
+
+let code = 0;
+let pass = 'ああい';
+let selectedHiraganaIndex = 0, hiraganaCursorIndex = 0;
+
+// =====================================================================
+// アイテム・レベル・見た目の更新ロジック
+// =====================================================================
+function addItemToPlayer(itemName) {
+    const itemIndex = items.findIndex(item => item.name === itemName);
+    if (itemIndex !== -1 && player.items.length < 8) player.items.push({ ...items[itemIndex]});
+}
+function deleteItemFromPlayer(itemName) {
+    const itemIndex = player.items.findIndex(item => item.name === itemName);
+    if (itemIndex !== -1) player.items.splice(itemIndex, 1);
+}
+
+function updatePlayerLevel(){
+    if(player.level >= 30) return;
+    const newStatus = playerStatus.find(s => s.level === player.level + 1);
+    if(player.exp < newStatus.requiredExp) return;
+    player.level = newStatus.level; player.strength = newStatus.strength; player.agility = newStatus.agility;
+    player.attack = newStatus.strength; player.defense = newStatus.agility / 2;
+    player.maxHp = newStatus.hp; player.maxMp = newStatus.mp;
+    if(newStatus.spell !== '-') player.spells.push(newStatus.spell);
+}
+
+function updatePlayerItems(){
+    player.armor = (getGameFlag('rotoArmor') ? 'ロトのよろい' : 'ぬののふく');
+    const flagItems = [
+        { itemName: 'ようせいのふえ', flagName: 'fairyFlute' }, { itemName: 'ロトのしるし', flagName: 'rotoEmblem' },
+        { itemName: 'おうじょのあい', flagName: 'roraLove'}, { itemName: 'ぎんのたてごと', flagName: 'silverHerp'},
+        { itemName: 'たいようのいし', flagName: 'sunStone'}, { itemName: 'あまぐものつえ', flagName: 'rainCloudStuff'},
+        { itemName: 'にじのしずく', flagName: 'rainbowDrop'}
+    ];
+    for (const item of flagItems) {
+        const hasItem = player.items.some(i => i.name === item.itemName);
+        if(!hasItem && getGameFlag(item.flagName)) addItemToPlayer(item.itemName);
+        else if(hasItem && !getGameFlag(item.flagName)) deleteItemFromPlayer(item.itemName);
+    }
+}
+
+// フラグから見た目（剣・盾・姫連れ）を復元する。じゅもん復活時にも呼ぶ
+function updatePlayerStyle(){
+    playerStyle = getGameFlag('roraLove') ? playerStyleFull
+                : getGameFlag('roraRescued') ? playerStyleWithRora
+                : playerStyleNormal;
+    playerIndex = playerStyle;
+}
+
+// =====================================================================
+// ふっかつのじゅもん（フラグ⇔ひらがな3文字の相互変換）
+// =====================================================================
+function getCodeByHiragana(object, value) { return Number(Object.keys(object).find(key => object[key] === value)); }
+function getHiraganaFromList(index) { return passHiraganaList[index] || '？'; }
+function calcFlagsToCode() {
+    code = 0;
+    for (const flagName in gameFlags) if (getGameFlag(flagName)) code |= gameFlags[flagName].flag << gameFlags[flagName].bit;
+    pass = getHiraganaFromList((code >> 12) & 0x3F) + getHiraganaFromList((code >> 6) & 0x3F) + getHiraganaFromList(code & 0x3F);
+}
+function calcCodeToFlags() {
+    code = (getCodeByHiragana(passHiraganaList, pass[0]) << 12) | (getCodeByHiragana(passHiraganaList, pass[1]) << 6) | getCodeByHiragana(passHiraganaList, pass[2]);
+    for (const flagName in gameFlags) gameFlags[flagName].flag = (code >> gameFlags[flagName].bit) & 1;
+}
