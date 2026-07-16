@@ -226,7 +226,9 @@ function drawMenu() {
 // =====================================================================
 // フィールド移動とデバッグ操作
 // =====================================================================
-let moveTimer = 0;
+// 移動は時間基準(ms)。フレームレート(60Hz/120Hz)に依存しない
+const MOVE_INTERVAL = 150; // 1歩あたりのミリ秒
+let lastMoveTime = 0;
 function isMoveAllowed(x, y) {
     if (debugMode) return true;
     if (typeof mapData === 'undefined' || !mapData[y] || mapData[y][x] === undefined) return false;
@@ -235,15 +237,18 @@ function isMoveAllowed(x, y) {
 
 function updateField() {
     if (Input.consume('d')) { debugMode = !debugMode; }
-    if (Input.consume('l')) { player.exp++; updatePlayerLevel(); }
+    if (Input.consume('l')) { // デバッグ: 1レベル上げてHP/MP全快
+        const next = playerStatus.find(s => s.level === player.level + 1);
+        if (next) {
+            player.exp = Math.max(player.exp, next.requiredExp);
+            updatePlayerLevel();
+            player.hp = player.maxHp; player.mp = player.maxMp;
+        }
+    }
 
-    // Bキーでエンカウントテスト
+    // Bキーでエンカウントテスト（その場のゾーンの敵が出る）
     if (Input.consume('b')) {
-        enemy.hp = enemy.maxHp;
-        battleCursor = 0;
-        showMessage([`${enemy.name}が あらわれた！`]).then(() => {
-            if (currentState !== STATE.FIELD) currentState = STATE.BATTLE;
-        });
+        startBattle(pickFieldEnemy(playerPosition.x, playerPosition.y));
         return;
     }
 
@@ -259,17 +264,22 @@ function updateField() {
     else if (Input.isDown('ArrowRight')) dx = 1;
 
     if (dx !== 0 || dy !== 0) {
-        moveTimer++;
-        if (moveTimer >= 6) {
+        const now = performance.now();
+        if (now - lastMoveTime >= MOVE_INTERVAL) {
+            lastMoveTime = now;
             let nx = modAdd(playerPosition.x, dx, mapWidth);
             let ny = modAdd(playerPosition.y, dy, mapHeight);
             if (isMoveAllowed(nx, ny)) {
                 playerPosition.x = nx;
                 playerPosition.y = ny;
+                // ランダムエンカウント（デバッグモード中は発生しない）
+                if (!debugMode && checkEncounter(nx, ny)) {
+                    startBattle(pickFieldEnemy(nx, ny));
+                    return;
+                }
             }
-            moveTimer = 0;
         }
-    } else moveTimer = 0;
+    }
 }
 
 // =====================================================================

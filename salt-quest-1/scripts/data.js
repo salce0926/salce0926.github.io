@@ -34,7 +34,80 @@ let player = {
     strength: 4, agility: 4, attack: 4, defense: 2, herb: 6, key: 0,
     items: [], spells: [], weapon: 'なし', armor: 'ぬののふく', shield: 'なし'
 };
-let enemy = { name: 'スライム', hp: 3, maxHp: 3, attack: 5, defense: 3, agility: 3, exp: 1, gold: 2 };
+
+// =====================================================================
+// 敵図鑑とエンカウント定義
+// =====================================================================
+// sprite はenemy.png内の切り出し座標(等倍px)
+const enemyTable = [
+    { name: 'スライム',     hp: 3,  maxHp: 3,  attack: 5,  defense: 3,  agility: 3,  exp: 1,  gold: 2,   sprite: { x: 5,   y: 2,   w: 20, h: 18 } },
+    { name: 'ドラキー',     hp: 6,  maxHp: 6,  attack: 9,  defense: 6,  agility: 6,  exp: 2,  gold: 3,   sprite: { x: 5,   y: 23,  w: 24, h: 18 } },
+    { name: 'ゴースト',     hp: 7,  maxHp: 7,  attack: 11, defense: 8,  agility: 8,  exp: 3,  gold: 5,   sprite: { x: 5,   y: 59,  w: 27, h: 30 } },
+    { name: 'まほうつかい', hp: 13, maxHp: 13, attack: 11, defense: 12, agility: 12, exp: 13, gold: 21,  sprite: { x: 44,  y: 103, w: 36, h: 39 } },
+    { name: 'おおさそり',   hp: 20, maxHp: 20, attack: 18, defense: 16, agility: 16, exp: 6,  gold: 25,  sprite: { x: 93,  y: 146, w: 40, h: 31 } },
+    { name: 'ドロル',       hp: 25, maxHp: 25, attack: 24, defense: 14, agility: 14, exp: 10, gold: 30,  sprite: { x: 6,   y: 250, w: 28, h: 45 } },
+    { name: 'リカント',     hp: 34, maxHp: 34, attack: 40, defense: 30, agility: 30, exp: 16, gold: 50,  sprite: { x: 6,   y: 299, w: 39, h: 41 } },
+    { name: 'キメラ',       hp: 42, maxHp: 42, attack: 56, defense: 48, agility: 48, exp: 31, gold: 105, sprite: { x: 45,  y: 346, w: 37, h: 44 } },
+    { name: 'あくまのきし', hp: 47, maxHp: 47, attack: 76, defense: 78, agility: 78, exp: 37, gold: 150, sprite: { x: 108, y: 399, w: 48, h: 52 } },
+    { name: 'ドラゴン',     hp: 65, maxHp: 65, attack: 88, defense: 74, agility: 74, exp: 45, gold: 160, sprite: { x: 6,   y: 507, w: 45, h: 38 } }
+];
+let enemy = { ...enemyTable[0] };
+
+// 出現帯: ラダトーム城からの距離(チェビシェフ距離)で出る敵の範囲が変わる
+const encounterZones = [
+    { maxDist: 12, range: [0, 1] },
+    { maxDist: 25, range: [2, 4] },
+    { maxDist: 40, range: [4, 7] },
+    { maxDist: Infinity, range: [7, 9] }
+];
+function pickFieldEnemy(x, y) {
+    const home = gameFlags.sunStone.location; // ラダトーム城
+    const dist = Math.max(Math.abs(x - home.x), Math.abs(y - home.y));
+    const zone = encounterZones.find(z => dist <= z.maxDist);
+    const [lo, hi] = zone.range;
+    return enemyTable[lo + Math.floor(Math.random() * (hi - lo + 1))];
+}
+
+// =====================================================================
+// エンカウント判定（本家DQ1方式・SFC版解析値準拠）
+// 1歩ごとに 乱数(0〜255) < エンカ指数 なら遭遇。
+// 指数は歩数カウントで変動: 歩き始めは1/8→1/4→1/2と抑制、
+// 12歩以降は歩数閾値(≒256÷基礎指数)を超えるたび ×3/4→×1.5→×2→×4 と上昇。
+// =====================================================================
+// 地形タイル → 基礎エンカ指数（草原・茂み=5 / 丘・森・橋=10。町・城・洞窟は0）
+const encounterBaseIndex = { 27: 5, 28: 5, 29: 10, 33: 10, 35: 10 };
+let encounterSteps = 0; // 歩数カウント。遭遇でリセット、上限250
+
+function encounterIndexAt(x, y, tile) {
+    const base = encounterBaseIndex[tile] || 0;
+    if (base === 0) return 0;
+    let idx = base;
+    // 本家の「ラダトーム地域はエンカ指数半減」処理
+    const home = gameFlags.sunStone.location;
+    if (Math.max(Math.abs(x - home.x), Math.abs(y - home.y)) <= 12) idx = idx >> 1;
+    const s = encounterSteps;
+    if (s < 5) return idx >> 3;
+    if (s < 9) return idx >> 2;
+    if (s < 12) return idx >> 1;
+    const t = Math.floor(256 / base); // 歩数閾値
+    if (s < t) return Math.floor(idx * 3 / 4);
+    if (s < t * 2) return Math.floor(idx * 3 / 2);
+    if (s < t * 3) return idx * 2;
+    return idx * 4;
+}
+
+// 1歩ごとに呼ぶ。trueならエンカウント発生（歩数0の直後は必ず出ない）
+function checkEncounter(x, y) {
+    const tile = (typeof mapData !== 'undefined' && mapData[y]) ? mapData[y][x] : undefined;
+    const idx = encounterIndexAt(x, y, tile);
+    const rand = Math.floor(Math.random() * 256);
+    if (rand >= idx || encounterSteps === 0) {
+        if (encounterSteps < 250) encounterSteps++;
+        return false;
+    }
+    encounterSteps = 0;
+    return true;
+}
 
 const items = [{name:'なし',description:''},{name:'たいまつ',description:''},{name:'せいすい',description:''},{name:'キメラのつばさ',description:''},{name:'りゅうのうろこ',description:''},{name:'ようせいのふえ',description:''},{name:'せんしのゆびわ',description:''},{name:'ロトのしるし',description:''},{name:'おうじょのあい',description:''},{name:'のろいのベルト',description:''},{name:'ぎんのたてごと',description:''},{name:'しのくびかざり',description:''},{name:'たいようのいし',description:''},{name:'あまぐものつえ',description:''},{name:'にじのしずく',description:''}];
 const playerStatus = [

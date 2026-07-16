@@ -1,11 +1,20 @@
 // =====================================================================
 // 戦闘（バトル）システム
-// ※現状は小さく試す段階: フィールドのBキーでのみ発生（ランダムエンカウント未実装）
 // =====================================================================
 let battleCursor = 0;
 const battleCommands = ['たたかう', 'じゅもん', 'どうぐ', 'にげる'];
 let battleStateMode = 'COMMAND'; // COMMAND または SPELL
 let spellCursor = 0;
+
+// 敵データを受け取って戦闘を開始する（ランダムエンカウント/Bキー共通の入口）
+function startBattle(enemyDef) {
+    enemy = { ...enemyDef };
+    battleCursor = 0;
+    battleStateMode = 'COMMAND';
+    showMessage([`${enemy.name}が あらわれた！`]).then(() => {
+        if (currentState !== STATE.FIELD) currentState = STATE.BATTLE;
+    });
+}
 
 async function executeBattleTurn() {
     currentState = STATE.MESSAGE; // メッセージ中は入力をロック

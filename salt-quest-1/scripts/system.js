@@ -111,7 +111,8 @@ function drawCharacter(x, y, index){
     ctx.drawImage(characterImage, offsetX+(index % tileRowLength) * (tileSize+offsetTile), offsetY+Math.floor(index / tileRowLength) * (tileSize+offsetTile), tileSize, tileSize, x * displayTileSize, y * displayTileSize, displayTileSize, displayTileSize);
 }
 function drawEnemy() {
-    ctx.drawImage(enemyImage, 2, 2, 22, 18, canvas.width / 2 - 22, canvas.height / 2 - 18, 44, 36);
+    const s = enemy.sprite || { x: 5, y: 2, w: 20, h: 18 };
+    ctx.drawImage(enemyImage, s.x, s.y, s.w, s.h, canvas.width / 2 - s.w, canvas.height / 2 - s.h, s.w * 2, s.h * 2);
 }
 function drawWindowBattleEnemy() {
     const w = canvas.width / 2, h = canvas.height / 2;
