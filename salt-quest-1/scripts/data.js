@@ -54,11 +54,13 @@ const enemyTable = [
 let enemy = { ...enemyTable[0] };
 
 // 出現帯: ラダトーム城からの距離(チェビシェフ距離)で出る敵の範囲が変わる
+// マップは136×136(最遠部は距離約85)・1画面16タイル。約1.75画面ごとに1段階強くなる
 const encounterZones = [
-    { maxDist: 12, range: [0, 1] },
-    { maxDist: 25, range: [2, 4] },
-    { maxDist: 40, range: [4, 7] },
-    { maxDist: Infinity, range: [7, 9] }
+    { maxDist: 14, range: [0, 1] }, // スライム/ドラキー
+    { maxDist: 28, range: [1, 3] }, // ドラキー/ゴースト/まほうつかい
+    { maxDist: 42, range: [3, 5] }, // まほうつかい/おおさそり/がいこつ
+    { maxDist: 56, range: [5, 7] }, // がいこつ/リカント/キメラ
+    { maxDist: Infinity, range: [7, 9] } // キメラ/あくまのきし/ドラゴン
 ];
 function pickFieldEnemy(x, y) {
     const home = gameFlags.sunStone.location; // ラダトーム城
