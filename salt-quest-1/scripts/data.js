@@ -53,21 +53,49 @@ const enemyTable = [
 ];
 let enemy = { ...enemyTable[0] };
 
-// 出現帯: ラダトーム城からの距離(チェビシェフ距離)で出る敵の範囲が変わる
-// マップは136×136(最遠部は距離約85)・1画面16タイル。約1.75画面ごとに1段階強くなる
-const encounterZones = [
-    { maxDist: 14, range: [0, 1] }, // スライム/ドラキー
-    { maxDist: 28, range: [1, 3] }, // ドラキー/ゴースト/まほうつかい
-    { maxDist: 42, range: [3, 5] }, // まほうつかい/おおさそり/がいこつ
-    { maxDist: 56, range: [5, 7] }, // がいこつ/リカント/キメラ
-    { maxDist: Infinity, range: [7, 9] } // キメラ/あくまのきし/ドラゴン
+// =====================================================================
+// 出現テーブル（本家方式: マップを区画に分け、区画ごとに敵テーブルを割当）
+// 区画は8×8タイル。ゾーンIDは城からの歩行経路距離(BFS・洞窟ワープ込み・
+// 虹の橋なし)から生成した初期値で、個別に手調整してよい。
+// 4=虹の橋の先(りゅうおう領域)・南部深部・海のみの区画
+// =====================================================================
+const zoneEnemySets = [
+    [0, 0, 0, 1, 1], // z0: スライム×3 ドラキー×2
+    [1, 2, 2, 3, 3], // z1: ドラキー ゴースト×2 まほうつかい×2
+    [3, 4, 4, 5, 5], // z2: まほうつかい おおさそり×2 がいこつ×2
+    [5, 6, 6, 7, 7], // z3: がいこつ リカント×2 キメラ×2
+    [7, 8, 8, 9, 9]  // z4: キメラ あくまのきし×2 ドラゴン×2
 ];
+const ZONE_CELL = 8; // 区画の一辺(タイル)
+const encounterZoneGrid = [
+    [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+    [4,2,1,1,1,1,1,1,1,3,3,3,2,2,2,2,4],
+    [4,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,4],
+    [4,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,4],
+    [4,1,1,1,1,0,1,1,1,1,1,2,2,2,2,2,4],
+    [4,1,1,2,0,0,0,0,1,1,1,1,2,2,2,2,4],
+    [4,2,2,0,0,0,0,0,4,1,1,2,2,2,2,2,4],
+    [4,2,2,1,0,0,4,4,4,2,2,2,2,2,2,2,4],
+    [4,2,2,2,2,0,4,4,4,4,2,2,2,2,2,2,4],
+    [4,2,2,2,2,2,3,4,4,4,3,2,3,3,3,2,4],
+    [4,3,3,3,2,3,3,4,4,4,4,3,3,3,3,2,4],
+    [4,3,3,3,3,3,3,4,4,4,4,4,3,3,3,3,4],
+    [4,3,3,3,3,4,3,4,4,4,4,4,4,3,3,3,4],
+    [4,3,3,3,3,3,4,4,4,4,4,4,4,3,3,3,4],
+    [4,3,3,3,3,4,4,4,4,4,4,4,4,3,3,3,4],
+    [4,3,3,3,3,4,4,4,4,4,4,4,4,3,3,3,4],
+    [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4]
+];
+
+function zoneAt(x, y) {
+    const row = encounterZoneGrid[Math.floor(y / ZONE_CELL)];
+    if (!row) return 4;
+    const z = row[Math.floor(x / ZONE_CELL)];
+    return z === undefined ? 4 : z;
+}
 function pickFieldEnemy(x, y) {
-    const home = gameFlags.sunStone.location; // ラダトーム城
-    const dist = Math.max(Math.abs(x - home.x), Math.abs(y - home.y));
-    const zone = encounterZones.find(z => dist <= z.maxDist);
-    const [lo, hi] = zone.range;
-    return enemyTable[lo + Math.floor(Math.random() * (hi - lo + 1))];
+    const set = zoneEnemySets[zoneAt(x, y)];
+    return enemyTable[set[Math.floor(Math.random() * set.length)]];
 }
 
 // =====================================================================
@@ -83,9 +111,8 @@ function checkEncounter(x, y) {
     const tile = (typeof mapData !== 'undefined' && mapData[y]) ? mapData[y][x] : undefined;
     let rate = encounterRates[tile] || 0;
     if (rate === 0) return false;
-    // 本家の「開始城周辺ゾーンは遭遇率半分」
-    const home = gameFlags.sunStone.location;
-    if (Math.max(Math.abs(x - home.x), Math.abs(y - home.y)) <= 12) rate /= 2;
+    // 本家の「開始城周辺ゾーンは遭遇率半分」(ゾーン0の区画が対象)
+    if (zoneAt(x, y) === 0) rate /= 2;
     return Math.random() < rate;
 }
 
