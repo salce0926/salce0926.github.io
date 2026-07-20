@@ -23,7 +23,8 @@ const STATE = {
     MESSAGE: 'MESSAGE',
     MENU: 'MENU',
     BATTLE: 'BATTLE',
-    PASSCODE: 'PASSCODE'
+    PASSCODE: 'PASSCODE',
+    YESNO: 'YESNO'
 };
 let currentState = STATE.FIELD;
 let debugMode = false;
@@ -201,6 +202,35 @@ function updateMessage() {
 }
 
 // =====================================================================
+// はい/いいえ選択
+// =====================================================================
+let yesNoResolver = null, yesNoCursor = 0, yesNoPrompt = [];
+
+function askYesNo(promptLines) {
+    yesNoPrompt = promptLines;
+    yesNoCursor = 0;
+    currentState = STATE.YESNO;
+    return new Promise(resolve => { yesNoResolver = resolve; });
+}
+
+function updateYesNo() {
+    if (Input.consume('ArrowUp') || Input.consume('ArrowDown')) yesNoCursor = 1 - yesNoCursor;
+    if (Input.consume(' ')) {
+        if (yesNoResolver) {
+            let res = yesNoResolver;
+            yesNoResolver = null;
+            res(yesNoCursor === 0);
+        }
+    }
+}
+
+function drawYesNo() {
+    drawWindowCommon(yesNoPrompt);
+    const opts = ['はい', 'いいえ'].map((o, i) => (i === yesNoCursor ? `▶${o}` : `　${o}`));
+    drawWindow(displayTileSize * (screenWidth - 5), displayTileSize * screenHeight - displayTileSize * 7.5, displayTileSize * 4, displayTileSize * 2.5, opts);
+}
+
+// =====================================================================
 // メインゲームループ
 // =====================================================================
 let lastTime = 0;
@@ -217,6 +247,7 @@ function gameLoop(timestamp) {
         case STATE.MENU: updateMenu(); break;
         case STATE.BATTLE: updateBattle(); break;
         case STATE.PASSCODE: updatePasscode(); break;
+        case STATE.YESNO: updateYesNo(); break;
     }
 
     drawMap();
@@ -228,6 +259,7 @@ function gameLoop(timestamp) {
         case STATE.MENU: drawMenu(); break;
         case STATE.BATTLE: drawBattle(); break;
         case STATE.PASSCODE: drawPasscode(); break;
+        case STATE.YESNO: drawYesNo(); break;
     }
 
     Input.clearJustPressed();

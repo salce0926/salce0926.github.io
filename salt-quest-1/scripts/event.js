@@ -16,6 +16,7 @@ async function interactField() {
             await showMessage(['ここはマイラの村だ', '温泉で有名らしい', '温泉の近くに何か落ちている...']);
             await showMessage(['妖精の笛を手に入れた！']);
         } else await showMessage(['ここはマイラの村だ', '温泉で有名らしい']);
+        await offerInn(25);
     } else if (isVisit(112, 52) || isVisit(112, 57)) {
         if(!getGameFlag('roraRescued')){
             if(!getGameFlag('magicKey')) await showMessage(['洞窟の中に扉があったが', '鍵が無いので開けられなかった...']);
@@ -30,6 +31,7 @@ async function interactField() {
             setGameFlag('magicKey'); player.key = 1;
             await showMessage(['ここはリムルダールの町だ', '店で魔法の鍵を手に入れた！']);
         }else await showMessage(['ここはリムルダールの町だ']);
+        await offerInn(55);
     } else if (isVisit(gameFlags.sunStone.location.x, gameFlags.sunStone.location.y)) {
         await showMessage(['ここはラダトームの城だ']);
         if(getGameFlag('lightBall')){
@@ -71,6 +73,7 @@ async function interactField() {
                 await showMessage(['ガライの墓で銀の竪琴を手に入れた！']);
             }else await showMessage(['ここはガライの町だ', '吟遊詩人ガライの墓があるらしい', '隠し通路を見つけたが鍵がかかっている...']);
         }else await showMessage(['ここはガライの町だ', '吟遊詩人ガライの墓があるらしい']);
+        await offerInn(20);
     } else if (isVisit(gameFlags.rainCloudStuff.location.x, gameFlags.rainCloudStuff.location.y)) {
         if(!getGameFlag('rainCloudStuff')){
             if(!getGameFlag('silverHerp')) await showMessage(['老人「銀の竪琴の音色を聞きたいなあ...」']);
@@ -151,6 +154,8 @@ async function interactField() {
             await showMessage(['りゅうおうを倒し、光の玉を手に入れた！']);
         }
     } else if (isVisit(56, 49)) {
+        await showMessage(['ここは ラダトームの町だ', 'じゅもんの きろくと やどやが あるらしい']);
+        await offerInn(6);
         calcFlagsToCode();
         textExplainSave = ['じゅもん を へんこうできます', 'きろくした じゅもんに かえてね', `ふっかつのじゅもん：${pass}`];
         hiraganaCursorIndex = 0;
@@ -168,20 +173,102 @@ async function interactField() {
 }
 
 // =====================================================================
+// 宿屋
+// =====================================================================
+async function offerInn(price) {
+    if (await askYesNo([`やどや「ひとばん ${price}ゴールドですが`, '　　　　おとまりに なりますか？」'])) {
+        if (player.gold >= price) {
+            player.gold -= price;
+            player.hp = player.maxHp;
+            player.mp = player.maxMp;
+            await showMessage(['やどや「おはようございます', '　　　　よい たびを！」', 'HPとMPが かいふくした！']);
+        } else {
+            await showMessage(['やどや「おきゃくさん おかねが', '　　　　たりないようですが...」']);
+        }
+    }
+}
+
+// =====================================================================
+// フィールドでの呪文・どうぐ
+// =====================================================================
+const FIELD_SPELL_MP = { 'ホイミ': 4, 'ギラ': 2, 'ラリホー': 2, 'レミーラ': 3, 'マホトーン': 2, 'リレミト': 6, 'ルーラ': 8, 'トヘロス': 2, 'ベホイミ': 10, 'ベギラマ': 5 };
+let repelSteps = 0; // トヘロスの残り歩数
+
+async function castFieldSpell(spellName) {
+    const mpCost = FIELD_SPELL_MP[spellName] || 0;
+    if (player.mp < mpCost) {
+        await showMessage(['MPが たりない！']);
+        currentState = STATE.FIELD;
+        return;
+    }
+    if (spellName === 'ホイミ' || spellName === 'ベホイミ') {
+        player.mp -= mpCost;
+        const heal = spellName === 'ホイミ' ? 10 + Math.floor(Math.random() * 8) : 85 + Math.floor(Math.random() * 16);
+        player.hp = Math.min(player.maxHp, player.hp + heal);
+        await showMessage([`${player.name}は ${spellName}を となえた！`, `HPが ${heal} かいふくした！`]);
+    } else if (spellName === 'ルーラ') {
+        player.mp -= mpCost;
+        playerPosition.x = 51; playerPosition.y = 51;
+        await showMessage([`${player.name}は ルーラを となえた！`, 'ラダトームの城に もどった！']);
+    } else if (spellName === 'トヘロス') {
+        player.mp -= mpCost;
+        repelSteps = 128;
+        await showMessage([`${player.name}は トヘロスを となえた！`, 'よわい まものが よってこなくなった！']);
+    } else {
+        player.mp -= mpCost;
+        await showMessage([`${player.name}は ${spellName}を となえた！`, 'しかし なにも おこらなかった！']);
+    }
+    currentState = STATE.FIELD;
+}
+
+async function useFieldItem(itemName) {
+    if (itemName === 'やくそう') {
+        player.herb--;
+        const heal = 25 + Math.floor(Math.random() * 10);
+        player.hp = Math.min(player.maxHp, player.hp + heal);
+        await showMessage([`${player.name}は やくそうを つかった！`, `HPが ${heal} かいふくした！`]);
+    } else {
+        await showMessage([`${itemName}は ここでは つかえない！`]);
+    }
+    currentState = STATE.FIELD;
+}
+
+// =====================================================================
 // メニューロジック
 // =====================================================================
-let menuLevel = 0, menuCursor = 0;
+let menuLevel = 0, menuCursor = 0, subCursor = 0;
 const commandList = ['つよさ', 'じゅもん', 'どうぐ', 'きろく'];
 
-function updateMenu() {
-    if (Input.consume('ArrowUp')) menuCursor = modAdd(menuCursor, -1, 4);
-    if (Input.consume('ArrowDown')) menuCursor = modAdd(menuCursor, 1, 4);
+// じゅもん/どうぐ画面の選択肢
+function menuOptions() {
+    if (menuCursor === 1) return [...player.spells, 'もどる'];
+    const opts = [];
+    if (player.herb > 0) opts.push('やくそう');
+    if (player.key > 0) opts.push('かぎ');
+    return opts.concat(player.items.map(i => i.name), ['もどる']);
+}
 
-    if (Input.consume(' ')) {
-        if (menuLevel === 1) {
-            menuLevel = 2;
+function updateMenu() {
+    if (menuLevel === 1) {
+        if (Input.consume('ArrowUp')) menuCursor = modAdd(menuCursor, -1, 4);
+        if (Input.consume('ArrowDown')) menuCursor = modAdd(menuCursor, 1, 4);
+        if (Input.consume(' ')) {
+            menuLevel = 2; subCursor = 0;
             if (menuCursor === 3) calcFlagsToCode();
-        } else if (menuLevel === 2) {
+        }
+    } else if (menuLevel === 2) {
+        if (menuCursor === 1 || menuCursor === 2) {
+            const options = menuOptions();
+            if (Input.consume('ArrowUp')) subCursor = modAdd(subCursor, -1, options.length);
+            if (Input.consume('ArrowDown')) subCursor = modAdd(subCursor, 1, options.length);
+            if (Input.consume(' ')) {
+                const sel = options[subCursor];
+                menuLevel = 0;
+                if (sel === 'もどる') currentState = STATE.FIELD;
+                else if (menuCursor === 1) castFieldSpell(sel);
+                else useFieldItem(sel);
+            }
+        } else if (Input.consume(' ')) {
             menuLevel = 0; currentState = STATE.FIELD;
         }
     }
@@ -209,14 +296,15 @@ function drawMenu() {
             ];
             drawWindow(displayTileSize * screenWidth - displayTileSize * 8.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 8.5, displayTileSize * 7.5, stats);
             drawWindowCommon(['おぼえたじゅもん：']);
-        } else if (menuCursor === 1) {
-            drawWindow(displayTileSize * screenWidth - displayTileSize * 6, displayTileSize, displayTileSize * 5, displayTileSize * ((player.spells.length || 1) + 1), player.spells.length ? player.spells : ['なし']);
-        } else if (menuCursor === 2) {
-            let itemsText = [];
-            if (player.herb > 0) itemsText.push(`やくそう　　　${player.herb}`);
-            if (player.key > 0) itemsText.push(`かぎ　　　　　${player.key}`);
-            itemsText = itemsText.concat(player.items.map(i => i.name));
-            drawWindow(displayTileSize * screenWidth - displayTileSize * 7, displayTileSize, displayTileSize * 6, displayTileSize * (itemsText.length + 1), itemsText);
+        } else if (menuCursor === 1 || menuCursor === 2) {
+            const options = menuOptions();
+            const label = (name) => {
+                if (name === 'やくそう') return `やくそう ${player.herb}`;
+                if (name === 'かぎ') return `かぎ ${player.key}`;
+                return name;
+            };
+            const text = options.map((s, i) => (i === subCursor ? `▶${label(s)}` : `　${label(s)}`));
+            drawWindow(displayTileSize * screenWidth - displayTileSize * 7, displayTileSize, displayTileSize * 6.5, displayTileSize * (options.length + 1), text);
         } else if (menuCursor === 3) {
             drawWindowCommon([`じかい まちで にゅうりょくしてください`, `しろの みぎうえの まちです`, `ふっかつのじゅもん：${pass}`]);
         }
@@ -272,10 +360,15 @@ function updateField() {
             if (isMoveAllowed(nx, ny)) {
                 playerPosition.x = nx;
                 playerPosition.y = ny;
+                if (repelSteps > 0) repelSteps--; // トヘロスは128歩で切れる
                 // ランダムエンカウント（デバッグモード中は発生しない）
                 if (!debugMode && checkEncounter(nx, ny)) {
-                    startBattle(pickFieldEnemy(nx, ny));
-                    return;
+                    const foe = pickFieldEnemy(nx, ny);
+                    // トヘロス効果中は勇者の守備力より攻撃力が低い敵を避ける(本家仕様)
+                    if (!(repelSteps > 0 && foe.attack < player.defense)) {
+                        startBattle(foe);
+                        return;
+                    }
                 }
             }
         }

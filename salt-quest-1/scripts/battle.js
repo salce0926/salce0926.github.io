@@ -5,6 +5,7 @@ let battleCursor = 0;
 const battleCommands = ['たたかう', 'じゅもん', 'どうぐ', 'にげる'];
 let battleStateMode = 'COMMAND'; // COMMAND または SPELL
 let spellCursor = 0;
+const COMBAT_SPELLS = ['ホイミ', 'ギラ', 'ラリホー', 'マホトーン', 'ベホイミ', 'ベギラマ'];
 
 // 敵データを受け取って戦闘を開始する（ランダムエンカウント/Bキー共通の入口）
 function startBattle(enemyDef) {
@@ -28,7 +29,7 @@ async function executeBattleTurn() {
 
     } else if (battleCursor === 1) { // じゅもん
         // 戦闘用の呪文だけをフィルタリング
-        const combatSpells = player.spells.filter(s => ['ホイミ', 'ギラ', 'ベホイミ', 'ベギラマ'].includes(s));
+        const combatSpells = player.spells.filter(s => COMBAT_SPELLS.includes(s));
         if (combatSpells.length === 0) {
             await showMessage([`せんとうに つかえる`, `じゅもんを おぼえていない！`]);
             currentState = STATE.BATTLE;
@@ -67,11 +68,13 @@ async function executeSpellTurn(spellName) {
     currentState = STATE.MESSAGE;
     let mpCost = 0, heal = 0, damage = 0;
 
-    // 呪文の性能定義
-    if (spellName === 'ホイミ') { mpCost = 3; heal = 30; }
-    else if (spellName === 'ベホイミ') { mpCost = 8; heal = 85; }
+    // 呪文の性能定義(MP消費・回復量は本家DQ1準拠)
+    if (spellName === 'ホイミ') { mpCost = 4; heal = 10 + Math.floor(Math.random() * 8); }
+    else if (spellName === 'ベホイミ') { mpCost = 10; heal = 85 + Math.floor(Math.random() * 16); }
     else if (spellName === 'ギラ') { mpCost = 2; damage = 10 + Math.floor(Math.random() * 6); }
     else if (spellName === 'ベギラマ') { mpCost = 5; damage = 35 + Math.floor(Math.random() * 15); }
+    else if (spellName === 'ラリホー') { mpCost = 2; }
+    else if (spellName === 'マホトーン') { mpCost = 2; }
 
     if (player.mp < mpCost) {
         await showMessage([`MPが たりない！`]);
@@ -82,10 +85,15 @@ async function executeSpellTurn(spellName) {
     player.mp -= mpCost;
     await showMessage([`${player.name}は ${spellName}を となえた！`]);
 
-    if (heal > 0) {
-        const actualHeal = Math.floor(heal * (0.9 + Math.random() * 0.2));
-        player.hp = Math.min(player.maxHp, player.hp + actualHeal);
-        await showMessage([`${player.name}の HPが ${actualHeal} かいふくした！`]);
+    if (spellName === 'ラリホー') {
+        enemy.asleep = 2 + Math.floor(Math.random() * 2);
+        await showMessage([`${enemy.name}は ねむってしまった！`]);
+    } else if (spellName === 'マホトーン') {
+        enemy.sealed = true;
+        await showMessage([`${enemy.name}の じゅもんを ふうじこめた！`]);
+    } else if (heal > 0) {
+        player.hp = Math.min(player.maxHp, player.hp + heal);
+        await showMessage([`${player.name}の HPが ${heal} かいふくした！`]);
     } else if (damage > 0) {
         enemy.hp -= damage;
         await showMessage([`${enemy.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
@@ -118,6 +126,12 @@ async function checkEnemySurvival() {
 }
 
 async function executeEnemyTurn() {
+    if (enemy.asleep > 0) {
+        enemy.asleep--;
+        await showMessage([`${enemy.name}は ぐっすり ねむっている！`]);
+        currentState = STATE.BATTLE;
+        return;
+    }
     const damage = Math.max(1, Math.floor((enemy.attack - player.defense / 2) * (0.8 + Math.random() * 0.4)));
     player.hp -= damage;
     await showMessage([`${enemy.name}の こうげき！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
@@ -139,7 +153,7 @@ function updateBattle() {
         if (Input.consume(' ')) executeBattleTurn();
     } else if (battleStateMode === 'SPELL') {
         // ホイミやギラなど、戦闘で使える呪文のみを抽出
-        const combatSpells = player.spells.filter(s => ['ホイミ', 'ギラ', 'ベホイミ', 'ベギラマ'].includes(s));
+        const combatSpells = player.spells.filter(s => COMBAT_SPELLS.includes(s));
         const options = [...combatSpells, 'もどる'];
         if (Input.consume('ArrowUp')) spellCursor = modAdd(spellCursor, -1, options.length);
         if (Input.consume('ArrowDown')) spellCursor = modAdd(spellCursor, 1, options.length);
@@ -162,7 +176,7 @@ function drawBattle() {
         drawWindow(displayTileSize * screenWidth - displayTileSize * 4.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 4.5, displayTileSize * 4.5, cmdText);
         drawWindowCommon(['コマンド？']);
     } else if (battleStateMode === 'SPELL') {
-        const combatSpells = player.spells.filter(s => ['ホイミ', 'ギラ', 'ベホイミ', 'ベギラマ'].includes(s));
+        const combatSpells = player.spells.filter(s => COMBAT_SPELLS.includes(s));
         const options = [...combatSpells, 'もどる'];
         let spellText = options.map((s, i) => (i === spellCursor ? `▶${s}` : `　${s}`));
         drawWindow(displayTileSize * screenWidth - displayTileSize * 5.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 5.5, displayTileSize * (options.length + 0.5), spellText);
