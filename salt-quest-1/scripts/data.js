@@ -29,12 +29,13 @@ let playerPosition = { x: 51, y: 51 };
 let playerStyleNormal = 0, playerStyleSword = 2, playerStyleShield = 4, playerStyleFull = 6, playerStyleWithRora = 8;
 let playerIndex = playerStyleNormal, playerStyle = playerStyleNormal;
 
+// 本家同様、丸腰＋支度金120Gで始まる（まず町で装備を買うのが最初の一歩）
 let player = {
-    name: 'ソルト', level: 0, hp: 15, maxHp: 15, mp: 0, maxMp: 0, gold: 0, exp: 0,
+    name: 'ソルト', level: 0, hp: 15, maxHp: 15, mp: 0, maxMp: 0, gold: 120, exp: 0,
     strength: 4, agility: 4, attack: 4, defense: 2, herb: 6, key: 0,
     items: [], spells: [],
-    weaponIndex: 0, armorIndex: 1, shieldIndex: 0,   // 初期装備は ぬののふく のみ
-    weapon: 'なし', armor: 'ぬののふく', shield: 'なし'
+    weaponIndex: 0, armorIndex: 0, shieldIndex: 0,
+    weapon: 'なし', armor: 'なし', shield: 'なし'
 };
 
 // =====================================================================

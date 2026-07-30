@@ -49,6 +49,7 @@ async function interactField() {
             if(!getGameFlag('start')){
                 setGameFlag('start');
                 await showMessage(['王様「勇者よ！りゅうおうを倒すのだ！', '　　　光の玉を取り返し', '　　　世界の闇を振り払え！」']);
+                await showMessage(['王様「したくきんを もたせてある', '　　　まずは しろの みぎうえの まちで', '　　　ぶきと よろいを ととのえるのじゃ」']);
             }
             if(!getGameFlag('sunStone')){
                 if(getGameFlag('magicKey')){
