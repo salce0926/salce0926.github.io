@@ -148,14 +148,19 @@ async function interactField() {
             await showMessage(['虹の橋が架かった！']);
         }
     } else if (isVisit(gameFlags.lightBall.location.x, gameFlags.lightBall.location.y)) {
-        if(!getGameFlag('rotoArmor')){
-            await showMessage(['りゅうおうが 現れた！']);
-            await showMessage(['防御が紙なので 普通にやられてしまった！']);
-            await showMessage(['どうしてこんな装備で 挑んでしまったんだ！']);
-            playerKilled();
-        }else{
-            setGameFlag('lightBall');
-            await showMessage(['りゅうおうを倒し、光の玉を手に入れた！']);
+        if (getGameFlag('lightBall')) {
+            await showMessage(['りゅうおうの しろは しずかだ', 'ひかりのたまは たしかに この手にある']);
+        } else {
+            await showMessage(['りゅうおう「よくきたな ゆうしゃよ', '　　　　　　わが しろで ほろびるがよい！」']);
+            const result = await startBattle(dragonLordHuman);
+            if (result === 'win') {
+                setGameFlag('lightBall');
+                await showMessage(['りゅうおうを たおした！', 'ひかりのたまを 手に入れた！']);
+                await showMessage(['せかいに ひかりが もどった！', 'ラダトームの しろへ もどろう']);
+            } else if (result === 'flee') {
+                await showMessage(['いのちあっての ものだね...', 'そうびを ととのえて でなおそう']);
+            }
+            // 敗北時は playerKilled で城に運ばれている
         }
     } else if (isVisit(56, 49)) {
         await showMessage(['ここは ラダトームの町だ', 'じゅもんの きろくと やどやが あるらしい']);

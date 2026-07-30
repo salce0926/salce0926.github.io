@@ -31,11 +31,32 @@ function calcCritical(attack) {
     return lo + Math.floor(Math.random() * Math.max(1, attack - lo + 1));
 }
 
-// 敵データを受け取って戦闘を開始する（ランダムエンカウント/Bキー共通の入口）
-async function startBattle(enemyDef) {
+// 戦闘の決着をイベント側で待てるようにする（'win' / 'lose' / 'flee'）
+let battleResolver = null;
+
+function endBattle(result) {
+    battleStateMode = 'COMMAND';
+    currentState = STATE.FIELD;
+    if (battleResolver) {
+        const resolve = battleResolver;
+        battleResolver = null;
+        resolve(result);
+    }
+}
+
+// 敵データを受け取って戦闘を開始する（ランダムエンカウント/Bキー/ボス共通の入口）
+function startBattle(enemyDef) {
+    const done = new Promise(resolve => { battleResolver = resolve; });
+    beginBattleSequence(enemyDef);   // 演出は非同期に進める
+    return done;
+}
+
+async function beginBattleSequence(enemyDef) {
     enemy = { ...enemyDef };
     battleCursor = 0;
     battleStateMode = 'COMMAND';
+    player.asleep = 0;      // 眠り・呪文封じは戦闘ごとに解ける
+    player.sealed = false;
     await showMessage([`${enemy.name}が あらわれた！`]);
     // 先制判定: すばやさ勝負に負けると敵に先に殴られる
     const heroRoll = player.agility * Math.floor(Math.random() * 256);
@@ -51,8 +72,15 @@ async function startBattle(enemyDef) {
 async function executeBattleTurn() {
     currentState = STATE.MESSAGE; // メッセージ中は入力をロック
 
+    if (player.asleep > 0) {      // ラリホーで眠っている間は行動できない
+        player.asleep--;
+        await showMessage([`${player.name}は ねむっている！`]);
+        await executeEnemyTurn();
+        return;
+    }
+
     if (battleCursor === 0) { // たたかう
-        const critical = Math.floor(Math.random() * 32) === 0;
+        const critical = !enemy.noCritical && Math.floor(Math.random() * 32) === 0;
         const damage = critical ? calcCritical(player.attack) : calcDamage(player.attack, enemy.defense);
         enemy.hp -= damage;
         if (critical) {
@@ -65,6 +93,11 @@ async function executeBattleTurn() {
         await checkEnemySurvival();
 
     } else if (battleCursor === 1) { // じゅもん
+        if (player.sealed) {
+            await showMessage(['じゅもんは ふうじこめられている！']);
+            currentState = STATE.BATTLE;
+            return;
+        }
         // 戦闘用の呪文だけをフィルタリング
         const combatSpells = player.spells.filter(s => COMBAT_SPELLS.includes(s));
         if (combatSpells.length === 0) {
@@ -93,7 +126,7 @@ async function executeBattleTurn() {
         const escapeChance = player.agility >= enemy.agility ? 0.75 : 0.5;
         if (Math.random() < escapeChance) {
             await showMessage([`${player.name}は にげだした！`]);
-            currentState = STATE.FIELD;
+            endBattle('flee');
         } else {
             await showMessage([`${player.name}は にげだした！`, `しかし まわりこまれてしまった！`]);
             await executeEnemyTurn();
@@ -141,10 +174,25 @@ async function executeSpellTurn(spellName) {
 }
 
 async function checkEnemySurvival() {
-    if (enemy.hp <= 0) {
-        await showMessage([`${enemy.name}を たおした！`]);
-        await showMessage([`${enemy.exp}の けいけんちと`, `${enemy.gold}ゴールドを てにいれた！`]);
+    if (enemy.hp > 0) {
+        await executeEnemyTurn();
+        return;
+    }
 
+    // 第二形態があるボスは倒れずに姿を変える
+    if (enemy.nextForm) {
+        const next = enemy.nextForm;
+        await showMessage(enemy.nextFormMessage || [`${enemy.name}は すがたを かえた！`]);
+        enemy = { ...next };
+        battleStateMode = 'COMMAND';
+        player.asleep = 0;
+        currentState = STATE.BATTLE;
+        return;
+    }
+
+    await showMessage([`${enemy.name}を たおした！`]);
+    if (enemy.exp > 0 || enemy.gold > 0) {
+        await showMessage([`${enemy.exp}の けいけんちと`, `${enemy.gold}ゴールドを てにいれた！`]);
         player.exp += enemy.exp;
         player.gold += enemy.gold;
 
@@ -152,14 +200,32 @@ async function checkEnemySurvival() {
         const oldLevel = player.level;
         updatePlayerLevel();
         if (player.level > oldLevel) {
-            await showMessage([`${player.name}は レベル${player.level}に あがった！`]);
+            await showMessage([`${player.name}は レベル${player.level}に あがった！`,
+                `HP ${player.maxHp}　MP ${player.maxMp}　こうげき ${player.attack}　しゅび ${player.defense}`]);
         }
-
-        battleStateMode = 'COMMAND';
-        currentState = STATE.FIELD;
-    } else {
-        await executeEnemyTurn();
     }
+    endBattle('win');
+}
+
+// 呪文・炎のダメージは まほうのよろい / ロトのよろい で2/3に軽減される（本家仕様）
+function mitigateMagic(damage) {
+    const name = armors[player.armorIndex] ? armors[player.armorIndex].name : '';
+    if (name === 'まほうのよろい' || name === 'ロトのよろい') return Math.floor(damage * 2 / 3);
+    return damage;
+}
+function randRange(lo, hi) { return lo + Math.floor(Math.random() * (hi - lo + 1)); }
+
+// 敵がこのターン何をするか決める。封じられていれば呪文は選ばない
+function pickEnemyAction() {
+    if (enemy.flees && enemy.hp <= enemy.maxHp / 3 && Math.random() < 0.25) return 'flee';
+    const pattern = enemy.pattern || ['attack'];
+    let action = pattern[Math.floor(Math.random() * pattern.length)];
+    const isSpell = ['gira', 'begirama', 'hoimi', 'rarihoo', 'mahotone'].includes(action);
+    if (isSpell && enemy.sealed) return 'attack';
+    if (action === 'hoimi' && enemy.hp > enemy.maxHp * 0.6) return 'attack';
+    if (action === 'rarihoo' && player.asleep > 0) return 'attack';
+    if (action === 'mahotone' && player.sealed) return 'attack';
+    return action;
 }
 
 async function executeEnemyTurn() {
@@ -169,19 +235,71 @@ async function executeEnemyTurn() {
         currentState = STATE.BATTLE;
         return;
     }
-    const damage = calcEnemyDamage(enemy.attack, player.defense);
-    player.hp -= damage;
-    if (damage === 0) {
-        await showMessage([`${enemy.name}の こうげき！`, `しかし ${player.name}は`, `ダメージを うけなかった！`]);
-    } else {
-        await showMessage([`${enemy.name}の こうげき！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
+
+    let damage = 0;
+    switch (pickEnemyAction()) {
+        case 'flee':
+            await showMessage([`${enemy.name}は にげだした！`]);
+            endBattle('win');   // 取り逃がしても戦闘自体は切り抜けた扱い
+            return;
+        case 'gira':
+            damage = mitigateMagic(randRange(3, 10));
+            player.hp -= damage;
+            await showMessage([`${enemy.name}は ギラを となえた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
+            break;
+        case 'begirama':
+            damage = mitigateMagic(randRange(30, 45));
+            player.hp -= damage;
+            await showMessage([`${enemy.name}は ベギラマを となえた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
+            break;
+        case 'fire':
+            damage = mitigateMagic(randRange(16, 23));
+            player.hp -= damage;
+            await showMessage([`${enemy.name}は ほのおを はいた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
+            break;
+        case 'firestrong':
+            damage = mitigateMagic(randRange(65, 72));
+            player.hp -= damage;
+            await showMessage([`${enemy.name}は はげしい ほのおを はいた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
+            break;
+        case 'hoimi': {
+            const heal = randRange(20, 30);
+            enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal);
+            await showMessage([`${enemy.name}は ホイミを となえた！`, `${enemy.name}の きずが かいふくした！`]);
+            break;
+        }
+        case 'rarihoo':
+            await showMessage([`${enemy.name}は ラリホーを となえた！`]);
+            if (armors[player.armorIndex] && armors[player.armorIndex].name === 'ロトのよろい') {
+                await showMessage(['しかし ロトのよろいが ひかり', 'ねむけを はねかえした！']);
+            } else {
+                player.asleep = randRange(2, 4);
+                await showMessage([`${player.name}は ねむって しまった！`]);
+            }
+            break;
+        case 'mahotone':
+            await showMessage([`${enemy.name}は マホトーンを となえた！`]);
+            if (armors[player.armorIndex] && armors[player.armorIndex].name === 'ロトのよろい') {
+                await showMessage(['しかし ロトのよろいが ひかり', 'じゅもんを まもった！']);
+            } else {
+                player.sealed = true;
+                await showMessage([`${player.name}の じゅもんが`, 'ふうじこめられた！']);
+            }
+            break;
+        default:
+            damage = calcEnemyDamage(enemy.attack, player.defense);
+            player.hp -= damage;
+            if (damage === 0) {
+                await showMessage([`${enemy.name}の こうげき！`, `しかし ${player.name}は`, `ダメージを うけなかった！`]);
+            } else {
+                await showMessage([`${enemy.name}の こうげき！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
+            }
     }
 
     if (player.hp <= 0) {
         await showMessage([`${player.name}は しんでしまった！`]);
         playerKilled();
-        battleStateMode = 'COMMAND';
-        currentState = STATE.FIELD;
+        endBattle('lose');
     } else {
         currentState = STATE.BATTLE;
     }
