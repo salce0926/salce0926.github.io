@@ -160,8 +160,8 @@ const passHiraganaList = {
     60:"び", 61:"ぶ", 62:"べ", 63:"ぼ"
 };
 
-let code = 0;
-let pass = 'ああい';
+const PASS_LENGTH = 10; // 60bit(6bit×10文字)
+let pass = 'ああああああああああ';
 let selectedHiraganaIndex = 0, hiraganaCursorIndex = 0;
 
 // =====================================================================
@@ -186,18 +186,21 @@ function updatePlayerLevel(){
     if(newStatus.spell !== '-') player.spells.push(newStatus.spell);
 }
 
+// フラグから持ち物・装備を組み立て直す。consumedBy は「そのフラグが立つと使い切る」印
 function updatePlayerItems(){
     player.armor = (getGameFlag('rotoArmor') ? 'ロトのよろい' : 'ぬののふく');
     const flagItems = [
         { itemName: 'ようせいのふえ', flagName: 'fairyFlute' }, { itemName: 'ロトのしるし', flagName: 'rotoEmblem' },
         { itemName: 'おうじょのあい', flagName: 'roraLove'}, { itemName: 'ぎんのたてごと', flagName: 'silverHerp'},
-        { itemName: 'たいようのいし', flagName: 'sunStone'}, { itemName: 'あまぐものつえ', flagName: 'rainCloudStuff'},
-        { itemName: 'にじのしずく', flagName: 'rainbowDrop'}
+        { itemName: 'たいようのいし', flagName: 'sunStone', consumedBy: 'rainbowDrop'},
+        { itemName: 'あまぐものつえ', flagName: 'rainCloudStuff', consumedBy: 'rainbowDrop'},
+        { itemName: 'にじのしずく', flagName: 'rainbowDrop', consumedBy: 'rainbowBridge'}
     ];
     for (const item of flagItems) {
+        const shouldHave = getGameFlag(item.flagName) && !(item.consumedBy && getGameFlag(item.consumedBy));
         const hasItem = player.items.some(i => i.name === item.itemName);
-        if(!hasItem && getGameFlag(item.flagName)) addItemToPlayer(item.itemName);
-        else if(hasItem && !getGameFlag(item.flagName)) deleteItemFromPlayer(item.itemName);
+        if(!hasItem && shouldHave) addItemToPlayer(item.itemName);
+        else if(hasItem && !shouldHave) deleteItemFromPlayer(item.itemName);
     }
 }
 
@@ -210,16 +213,93 @@ function updatePlayerStyle(){
 }
 
 // =====================================================================
-// ふっかつのじゅもん（フラグ⇔ひらがな3文字の相互変換）
+// ふっかつのじゅもん（ひらがな10文字＝60bit）
+// 内訳: フラグ14 / 経験値16 / ゴールド16 / やくそう4 / かぎ2 ＝52bit ＋ チェックサム8bit
+// 本家同様レベルは経験値から復元するので、レベル自体は保存しない
 // =====================================================================
+const PASS_FIELDS = [
+    { name: 'flags', bits: 14 },
+    { name: 'exp',   bits: 16 },
+    { name: 'gold',  bits: 16 },
+    { name: 'herb',  bits: 4 },
+    { name: 'key',   bits: 2 }
+];
+const PASS_CHECKSUM_BITS = 8;
+
 function getCodeByHiragana(object, value) { return Number(Object.keys(object).find(key => object[key] === value)); }
 function getHiraganaFromList(index) { return passHiraganaList[index] || '？'; }
-function calcFlagsToCode() {
-    code = 0;
-    for (const flagName in gameFlags) if (getGameFlag(flagName)) code |= gameFlags[flagName].flag << gameFlags[flagName].bit;
-    pass = getHiraganaFromList((code >> 12) & 0x3F) + getHiraganaFromList((code >> 6) & 0x3F) + getHiraganaFromList(code & 0x3F);
+
+function pushBits(bits, value, width) {
+    for (let i = width - 1; i >= 0; i--) bits.push((value >>> i) & 1);
 }
+function readBits(bits, from, width) {
+    let v = 0;
+    for (let i = 0; i < width; i++) v = v * 2 + (bits[from + i] || 0);
+    return v;
+}
+// CRC-8。1文字＝6bit連続なので、1文字の打ち間違いは必ず検出できる
+function passChecksum(bits) {
+    let crc = 0xFF;
+    for (const b of bits) {
+        const mix = ((crc >> 7) & 1) ^ b;
+        crc = (crc << 1) & 0xFF;
+        if (mix) crc ^= 0x07;
+    }
+    return crc;
+}
+
+// 現在の状態 → じゅもん文字列
+function calcFlagsToCode() {
+    let flags = 0;
+    for (const flagName in gameFlags) if (getGameFlag(flagName)) flags |= 1 << gameFlags[flagName].bit;
+    const values = {
+        flags,
+        exp: Math.min(player.exp, 65535),
+        gold: Math.min(player.gold, 65535),
+        herb: Math.min(player.herb, 15),
+        key: Math.min(player.key, 3)
+    };
+    const bits = [];
+    for (const f of PASS_FIELDS) pushBits(bits, values[f.name], f.bits);
+    pushBits(bits, passChecksum(bits), PASS_CHECKSUM_BITS);
+
+    let text = '';
+    for (let i = 0; i < bits.length; i += 6) text += getHiraganaFromList(readBits(bits, i, 6));
+    pass = text;
+}
+
+// じゅもん文字列 → 状態。成功したらtrue、検査値が合わなければfalse
 function calcCodeToFlags() {
-    code = (getCodeByHiragana(passHiraganaList, pass[0]) << 12) | (getCodeByHiragana(passHiraganaList, pass[1]) << 6) | getCodeByHiragana(passHiraganaList, pass[2]);
-    for (const flagName in gameFlags) gameFlags[flagName].flag = (code >> gameFlags[flagName].bit) & 1;
+    if (pass.length !== PASS_LENGTH) return false;
+    const bits = [];
+    for (const ch of pass) {
+        const idx = getCodeByHiragana(passHiraganaList, ch);
+        if (isNaN(idx)) return false;
+        pushBits(bits, idx, 6);
+    }
+    const payloadLength = bits.length - PASS_CHECKSUM_BITS;
+    const payload = bits.slice(0, payloadLength);
+    if (readBits(bits, payloadLength, PASS_CHECKSUM_BITS) !== passChecksum(payload)) return false;
+
+    const values = {};
+    let pos = 0;
+    for (const f of PASS_FIELDS) { values[f.name] = readBits(bits, pos, f.bits); pos += f.bits; }
+
+    for (const flagName in gameFlags) gameFlags[flagName].flag = (values.flags >> gameFlags[flagName].bit) & 1;
+    player.exp = values.exp;
+    player.gold = values.gold;
+    player.herb = values.herb;
+    player.key = values.key;
+    restorePlayerFromExp();
+    return true;
+}
+
+// 経験値からレベル・能力値・じゅもんを組み立て直す（復活時に使う）
+function restorePlayerFromExp() {
+    player.level = 0;
+    player.spells = [];
+    let prev = -1;
+    while (player.level !== prev) { prev = player.level; updatePlayerLevel(); }
+    player.hp = player.maxHp;
+    player.mp = player.maxMp;
 }

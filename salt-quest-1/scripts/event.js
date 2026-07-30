@@ -157,14 +157,16 @@ async function interactField() {
         await showMessage(['ここは ラダトームの町だ', 'じゅもんの きろくと やどやが あるらしい']);
         await offerInn(6);
         calcFlagsToCode();
-        textExplainSave = ['じゅもん を へんこうできます', 'きろくした じゅもんに かえてね', `ふっかつのじゅもん：${pass}`];
-        hiraganaCursorIndex = 0;
-        selectedHiraganaIndex = getCodeByHiragana(passHiraganaList, pass[0]);
-        currentState = STATE.PASSCODE;
+        await showMessage(['しんかん「そなたの ぼうけんを きろくしよう」', 'ふっかつのじゅもん：', `　${pass}`]);
+        openPasscode();
         return;
     } else {
         handled = false;
     }
+
+    // イベントで立ったフラグを装備・持ち物・見た目へ反映する
+    updatePlayerItems();
+    updatePlayerStyle();
 
     if (handled) currentState = STATE.FIELD;
     else {
@@ -306,7 +308,7 @@ function drawMenu() {
             const text = options.map((s, i) => (i === subCursor ? `▶${label(s)}` : `　${label(s)}`));
             drawWindow(displayTileSize * screenWidth - displayTileSize * 7, displayTileSize, displayTileSize * 6.5, displayTileSize * (options.length + 1), text);
         } else if (menuCursor === 3) {
-            drawWindowCommon([`じかい まちで にゅうりょくしてください`, `しろの みぎうえの まちです`, `ふっかつのじゅもん：${pass}`]);
+            drawWindowCommon([`ふっかつのじゅもん：`, `　${pass}`, `しろの みぎうえの まちで にゅうりょく`]);
         }
     }
 }
@@ -380,32 +382,72 @@ function updateField() {
 // =====================================================================
 let textExplainSave = [];
 
+// じゅもん入力画面を開く
+function openPasscode() {
+    calcFlagsToCode();
+    hiraganaCursorIndex = 0;
+    syncWheelToCursor();
+    refreshPassText();
+    currentState = STATE.PASSCODE;
+}
+// 入力中のじゅもんを表示に反映（カーソルはdrawPasscodeが実測位置に描く）
+const PASS_LINE_PREFIX = '　';
+function refreshPassText() {
+    textExplainSave = [
+        '←→で もじを えらび ↑↓で かえる',
+        PASS_LINE_PREFIX + pass,
+        'スペースで けってい'
+    ];
+}
 // 選択中のひらがなをカーソル位置に書き込む
 function writePassChar() {
     pass = pass.substring(0, hiraganaCursorIndex) + passHiraganaList[selectedHiraganaIndex] + pass.substring(hiraganaCursorIndex + 1);
-    textExplainSave[2] = `ふっかつのじゅもん：${pass}`;
+    refreshPassText();
 }
 // カーソル位置の既存文字に選択ホイールを合わせる（移動しただけで上書きしない）
 function syncWheelToCursor() {
     selectedHiraganaIndex = getCodeByHiragana(passHiraganaList, pass[hiraganaCursorIndex]);
 }
 
+async function confirmPasscode() {
+    if (calcCodeToFlags()) {
+        updatePlayerItems();
+        updatePlayerStyle();
+        await showMessage([`${player.name}よ よくぞもどった！`,
+            `レベル${player.level}　G ${player.gold}　やくそう ${player.herb}`]);
+        currentState = STATE.FIELD;
+    } else {
+        await showMessage(['じゅもんが ちがいます！', 'もういちど かくにんしてください']);
+        refreshPassText();
+        currentState = STATE.PASSCODE;
+    }
+}
+
 function updatePasscode() {
     if (Input.consume('ArrowUp')) { selectedHiraganaIndex = modAdd(selectedHiraganaIndex, -1, 64); writePassChar(); }
     if (Input.consume('ArrowDown')) { selectedHiraganaIndex = modAdd(selectedHiraganaIndex, 1, 64); writePassChar(); }
-    if (Input.consume('ArrowLeft')) { hiraganaCursorIndex = modAdd(hiraganaCursorIndex, -1, 3); syncWheelToCursor(); }
-    if (Input.consume('ArrowRight')) { hiraganaCursorIndex = modAdd(hiraganaCursorIndex, 1, 3); syncWheelToCursor(); }
+    if (Input.consume('ArrowLeft')) { hiraganaCursorIndex = modAdd(hiraganaCursorIndex, -1, PASS_LENGTH); syncWheelToCursor(); refreshPassText(); }
+    if (Input.consume('ArrowRight')) { hiraganaCursorIndex = modAdd(hiraganaCursorIndex, 1, PASS_LENGTH); syncWheelToCursor(); refreshPassText(); }
 
-    if (Input.consume(' ')) {
-        calcCodeToFlags();
-        updatePlayerItems();
-        updatePlayerStyle();
-        currentState = STATE.FIELD;
-    }
+    if (Input.consume(' ')) confirmPasscode();
+}
+
+// じゅもん文字列の何文字目を編集中かを、実際の文字幅を測って示す
+function drawPassCursor() {
+    const winX = displayTileSize / 2;
+    const winY = displayTileSize * screenHeight - displayTileSize * 4 - displayTileSize / 2;
+    const textX = winX + displayTileSize / 2;
+    const baseline = winY + displayTileSize * 2; // じゅもんは2行目
+    ctx.font = '16px cinecaption';
+    const left = textX + ctx.measureText(PASS_LINE_PREFIX + pass.substring(0, hiraganaCursorIndex)).width;
+    const w = ctx.measureText(pass[hiraganaCursorIndex] || '　').width;
+    ctx.fillStyle = 'yellow';
+    ctx.fillRect(left, baseline + 3, w, 3);
 }
 
 function drawPasscode() {
     drawWindowCommon(textExplainSave);
+    drawPassCursor();
     const x = displayTileSize / 2, y = displayTileSize * 2.5, width = displayTileSize * 2, height = displayTileSize * 5;
     ctx.fillStyle = 'black'; ctx.fillRect(x, y, width, height);
     ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.strokeRect(x, y, width, height);
