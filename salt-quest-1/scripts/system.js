@@ -33,11 +33,30 @@ let debugMode = false;
 // =====================================================================
 // 入力バッファシステム
 // =====================================================================
+const ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+const REPEAT_DELAY = 350; // 長押しを連射に切り替えるまで(ms)
+const REPEAT_INTERVAL = 90;
+
 const Input = {
     keys: {},
     justPressed: {},
+    heldSince: {},
+    nextRepeat: {},
     isTouch: false,
 
+    press(key) {
+        if (!this.keys[key]) {
+            this.justPressed[key] = true;
+            this.heldSince[key] = performance.now();
+            this.nextRepeat[key] = this.heldSince[key] + REPEAT_DELAY;
+        }
+        this.keys[key] = true;
+    },
+    release(key) {
+        this.keys[key] = false;
+        delete this.heldSince[key];
+        delete this.nextRepeat[key];
+    },
     consume(key) {
         if (this.justPressed[key]) {
             this.justPressed[key] = false;
@@ -46,44 +65,87 @@ const Input = {
         return false;
     },
     isDown(key) { return this.keys[key] || false; },
+    // 方向キーは長押しでカーソルが連続移動する（じゅもん入力やメニュー用）
+    updateRepeat(now) {
+        for (const key of ARROW_KEYS) {
+            if (!this.keys[key] || this.nextRepeat[key] === undefined) continue;
+            if (now >= this.nextRepeat[key]) {
+                this.justPressed[key] = true;
+                this.nextRepeat[key] = now + REPEAT_INTERVAL;
+            }
+        }
+    },
     clearJustPressed() { for (let k in this.justPressed) this.justPressed[k] = false; }
 };
 
 window.addEventListener('keydown', e => {
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
-    if (!Input.keys[e.key]) Input.justPressed[e.key] = true;
-    Input.keys[e.key] = true;
+    if ([...ARROW_KEYS, ' '].includes(e.key)) e.preventDefault();
+    Input.press(e.key);
 });
 
-window.addEventListener('keyup', e => { Input.keys[e.key] = false; });
+window.addEventListener('keyup', e => { Input.release(e.key); });
 
-var centerX = window.innerWidth / 2, centerY = window.innerHeight / 2;
+// =====================================================================
+// キャンバス（タッチ判定で座標変換に使うので入力より先に用意する）
+// =====================================================================
+var canvas = document.getElementById('canvas');
+var ctx = canvas.getContext('2d');
+canvas.width = screenWidth * displayTileSize;
+canvas.height = screenHeight * displayTileSize;
+
+// タップ領域(canvas内部座標)。画面の真ん中が決定、外周が方向
+var centerX = displayTileSize * screenWidth / 2, centerY = displayTileSize * screenHeight / 2;
 var centerLeftX = displayTileSize * screenWidth / 3;
 var centerRightX = displayTileSize * screenWidth * 2 / 3;
 var centerTopY = displayTileSize * screenHeight / 3;
 var centerBottomY = displayTileSize * screenHeight * 2 / 3;
 
-window.addEventListener('touchstart', e => {
+// 画面上のタッチ位置をcanvas内部座標へ変換する（拡大縮小・余白に依らず一致させる）
+function touchToCanvas(touch) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: (touch.clientX - rect.left) * canvas.width / rect.width,
+        y: (touch.clientY - rect.top) * canvas.height / rect.height
+    };
+}
+
+let touchKey = null; // いま押している扱いのキー
+
+function applyTouch(touch) {
+    const p = touchToCanvas(touch);
+    let key;
+    if (p.x > centerLeftX && p.x < centerRightX && p.y > centerTopY && p.y < centerBottomY) {
+        key = ' ';
+    } else {
+        const dx = p.x - centerX, dy = p.y - centerY;
+        key = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'ArrowRight' : 'ArrowLeft')
+                                         : (dy > 0 ? 'ArrowDown' : 'ArrowUp');
+    }
+    if (key === touchKey) return;
+    if (touchKey) Input.release(touchKey);
+    touchKey = key;
+    Input.press(key);  // 方向もjustPressedを立てるのでメニューや店も操作できる
+}
+
+function endTouch() {
+    if (touchKey) Input.release(touchKey);
+    touchKey = null;
+}
+
+canvas.addEventListener('touchstart', e => {
     e.preventDefault();
     Input.isTouch = true;
-    let tx = e.touches[0].clientX, ty = e.touches[0].clientY;
-
-    if (tx > centerLeftX && tx < centerRightX && ty > centerTopY && ty < centerBottomY) {
-        if (!Input.keys[' ']) Input.justPressed[' '] = true;
-        Input.keys[' '] = true;
-    } else {
-        let dx = tx - centerX, dy = ty - centerY;
-        if (Math.abs(dx) > Math.abs(dy)) {
-            if (dx > 0) Input.keys['ArrowRight'] = true; else Input.keys['ArrowLeft'] = true;
-        } else {
-            if (dy > 0) Input.keys['ArrowDown'] = true; else Input.keys['ArrowUp'] = true;
-        }
-    }
+    applyTouch(e.touches[0]);
 }, { passive: false });
 
-window.addEventListener('touchend', e => {
-    Input.keys['ArrowUp'] = Input.keys['ArrowDown'] = Input.keys['ArrowLeft'] = Input.keys['ArrowRight'] = Input.keys[' '] = false;
-});
+// 指をずらすと方向を変えられる
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches[0]) applyTouch(e.touches[0]);
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => { e.preventDefault(); endTouch(); }, { passive: false });
+canvas.addEventListener('touchcancel', endTouch);
 
 // =====================================================================
 // 汎用ユーティリティ
@@ -95,10 +157,6 @@ function alignRightWide(number, width) { return '　'.repeat(Math.max(0, width -
 // =====================================================================
 // 描画関連
 // =====================================================================
-var canvas = document.getElementById('canvas');
-var ctx = canvas.getContext('2d');
-canvas.width = screenWidth * displayTileSize;
-canvas.height = screenHeight * displayTileSize;
 
 var characterImage = new Image(); characterImage.src = characterURL;
 var enemyImage = new Image(); enemyImage.src = enemyURL;
@@ -274,6 +332,7 @@ function gameLoop(timestamp) {
         playerIndex = modAdd(playerIndex, 1, 2) + playerStyle;
         lastTime = timestamp;
     }
+    Input.updateRepeat(timestamp);
 
     switch (currentState) {
         case STATE.FIELD: updateField(); break;

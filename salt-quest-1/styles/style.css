@@ -17,11 +17,17 @@ body {
 canvas {
     display: block;
     border: 2px solid #555;
+    box-sizing: border-box;   /* 枠線ぶんで画面幅を超えないように */
+    max-width: 100%;
+    height: auto;
+    touch-action: none;       /* スマホでスクロール・ズームに取られないようにする */
 }
 #buttonContainer {
     display: flex;
     justify-content: space-between;
     width: 400px;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 #game-info {
     padding: 10px;
@@ -29,8 +35,10 @@ canvas {
     border-radius: 5px;
     text-align: left;
     margin: 10px;
-    height: 10%;
+    min-height: 4em;
     width: 370px;
+    max-width: calc(100% - 20px);
+    box-sizing: border-box;
 }
 .link {
     padding: 10px;
