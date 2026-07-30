@@ -59,12 +59,13 @@ async function interactField() {
             } else {
                 if(playerStyle === playerStyleNormal){
                     await showMessage(['王様「もし敵にやられてしまったら', '　　　ここまで運び込まれるのじゃ」']);
-                    await showMessage(['王様「所持金の概念が無くて良かったのう', '　　　我が城の兵士を動かすのも', '　　　タダというわけではないんじゃが… 」']);
+                    await showMessage(['王様「まちの みせで そうびを ととのえ', '　　　やくそうを きらさぬ ことじゃ」']);
                 } else {
                     await showMessage(['王様「ローラ姫を助けるくだりが', '　　　正直ほとんど無かったじゃろう」']);
-                    await showMessage(['王様「装備の概念も少なすぎるから', '　　　一応見た目だけ 剣と盾を与えてあるぞ', '　　　せめてもの計らいに 感謝してくれ　　」']);
+                    await showMessage(['王様「そのぶん りゅうおうは てごわいぞ', '　　　ドムドーラの ロトのよろいを', '　　　さがすのじゃ」']);
                 }
             }
+            await offerRecord();
         }
     } else if (isVisit(gameFlags.silverHerp.location.x, gameFlags.silverHerp.location.y)) {
         if(!getGameFlag('silverHerp')){
@@ -164,12 +165,8 @@ async function interactField() {
             // 敗北時は playerKilled で城に運ばれている
         }
     } else if (isVisit(56, 49)) {
-        await showMessage(['ここは ラダトームの町だ', 'じゅもんの きろくと やどやが あるらしい']);
+        await showMessage(['ここは ラダトームの町だ', 'みせと やどやが ならんでいる']);
         await offerTown('ラダトームの町', townShops.radatome);
-        calcFlagsToCode();
-        await showMessage(['しんかん「そなたの ぼうけんを きろくしよう」', 'ふっかつのじゅもん：', `　${pass}`]);
-        openPasscode();
-        return;
     } else {
         handled = false;
     }
@@ -182,6 +179,16 @@ async function interactField() {
     else {
         menuLevel = 1; menuCursor = 0; currentState = STATE.MENU;
     }
+}
+
+// =====================================================================
+// 冒険の記録（本家同様、王様がふっかつのじゅもんを教えてくれる）
+// =====================================================================
+async function offerRecord() {
+    if (!await askYesNo(['王様「そなたの ぼうけんを', '　　　きろくして おくかね？」'])) return;
+    calcFlagsToCode();
+    await showMessage(['王様「では ふっかつのじゅもんを おしえよう', '　　　よく メモを とるのじゃぞ」']);
+    await showMessage(['ふっかつのじゅもん', `　${pass}`, 'つぎは タイトルがめんで にゅうりょく']);
 }
 
 // =====================================================================
@@ -344,7 +351,6 @@ function updateMenu() {
         if (Input.consume('ArrowDown')) menuCursor = modAdd(menuCursor, 1, 4);
         if (Input.consume(' ')) {
             menuLevel = 2; subCursor = 0;
-            if (menuCursor === 3) calcFlagsToCode();
         }
     } else if (menuLevel === 2) {
         if (menuCursor === 1 || menuCursor === 2) {
@@ -374,7 +380,7 @@ function drawMenu() {
             ['つよさ：', '　あなたの つよさは あなたがきめよう', '　でも きゃっかんてきには こうみえてます'],
             ['じゅもん：', '　あなたの つかえる じゅもんりすと', '　MPの ごりようは けいかくてきに'],
             ['どうぐ：', '　あなたの もっている どうぐたち', '　でもほぼ ふらぐの りすとです'],
-            ['きろく：', '　あなたの ぼうけんを きろくしよう', '　がめんを とじちゃうと だいさんじ']
+            ['きろく：', '　ラダトームの おうさまに はなすと', '　ふっかつのじゅもんを おしえてくれる']
         ];
         drawWindowCommon(explains[menuCursor]);
     } else if (menuLevel === 2) {
@@ -396,7 +402,7 @@ function drawMenu() {
             const text = options.map((s, i) => (i === subCursor ? `▶${label(s)}` : `　${label(s)}`));
             drawWindow(displayTileSize * screenWidth - displayTileSize * 7, displayTileSize, displayTileSize * 6.5, displayTileSize * (options.length + 1), text);
         } else if (menuCursor === 3) {
-            drawWindowCommon([`ふっかつのじゅもん：`, `　${pass}`, `しろの みぎうえの まちで にゅうりょく`]);
+            drawWindowCommon(['ぼうけんの きろくは', 'ラダトームの おうさまに たのもう', '（しろの まんなかで しらべる）']);
         }
     }
 }
@@ -470,9 +476,12 @@ function updateField() {
 // =====================================================================
 let textExplainSave = [];
 
-// じゅもん入力画面を開く
-function openPasscode() {
-    calcFlagsToCode();
+// じゅもん入力画面を開く（タイトルから呼ぶ。空欄から入力する）
+let passcodeFromTitle = false;
+function openPasscode(fromTitle) {
+    passcodeFromTitle = !!fromTitle;
+    if (fromTitle) pass = passHiraganaList[0].repeat(PASS_LENGTH);
+    else calcFlagsToCode();
     hiraganaCursorIndex = 0;
     syncWheelToCursor();
     refreshPassText();
@@ -501,8 +510,10 @@ async function confirmPasscode() {
     if (calcCodeToFlags()) {
         updatePlayerItems();
         updatePlayerStyle();
+        playerPosition.x = 51; playerPosition.y = 51;   // 本家同様ラダトーム城から再開
         await showMessage([`${player.name}よ よくぞもどった！`,
-            `レベル${player.level}　G ${player.gold}　やくそう ${player.herb}`]);
+            `レベル${player.level}　G ${player.gold}　やくそう ${player.herb}`,
+            `${player.weapon} / ${player.armor} / ${player.shield}`]);
         currentState = STATE.FIELD;
     } else {
         await showMessage(['じゅもんが ちがいます！', 'もういちど かくにんしてください']);

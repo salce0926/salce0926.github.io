@@ -25,7 +25,8 @@ const STATE = {
     BATTLE: 'BATTLE',
     PASSCODE: 'PASSCODE',
     YESNO: 'YESNO',
-    CHOICE: 'CHOICE'
+    CHOICE: 'CHOICE',
+    TITLE: 'TITLE'
 };
 let currentState = STATE.FIELD;
 let debugMode = false;
@@ -323,6 +324,37 @@ function drawChoice() {
 }
 
 // =====================================================================
+// タイトル画面（本家同様 さいしょから / ふっかつのじゅもん を選ぶ）
+// =====================================================================
+let titleCursor = 0;
+const titleOptions = ['さいしょから', 'ふっかつのじゅもん'];
+
+function updateTitle() {
+    if (Input.consume('ArrowUp')) titleCursor = modAdd(titleCursor, -1, titleOptions.length);
+    if (Input.consume('ArrowDown')) titleCursor = modAdd(titleCursor, 1, titleOptions.length);
+    if (Input.consume(' ')) {
+        if (titleCursor === 0) currentState = STATE.FIELD;
+        else openPasscode(true);   // じゅもんを入力して再開
+    }
+}
+
+function drawTitle() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#ffd23f';
+    ctx.font = '32px cinecaption';
+    ctx.textAlign = 'center';
+    ctx.fillText('SaltQuest Ⅰ', canvas.width / 2, canvas.height / 3);
+    ctx.fillStyle = '#fff';
+    ctx.font = '13px cinecaption';
+    ctx.fillText('－ ソルトと ひかりのたま －', canvas.width / 2, canvas.height / 3 + 30);
+    ctx.textAlign = 'left';
+    const text = titleOptions.map((o, i) => (i === titleCursor ? `▶${o}` : `　${o}`));
+    drawWindow(canvas.width / 2 - displayTileSize * 4.5, canvas.height / 2 + displayTileSize,
+               displayTileSize * 9, displayTileSize * 2.5, text);
+}
+
+// =====================================================================
 // メインゲームループ
 // =====================================================================
 let lastTime = 0;
@@ -333,6 +365,14 @@ function gameLoop(timestamp) {
         lastTime = timestamp;
     }
     Input.updateRepeat(timestamp);
+
+    if (currentState === STATE.TITLE) {
+        updateTitle();
+        drawTitle();
+        Input.clearJustPressed();
+        requestAnimationFrame(gameLoop);
+        return;
+    }
 
     switch (currentState) {
         case STATE.FIELD: updateField(); break;
@@ -368,5 +408,6 @@ window.onload = function () {
     updatePlayerStyle();
     recalcPlayerPower();
     calcFlagsToCode();
+    currentState = STATE.TITLE;
     requestAnimationFrame(gameLoop);
 };
