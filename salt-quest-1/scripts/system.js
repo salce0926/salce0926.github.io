@@ -24,7 +24,8 @@ const STATE = {
     MENU: 'MENU',
     BATTLE: 'BATTLE',
     PASSCODE: 'PASSCODE',
-    YESNO: 'YESNO'
+    YESNO: 'YESNO',
+    CHOICE: 'CHOICE'
 };
 let currentState = STATE.FIELD;
 let debugMode = false;
@@ -231,6 +232,39 @@ function drawYesNo() {
 }
 
 // =====================================================================
+// 一覧から1つ選ぶ（店・町の施設など）。選んだ番号を返す
+// =====================================================================
+let choiceResolver = null, choiceCursor = 0, choicePrompt = [], choiceOptions = [];
+
+function chooseFromList(promptLines, options) {
+    choicePrompt = promptLines;
+    choiceOptions = options;
+    choiceCursor = 0;
+    currentState = STATE.CHOICE;
+    return new Promise(resolve => { choiceResolver = resolve; });
+}
+
+function updateChoice() {
+    if (Input.consume('ArrowUp')) choiceCursor = modAdd(choiceCursor, -1, choiceOptions.length);
+    if (Input.consume('ArrowDown')) choiceCursor = modAdd(choiceCursor, 1, choiceOptions.length);
+    if (Input.consume(' ')) {
+        if (choiceResolver) {
+            let res = choiceResolver;
+            choiceResolver = null;
+            res(choiceCursor);
+        }
+    }
+}
+
+function drawChoice() {
+    drawWindowCommon(choicePrompt);
+    const text = choiceOptions.map((o, i) => (i === choiceCursor ? `▶${o}` : `　${o}`));
+    const width = displayTileSize * (2 + Math.max(...choiceOptions.map(o => o.length)) * 0.75);
+    drawWindow(displayTileSize * screenWidth - width - displayTileSize / 2, displayTileSize / 2,
+               width, displayTileSize * (text.length + 0.5), text);
+}
+
+// =====================================================================
 // メインゲームループ
 // =====================================================================
 let lastTime = 0;
@@ -248,6 +282,7 @@ function gameLoop(timestamp) {
         case STATE.BATTLE: updateBattle(); break;
         case STATE.PASSCODE: updatePasscode(); break;
         case STATE.YESNO: updateYesNo(); break;
+        case STATE.CHOICE: updateChoice(); break;
     }
 
     drawMap();
@@ -260,6 +295,7 @@ function gameLoop(timestamp) {
         case STATE.BATTLE: drawBattle(); break;
         case STATE.PASSCODE: drawPasscode(); break;
         case STATE.YESNO: drawYesNo(); break;
+        case STATE.CHOICE: drawChoice(); break;
     }
 
     Input.clearJustPressed();
@@ -271,5 +307,7 @@ window.onload = function () {
     updatePlayerLevel();
     updatePlayerItems();
     updatePlayerStyle();
+    recalcPlayerPower();
+    calcFlagsToCode();
     requestAnimationFrame(gameLoop);
 };

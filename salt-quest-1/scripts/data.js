@@ -32,8 +32,53 @@ let playerIndex = playerStyleNormal, playerStyle = playerStyleNormal;
 let player = {
     name: 'ソルト', level: 0, hp: 15, maxHp: 15, mp: 0, maxMp: 0, gold: 0, exp: 0,
     strength: 4, agility: 4, attack: 4, defense: 2, herb: 6, key: 0,
-    items: [], spells: [], weapon: 'なし', armor: 'ぬののふく', shield: 'なし'
+    items: [], spells: [],
+    weaponIndex: 0, armorIndex: 1, shieldIndex: 0,   // 初期装備は ぬののふく のみ
+    weapon: 'なし', armor: 'ぬののふく', shield: 'なし'
 };
+
+// =====================================================================
+// 装備（FC版DQ1の攻撃力・守備力・買値。priceが0のものは非売品）
+// =====================================================================
+const HERB_MAX = 6;      // 本家同様やくそうは6個まで
+const HERB_PRICE = 24;
+
+const weapons = [
+    { name: 'なし',           power: 0,  price: 0 },
+    { name: 'たけざお',       power: 2,  price: 10 },
+    { name: 'こんぼう',       power: 4,  price: 60 },
+    { name: 'どうのつるぎ',   power: 10, price: 180 },
+    { name: 'てつのおの',     power: 15, price: 560 },
+    { name: 'はがねのつるぎ', power: 20, price: 1500 },
+    { name: 'ほのおのつるぎ', power: 28, price: 9800 },
+    { name: 'ロトのつるぎ',   power: 40, price: 0 }
+];
+const armors = [
+    { name: 'なし',           power: 0,  price: 0 },
+    { name: 'ぬののふく',     power: 2,  price: 20 },
+    { name: 'かわのふく',     power: 4,  price: 70 },
+    { name: 'くさりかたびら', power: 10, price: 300 },
+    { name: 'てつのよろい',   power: 16, price: 1000 },
+    { name: 'はがねのよろい', power: 24, price: 3000 },
+    { name: 'まほうのよろい', power: 24, price: 7700 },
+    { name: 'ロトのよろい',   power: 28, price: 0 }
+];
+const shields = [
+    { name: 'なし',           power: 0,  price: 0 },
+    { name: 'かわのたて',     power: 4,  price: 90 },
+    { name: 'てつのたて',     power: 10, price: 800 },
+    { name: 'みかがみのたて', power: 20, price: 14800 }
+];
+
+// こうげき力=ちから+武器 / しゅび力=すばやさ÷2+よろい+たて（本家の式）
+function recalcPlayerPower() {
+    const w = weapons[player.weaponIndex] || weapons[0];
+    const a = armors[player.armorIndex] || armors[0];
+    const s = shields[player.shieldIndex] || shields[0];
+    player.weapon = w.name; player.armor = a.name; player.shield = s.name;
+    player.attack = player.strength + w.power;
+    player.defense = Math.floor(player.agility / 2) + a.power + s.power;
+}
 
 // =====================================================================
 // 敵図鑑とエンカウント定義
@@ -160,8 +205,7 @@ const passHiraganaList = {
     60:"び", 61:"ぶ", 62:"べ", 63:"ぼ"
 };
 
-const PASS_LENGTH = 10; // 60bit(6bit×10文字)
-let pass = 'ああああああああああ';
+let pass = ''; // 初期値は起動時に現在の状態から生成する
 let selectedHiraganaIndex = 0, hiraganaCursorIndex = 0;
 
 // =====================================================================
@@ -181,14 +225,14 @@ function updatePlayerLevel(){
     const newStatus = playerStatus.find(s => s.level === player.level + 1);
     if(player.exp < newStatus.requiredExp) return;
     player.level = newStatus.level; player.strength = newStatus.strength; player.agility = newStatus.agility;
-    player.attack = newStatus.strength; player.defense = newStatus.agility / 2;
     player.maxHp = newStatus.hp; player.maxMp = newStatus.mp;
+    recalcPlayerPower();
     if(newStatus.spell !== '-') player.spells.push(newStatus.spell);
 }
 
-// フラグから持ち物・装備を組み立て直す。consumedBy は「そのフラグが立つと使い切る」印
+// フラグから持ち物を組み立て直す。consumedBy は「そのフラグが立つと使い切る」印
+// （装備は買い替えできるので weaponIndex等で持ち、ここでは触らない）
 function updatePlayerItems(){
-    player.armor = (getGameFlag('rotoArmor') ? 'ロトのよろい' : 'ぬののふく');
     const flagItems = [
         { itemName: 'ようせいのふえ', flagName: 'fairyFlute' }, { itemName: 'ロトのしるし', flagName: 'rotoEmblem' },
         { itemName: 'おうじょのあい', flagName: 'roraLove'}, { itemName: 'ぎんのたてごと', flagName: 'silverHerp'},
@@ -218,13 +262,20 @@ function updatePlayerStyle(){
 // 本家同様レベルは経験値から復元するので、レベル自体は保存しない
 // =====================================================================
 const PASS_FIELDS = [
-    { name: 'flags', bits: 14 },
-    { name: 'exp',   bits: 16 },
-    { name: 'gold',  bits: 16 },
-    { name: 'herb',  bits: 4 },
-    { name: 'key',   bits: 2 }
+    { name: 'flags',  bits: 14 },
+    { name: 'exp',    bits: 16 },
+    { name: 'gold',   bits: 16 },
+    { name: 'herb',   bits: 4 },
+    { name: 'key',    bits: 3 },
+    { name: 'weapon', bits: 3 },
+    { name: 'armor',  bits: 3 },
+    { name: 'shield', bits: 2 }
 ];
 const PASS_CHECKSUM_BITS = 8;
+const PASS_PAYLOAD_BITS = PASS_FIELDS.reduce((n, f) => n + f.bits, 0);
+// 6bit(=1文字)単位に収まるよう詰め物を入れる
+const PASS_PAD_BITS = (6 - ((PASS_PAYLOAD_BITS + PASS_CHECKSUM_BITS) % 6)) % 6;
+const PASS_LENGTH = (PASS_PAYLOAD_BITS + PASS_PAD_BITS + PASS_CHECKSUM_BITS) / 6;
 
 function getCodeByHiragana(object, value) { return Number(Object.keys(object).find(key => object[key] === value)); }
 function getHiraganaFromList(index) { return passHiraganaList[index] || '？'; }
@@ -257,10 +308,14 @@ function calcFlagsToCode() {
         exp: Math.min(player.exp, 65535),
         gold: Math.min(player.gold, 65535),
         herb: Math.min(player.herb, 15),
-        key: Math.min(player.key, 3)
+        key: Math.min(player.key, 7),
+        weapon: player.weaponIndex,
+        armor: player.armorIndex,
+        shield: player.shieldIndex
     };
     const bits = [];
     for (const f of PASS_FIELDS) pushBits(bits, values[f.name], f.bits);
+    pushBits(bits, 0, PASS_PAD_BITS);
     pushBits(bits, passChecksum(bits), PASS_CHECKSUM_BITS);
 
     let text = '';
@@ -290,6 +345,9 @@ function calcCodeToFlags() {
     player.gold = values.gold;
     player.herb = values.herb;
     player.key = values.key;
+    player.weaponIndex = values.weapon;
+    player.armorIndex = values.armor;
+    player.shieldIndex = values.shield;
     restorePlayerFromExp();
     return true;
 }
@@ -300,6 +358,7 @@ function restorePlayerFromExp() {
     player.spells = [];
     let prev = -1;
     while (player.level !== prev) { prev = player.level; updatePlayerLevel(); }
+    recalcPlayerPower();
     player.hp = player.maxHp;
     player.mp = player.maxMp;
 }

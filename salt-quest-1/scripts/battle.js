@@ -7,24 +7,61 @@ let battleStateMode = 'COMMAND'; // COMMAND または SPELL
 let spellCursor = 0;
 const COMBAT_SPELLS = ['ホイミ', 'ギラ', 'ラリホー', 'マホトーン', 'ベホイミ', 'ベギラマ'];
 
+// =====================================================================
+// ダメージ計算（FC版DQ1準拠）
+// 通常攻撃は (こうげき力 － しゅび力÷2) の 1/4〜1/2
+// =====================================================================
+function calcDamage(attack, defense) {
+    const base = attack - Math.floor(defense / 2);
+    const lo = Math.floor(base / 4), hi = Math.floor(base / 2);
+    if (hi <= lo) return Math.max(0, lo);
+    return lo + Math.floor(Math.random() * (hi - lo + 1));
+}
+// 敵の攻撃。しゅび力が高いとかすり傷程度しか通らない
+function calcEnemyDamage(attack, defense) {
+    const base = attack - Math.floor(defense / 2);
+    if (base < Math.floor(attack / 2) + 1) {
+        return Math.floor(Math.random() * (Math.floor(attack / 2) + 2) / 4);
+    }
+    return calcDamage(attack, defense);
+}
+// 会心の一撃は1/32で出て、しゅび力を無視して攻撃力の約50〜100%
+function calcCritical(attack) {
+    const lo = Math.max(1, attack - Math.floor(attack / 2) + 1);
+    return lo + Math.floor(Math.random() * Math.max(1, attack - lo + 1));
+}
+
 // 敵データを受け取って戦闘を開始する（ランダムエンカウント/Bキー共通の入口）
-function startBattle(enemyDef) {
+async function startBattle(enemyDef) {
     enemy = { ...enemyDef };
     battleCursor = 0;
     battleStateMode = 'COMMAND';
-    showMessage([`${enemy.name}が あらわれた！`]).then(() => {
-        if (currentState !== STATE.FIELD) currentState = STATE.BATTLE;
-    });
+    await showMessage([`${enemy.name}が あらわれた！`]);
+    // 先制判定: すばやさ勝負に負けると敵に先に殴られる
+    const heroRoll = player.agility * Math.floor(Math.random() * 256);
+    const foeRoll = enemy.defense * Math.floor(Math.random() * 64);
+    if (heroRoll < foeRoll) {
+        await showMessage([`${enemy.name}の きゅうしゅう！`]);
+        await executeEnemyTurn();
+    } else {
+        currentState = STATE.BATTLE;
+    }
 }
 
 async function executeBattleTurn() {
     currentState = STATE.MESSAGE; // メッセージ中は入力をロック
 
     if (battleCursor === 0) { // たたかう
-        // ダメージ計算（乱数を加えて単調さを防ぐ）
-        const damage = Math.max(1, Math.floor((player.attack - enemy.defense / 2) * (0.8 + Math.random() * 0.4)));
+        const critical = Math.floor(Math.random() * 32) === 0;
+        const damage = critical ? calcCritical(player.attack) : calcDamage(player.attack, enemy.defense);
         enemy.hp -= damage;
-        await showMessage([`${player.name}の こうげき！`, `${enemy.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
+        if (critical) {
+            await showMessage([`${player.name}の こうげき！`, 'かいしんの いちげき！！', `${enemy.name}に ${damage}ポイントの ダメージ！`]);
+        } else if (damage === 0) {
+            await showMessage([`${player.name}の こうげき！`, `${enemy.name}には ダメージを`, `あたえられない！`]);
+        } else {
+            await showMessage([`${player.name}の こうげき！`, `${enemy.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
+        }
         await checkEnemySurvival();
 
     } else if (battleCursor === 1) { // じゅもん
@@ -132,9 +169,13 @@ async function executeEnemyTurn() {
         currentState = STATE.BATTLE;
         return;
     }
-    const damage = Math.max(1, Math.floor((enemy.attack - player.defense / 2) * (0.8 + Math.random() * 0.4)));
+    const damage = calcEnemyDamage(enemy.attack, player.defense);
     player.hp -= damage;
-    await showMessage([`${enemy.name}の こうげき！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
+    if (damage === 0) {
+        await showMessage([`${enemy.name}の こうげき！`, `しかし ${player.name}は`, `ダメージを うけなかった！`]);
+    } else {
+        await showMessage([`${enemy.name}の こうげき！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
+    }
 
     if (player.hp <= 0) {
         await showMessage([`${player.name}は しんでしまった！`]);

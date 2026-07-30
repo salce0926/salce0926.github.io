@@ -16,7 +16,7 @@ async function interactField() {
             await showMessage(['ここはマイラの村だ', '温泉で有名らしい', '温泉の近くに何か落ちている...']);
             await showMessage(['妖精の笛を手に入れた！']);
         } else await showMessage(['ここはマイラの村だ', '温泉で有名らしい']);
-        await offerInn(25);
+        await offerTown('マイラの村', townShops.maira);
     } else if (isVisit(112, 52) || isVisit(112, 57)) {
         if(!getGameFlag('roraRescued')){
             if(!getGameFlag('magicKey')) await showMessage(['洞窟の中に扉があったが', '鍵が無いので開けられなかった...']);
@@ -31,7 +31,7 @@ async function interactField() {
             setGameFlag('magicKey'); player.key = 1;
             await showMessage(['ここはリムルダールの町だ', '店で魔法の鍵を手に入れた！']);
         }else await showMessage(['ここはリムルダールの町だ']);
-        await offerInn(55);
+        await offerTown('リムルダールの町', townShops.rimuldar);
     } else if (isVisit(gameFlags.sunStone.location.x, gameFlags.sunStone.location.y)) {
         await showMessage(['ここはラダトームの城だ']);
         if(getGameFlag('lightBall')){
@@ -73,7 +73,7 @@ async function interactField() {
                 await showMessage(['ガライの墓で銀の竪琴を手に入れた！']);
             }else await showMessage(['ここはガライの町だ', '吟遊詩人ガライの墓があるらしい', '隠し通路を見つけたが鍵がかかっている...']);
         }else await showMessage(['ここはガライの町だ', '吟遊詩人ガライの墓があるらしい']);
-        await offerInn(20);
+        await offerTown('ガライの町', townShops.garai);
     } else if (isVisit(gameFlags.rainCloudStuff.location.x, gameFlags.rainCloudStuff.location.y)) {
         if(!getGameFlag('rainCloudStuff')){
             if(!getGameFlag('silverHerp')) await showMessage(['老人「銀の竪琴の音色を聞きたいなあ...」']);
@@ -91,8 +91,10 @@ async function interactField() {
             }else{
                 setGameFlag('golemKilled');
                 await showMessage(['妖精の笛でゴーレムを眠らせた！', 'ゴーレムを倒した！']);
+                await showMessage(['ゴーレムが守っていた町', 'メルキドに 入ることができた！']);
             }
         }
+        if (getGameFlag('golemKilled')) await offerTown('メルキドの町', townShops.melkido);
     } else if (isVisit(gameFlags.golemKilled.location.x, gameFlags.golemKilled.location.y + 2)) {
         if(!getGameFlag('rotoEmblem')){
             const dx = gameFlags.rotoEmblem.location.x - gameFlags.sunStone.location.x;
@@ -110,8 +112,10 @@ async function interactField() {
     } else if (isVisit(gameFlags.rotoArmor.location.x, gameFlags.rotoArmor.location.y)) {
         if(!getGameFlag('rotoArmor')){
             setGameFlag('rotoArmor');
+            player.armorIndex = armors.findIndex(a => a.name === 'ロトのよろい');
+            recalcPlayerPower();
             await showMessage(['ここはドムドーラの町だった', '今は廃墟となってしまっている...', '突然 あくまのきし が現れた！']);
-            await showMessage(['あくまのきし を倒して', 'ロトのよろいを 手に入れた！']);
+            await showMessage(['あくまのきし を倒して', 'ロトのよろいを 手に入れた！', `しゅび力が ${player.defense}に なった！`]);
         }else{
             await showMessage(['ここはドムドーラの町だった', '今は廃墟となってしまっている...']);
             await showMessage(['何故ここにロトのよろいがあったのか', 'その真相は製品版をお買い求めください']);
@@ -155,7 +159,7 @@ async function interactField() {
         }
     } else if (isVisit(56, 49)) {
         await showMessage(['ここは ラダトームの町だ', 'じゅもんの きろくと やどやが あるらしい']);
-        await offerInn(6);
+        await offerTown('ラダトームの町', townShops.radatome);
         calcFlagsToCode();
         await showMessage(['しんかん「そなたの ぼうけんを きろくしよう」', 'ふっかつのじゅもん：', `　${pass}`]);
         openPasscode();
@@ -175,18 +179,96 @@ async function interactField() {
 }
 
 // =====================================================================
-// 宿屋
+// 町の施設（やどや・どうぐや・ぶきや）
+// 品揃えはFC版DQ1の各町の店に合わせている
 // =====================================================================
-async function offerInn(price) {
-    if (await askYesNo([`やどや「ひとばん ${price}ゴールドですが`, '　　　　おとまりに なりますか？」'])) {
-        if (player.gold >= price) {
-            player.gold -= price;
-            player.hp = player.maxHp;
-            player.mp = player.maxMp;
-            await showMessage(['やどや「おはようございます', '　　　　よい たびを！」', 'HPとMPが かいふくした！']);
+const townShops = {
+    radatome:   { inn: 6,  tools: true, weapons: [1, 2, 3], armors: [1, 2], shieldList: [1] },
+    garai:      { inn: 20, tools: true, weapons: [4], armors: [3, 4], shieldList: [2] },
+    maira:      { inn: 25, tools: true, armors: [5] },
+    rimuldar:   { inn: 55, tools: true, weapons: [5], armors: [6] },
+    melkido:    { tools: true, weapons: [6], shieldList: [3] }
+};
+
+async function stayInn(price) {
+    if (player.gold < price) {
+        await showMessage(['やどや「おきゃくさん おかねが', '　　　　たりないようですが...」']);
+        return;
+    }
+    player.gold -= price;
+    player.hp = player.maxHp;
+    player.mp = player.maxMp;
+    await showMessage(['やどや「おはようございます', '　　　　よい たびを！」', 'HPとMPが かいふくした！']);
+}
+
+async function shopTools() {
+    while (true) {
+        const menu = [`やくそう ${HERB_PRICE}G`, 'やめる'];
+        const i = await chooseFromList([`どうぐや「なにを おかいに なりますか？」`,
+                                        `　もちきん ${player.gold}G　やくそう ${player.herb}こ`], menu);
+        if (i === menu.length - 1) return;
+        if (player.herb >= HERB_MAX) {
+            await showMessage([`どうぐや「やくそうは ${HERB_MAX}こまでしか`, '　　　　　もてませんよ」']);
+        } else if (player.gold < HERB_PRICE) {
+            await showMessage(['どうぐや「おかねが たりませんね」']);
         } else {
-            await showMessage(['やどや「おきゃくさん おかねが', '　　　　たりないようですが...」']);
+            player.gold -= HERB_PRICE;
+            player.herb++;
+            await showMessage(['やくそうを かいました！', `のこり ${player.gold}G　やくそう ${player.herb}こ`]);
         }
+    }
+}
+
+// 武器・鎧・盾を売る店。買うと今の装備は下取り（買値の半額）になる
+async function shopWeapons(shop) {
+    while (true) {
+        const stock = [];
+        (shop.weapons || []).forEach(n => stock.push({ kind: 'weapon', list: weapons, index: n }));
+        (shop.armors || []).forEach(n => stock.push({ kind: 'armor', list: armors, index: n }));
+        (shop.shieldList || []).forEach(n => stock.push({ kind: 'shield', list: shields, index: n }));
+        const menu = stock.map(s => `${s.list[s.index].name} ${s.list[s.index].price}G`);
+        menu.push('やめる');
+        const i = await chooseFromList(['ぶきや「どれに なさいますか？」', `　もちきん ${player.gold}G`], menu);
+        if (i === menu.length - 1) return;
+
+        const pick = stock[i];
+        const goods = pick.list[pick.index];
+        const nowIndex = pick.kind === 'weapon' ? player.weaponIndex
+                       : pick.kind === 'armor' ? player.armorIndex : player.shieldIndex;
+        if (nowIndex === pick.index) {
+            await showMessage(['ぶきや「それは もう おもちですよ」']);
+            continue;
+        }
+        const tradeIn = Math.floor(pick.list[nowIndex].price / 2);
+        const cost = goods.price - tradeIn;
+        if (player.gold < cost) {
+            await showMessage(['ぶきや「おかねが たりませんね」',
+                               `${goods.name}は ${goods.price}G`,
+                               tradeIn > 0 ? `いまの ${pick.list[nowIndex].name}は ${tradeIn}Gで ひきとります` : '']);
+            continue;
+        }
+        player.gold -= cost;
+        if (pick.kind === 'weapon') player.weaponIndex = pick.index;
+        else if (pick.kind === 'armor') player.armorIndex = pick.index;
+        else player.shieldIndex = pick.index;
+        recalcPlayerPower();
+        await showMessage([`${goods.name}を そうびした！`,
+            tradeIn > 0 ? `いままでの ${pick.list[nowIndex].name}は ${tradeIn}Gに なった` : '',
+            `こうげき力 ${player.attack}　しゅび力 ${player.defense}　のこり ${player.gold}G`]);
+    }
+}
+
+async function offerTown(townName, shop) {
+    while (true) {
+        const menu = [];
+        if (shop.inn) menu.push({ label: `やどや ${shop.inn}G`, act: () => stayInn(shop.inn) });
+        if (shop.tools) menu.push({ label: 'どうぐや', act: () => shopTools() });
+        if (shop.weapons || shop.armors || shop.shieldList) menu.push({ label: 'ぶきや', act: () => shopWeapons(shop) });
+        menu.push({ label: 'でる', act: null });
+        const i = await chooseFromList([`${townName}には なにが あるかな？`,
+                                        `　もちきん ${player.gold}G`], menu.map(m => m.label));
+        if (!menu[i].act) return;
+        await menu[i].act();
     }
 }
 
@@ -293,7 +375,7 @@ function drawMenu() {
         if (menuCursor === 0) {
             const stats = [
                 `　　ちから：　　　${alignRight(player.strength, 3)}`, `　すばやさ：　　　${alignRight(player.agility, 3)}`,
-                `こうげき力：　　　${alignRight(player.strength, 3)}`, `　しゅび力：　　　${alignRight(Math.floor(player.agility/2), 3)}`,
+                `こうげき力：　　　${alignRight(player.attack, 3)}`, `　しゅび力：　　　${alignRight(player.defense, 3)}`,
                 `　ぶき：${alignRightWide(player.weapon, 7)}`, `よろい：${alignRightWide(player.armor, 7)}`, `　たて：${alignRightWide(player.shield, 7)}`
             ];
             drawWindow(displayTileSize * screenWidth - displayTileSize * 8.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 8.5, displayTileSize * 7.5, stats);
