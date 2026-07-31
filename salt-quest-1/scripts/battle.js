@@ -80,6 +80,12 @@ async function executeBattleTurn() {
     }
 
     if (battleCursor === 0) { // たたかう
+        // 回避判定（本家: 敵の回避力÷64 の確率で空振り。会心の一撃も同じく外れる）
+        if (Math.floor(Math.random() * 64) < (enemy.evasion || 0)) {
+            await showMessage([`${player.name}の こうげき！`, `しかし ${enemy.name}は`, `すばやく みをかわした！`]);
+            await executeEnemyTurn();
+            return;
+        }
         const critical = !enemy.noCritical && Math.floor(Math.random() * 32) === 0;
         const damage = critical ? calcCritical(player.attack) : calcDamage(player.attack, enemy.defense);
         enemy.hp -= damage;
