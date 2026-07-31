@@ -116,10 +116,10 @@ async function interactField() {
             setGameFlag('rotoArmor');
             player.armorIndex = armors.findIndex(a => a.name === 'ロトのよろい');
             recalcPlayerPower();
-            await showMessage(['ここはドムドーラの町だった', '今は廃墟となってしまっている...', '突然 あくまのきし が現れた！']);
+            await showMessage(['ここはドムドーラの町だった', '今は はいきょと なってしまっている...', '突然 あくまのきし が現れた！']);
             await showMessage(['あくまのきし を倒して', 'ロトのよろいを 手に入れた！', `しゅび力が ${player.defense}に なった！`]);
         }else{
-            await showMessage(['ここはドムドーラの町だった', '今は廃墟となってしまっている...']);
+            await showMessage(['ここはドムドーラの町だった', '今は はいきょと なってしまっている...']);
             await showMessage(['何故ここにロトのよろいがあったのか', 'その真相は製品版をお買い求めください']);
         }
     } else if (isVisit(gameFlags.rainbowDrop.location.x, gameFlags.rainbowDrop.location.y)) {
@@ -372,8 +372,8 @@ function updateMenu() {
 
 function drawMenu() {
     drawWindowPlayerInfo();
-    let cmdText = commandList.map((c, i) => (i === menuCursor ? `▶${c}` : `　${c}`));
-    drawWindow(displayTileSize * screenWidth - displayTileSize * 4.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 4.5, displayTileSize * 4.5, cmdText);
+    let cmdText = commandList.map(c => `　${c}`);
+    drawWindow(displayTileSize * screenWidth - displayTileSize * 4.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 4.5, displayTileSize * 4.5, cmdText, menuCursor);
 
     if (menuLevel === 1) {
         const explains = [
@@ -394,13 +394,16 @@ function drawMenu() {
             drawWindowCommon(['おぼえたじゅもん：']);
         } else if (menuCursor === 1 || menuCursor === 2) {
             const options = menuOptions();
+            // 個数は元の見た目どおり桁を揃えて右に置く
             const label = (name) => {
-                if (name === 'やくそう') return `やくそう ${player.herb}`;
-                if (name === 'かぎ') return `かぎ ${player.key}`;
+                const padded = name + '　'.repeat(Math.max(0, 7 - name.length));
+                if (name === 'やくそう') return padded + player.herb;
+                if (name === 'かぎ') return padded + player.key;
                 return name;
             };
-            const text = options.map((s, i) => (i === subCursor ? `▶${label(s)}` : `　${label(s)}`));
-            drawWindow(displayTileSize * screenWidth - displayTileSize * 7, displayTileSize, displayTileSize * 6.5, displayTileSize * (options.length + 1), text);
+            const text = options.map(s => `　${label(s)}`);
+            drawWindow(displayTileSize * screenWidth - displayTileSize * 7 - displayTileSize / 2, displayTileSize,
+                       displayTileSize * 7, displayTileSize * (options.length + 1), text, subCursor);
         } else if (menuCursor === 3) {
             drawWindowCommon(['ぼうけんの きろくは', 'ラダトームの おうさまに たのもう', '（しろの まんなかで しらべる）']);
         }
@@ -539,9 +542,14 @@ function drawPassCursor() {
     const baseline = winY + displayTileSize * 2; // じゅもんは2行目
     ctx.font = '16px cinecaption';
     const left = textX + ctx.measureText(PASS_LINE_PREFIX + pass.substring(0, hiraganaCursorIndex)).width;
-    const w = ctx.measureText(pass[hiraganaCursorIndex] || '　').width;
+    const ch = pass[hiraganaCursorIndex] || '　';
+    const w = ctx.measureText(ch).width;
+    // 左のホイールと同じ「黄色地に黒文字」で選択中の文字を示す
     ctx.fillStyle = 'yellow';
-    ctx.fillRect(left, baseline + 3, w, 3);
+    ctx.fillRect(left, baseline - displayTileSize + 6, w, displayTileSize);
+    ctx.fillStyle = 'black';
+    ctx.fillText(ch, left, baseline);
+    ctx.fillStyle = 'white';
 }
 
 function drawPasscode() {

@@ -199,7 +199,21 @@ function drawMap(){
         }
     }
 }
-function drawWindow(x, y, width, height, textArray) {
+// 選択カーソル。▶(U+25B6)はcinecaptionに無く端末ごとに代替フォント(iOSでは絵文字)に
+// なってしまうため、三角を直接描いて見た目を固定する
+function drawCursorMark(x, baseline) {
+    const w = 9, h = 11, left = x + 3, top = baseline - 12;
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.lineTo(left + w, top + h / 2);
+    ctx.lineTo(left, top + h);
+    ctx.closePath();
+    ctx.fill();
+}
+
+// cursorLine を渡すと、その行の頭にカーソルを描く（各行は先頭に全角空白をあける）
+function drawWindow(x, y, width, height, textArray, cursorLine) {
     ctx.fillStyle = 'black'; ctx.fillRect(x, y, width, height);
     ctx.strokeStyle = 'white'; ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.strokeRect(x, y, width, height);
     ctx.strokeStyle = 'black'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
@@ -207,6 +221,7 @@ function drawWindow(x, y, width, height, textArray) {
     let textX = x + displayTileSize / 2, textY = y + displayTileSize;
     for (let i = 0; i < textArray.length; i++) {
         if(textArray[i]) ctx.fillText(textArray[i], textX, textY);
+        if (i === cursorLine) drawCursorMark(textX, textY);
         textY += displayTileSize;
     }
 }
@@ -286,8 +301,8 @@ function updateYesNo() {
 
 function drawYesNo() {
     drawWindowCommon(yesNoPrompt);
-    const opts = ['はい', 'いいえ'].map((o, i) => (i === yesNoCursor ? `▶${o}` : `　${o}`));
-    drawWindow(displayTileSize * (screenWidth - 5), displayTileSize * screenHeight - displayTileSize * 7.5, displayTileSize * 4, displayTileSize * 2.5, opts);
+    const opts = ['はい', 'いいえ'].map(o => `　${o}`);
+    drawWindow(displayTileSize * (screenWidth - 5), displayTileSize * screenHeight - displayTileSize * 7.5, displayTileSize * 4, displayTileSize * 2.5, opts, yesNoCursor);
 }
 
 // =====================================================================
@@ -317,10 +332,10 @@ function updateChoice() {
 
 function drawChoice() {
     drawWindowCommon(choicePrompt);
-    const text = choiceOptions.map((o, i) => (i === choiceCursor ? `▶${o}` : `　${o}`));
+    const text = choiceOptions.map(o => `　${o}`);
     const width = displayTileSize * (2 + Math.max(...choiceOptions.map(o => o.length)) * 0.75);
     drawWindow(displayTileSize * screenWidth - width - displayTileSize / 2, displayTileSize / 2,
-               width, displayTileSize * (text.length + 0.5), text);
+               width, displayTileSize * (text.length + 0.5), text, choiceCursor);
 }
 
 // =====================================================================
@@ -349,9 +364,9 @@ function drawTitle() {
     ctx.font = '13px cinecaption';
     ctx.fillText('－ ソルトと ひかりのたま －', canvas.width / 2, canvas.height / 3 + 30);
     ctx.textAlign = 'left';
-    const text = titleOptions.map((o, i) => (i === titleCursor ? `▶${o}` : `　${o}`));
+    const text = titleOptions.map(o => `　${o}`);
     drawWindow(canvas.width / 2 - displayTileSize * 4.5, canvas.height / 2 + displayTileSize,
-               displayTileSize * 9, displayTileSize * 2.5, text);
+               displayTileSize * 9, displayTileSize * 2.5, text, titleCursor);
 }
 
 // =====================================================================

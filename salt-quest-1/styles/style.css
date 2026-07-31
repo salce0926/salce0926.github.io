@@ -12,15 +12,22 @@ body {
     align-items: center;
     justify-content: center;
     height: 100vh;
+    height: 100dvh;           /* iOSのアドレスバー出入りで高さが変わる対策 */
     user-select: none;
+    -webkit-text-size-adjust: 100%;
 }
 canvas {
     display: block;
     border: 2px solid #555;
     box-sizing: border-box;   /* 枠線ぶんで画面幅を超えないように */
-    max-width: 100%;
+    /* 横向きでも画面からはみ出さないよう、高さからも上限をかける
+       （150pxはボタン列とメッセージ欄のぶん） */
+    width: min(100%, 384px, calc(100vh - 150px));
+    width: min(100%, 384px, calc(100dvh - 150px));
     height: auto;
-    touch-action: none;       /* スマホでスクロール・ズームに取られないようにする */
+    touch-action: none;             /* スクロール・ズームにタッチを取られない */
+    -webkit-touch-callout: none;    /* 長押しでiOSのメニューが出ないように */
+    -webkit-user-select: none;
 }
 #buttonContainer {
     display: flex;

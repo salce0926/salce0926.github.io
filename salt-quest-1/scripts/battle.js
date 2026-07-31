@@ -331,14 +331,14 @@ function drawBattle() {
     drawWindowPlayerInfo();
 
     if (battleStateMode === 'COMMAND') {
-        let cmdText = battleCommands.map((c, i) => (i === battleCursor ? `▶${c}` : `　${c}`));
-        drawWindow(displayTileSize * screenWidth - displayTileSize * 4.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 4.5, displayTileSize * 4.5, cmdText);
+        let cmdText = battleCommands.map(c => `　${c}`);
+        drawWindow(displayTileSize * screenWidth - displayTileSize * 4.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 4.5, displayTileSize * 4.5, cmdText, battleCursor);
         drawWindowCommon(['コマンド？']);
     } else if (battleStateMode === 'SPELL') {
         const combatSpells = player.spells.filter(s => COMBAT_SPELLS.includes(s));
         const options = [...combatSpells, 'もどる'];
-        let spellText = options.map((s, i) => (i === spellCursor ? `▶${s}` : `　${s}`));
-        drawWindow(displayTileSize * screenWidth - displayTileSize * 5.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 5.5, displayTileSize * (options.length + 0.5), spellText);
+        let spellText = options.map(s => `　${s}`);
+        drawWindow(displayTileSize * screenWidth - displayTileSize * 5.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 5.5, displayTileSize * (options.length + 0.5), spellText, spellCursor);
         drawWindowCommon(['じゅもん？']);
     }
 }
