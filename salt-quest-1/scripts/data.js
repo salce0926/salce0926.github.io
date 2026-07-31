@@ -33,6 +33,7 @@ let playerIndex = playerStyleNormal, playerStyle = playerStyleNormal;
 let player = {
     name: 'ソルト', level: 0, hp: 15, maxHp: 15, mp: 0, maxMp: 0, gold: 120, exp: 0,
     strength: 4, agility: 4, attack: 4, defense: 2, herb: 6, key: 0,
+    bank: 0,          // あずかりじょの預金。やられても減らない（1000G単位）
     items: [], spells: [],
     weaponIndex: 0, armorIndex: 0, shieldIndex: 0,
     weapon: 'なし', armor: 'なし', shield: 'なし'
@@ -287,8 +288,11 @@ const PASS_FIELDS = [
     { name: 'key',    bits: 3 },
     { name: 'weapon', bits: 3 },
     { name: 'armor',  bits: 3 },
-    { name: 'shield', bits: 2 }
+    { name: 'shield', bits: 2 },
+    { name: 'bank',   bits: 7 }   // 預金は1000G単位で持つ（最大127000G）
 ];
+const BANK_UNIT = 1000;
+const BANK_MAX = 127 * BANK_UNIT;
 const PASS_CHECKSUM_BITS = 8;
 const PASS_PAYLOAD_BITS = PASS_FIELDS.reduce((n, f) => n + f.bits, 0);
 // 6bit(=1文字)単位に収まるよう詰め物を入れる
@@ -329,7 +333,8 @@ function calcFlagsToCode() {
         key: Math.min(player.key, 7),
         weapon: player.weaponIndex,
         armor: player.armorIndex,
-        shield: player.shieldIndex
+        shield: player.shieldIndex,
+        bank: Math.min(Math.floor(player.bank / BANK_UNIT), 127)
     };
     const bits = [];
     for (const f of PASS_FIELDS) pushBits(bits, values[f.name], f.bits);
@@ -366,6 +371,7 @@ function calcCodeToFlags() {
     player.weaponIndex = values.weapon;
     player.armorIndex = values.armor;
     player.shieldIndex = values.shield;
+    player.bank = values.bank * BANK_UNIT;
     restorePlayerFromExp();
     return true;
 }

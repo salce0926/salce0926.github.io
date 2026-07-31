@@ -3,8 +3,12 @@
 // =====================================================================
 function isVisit(x, y) { return playerPosition.x === x && playerPosition.y === y; }
 
+// 本家同様、やられると所持金が半分になる（あずかりじょに預けた分は無事）
 function playerKilled(){
+    const lost = player.gold - Math.floor(player.gold / 2);
+    player.gold -= lost;
     playerPosition.x = 51; playerPosition.y = 51; player.hp = player.maxHp;
+    return lost;
 }
 
 async function interactField() {
@@ -196,12 +200,45 @@ async function offerRecord() {
 // 品揃えはFC版DQ1の各町の店に合わせている
 // =====================================================================
 const townShops = {
-    radatome:   { inn: 6,  tools: true, weapons: [1, 2, 3], armors: [1, 2], shieldList: [1] },
+    radatome:   { inn: 6,  tools: true, weapons: [1, 2, 3], armors: [1, 2], shieldList: [1], bank: true },
     garai:      { inn: 20, tools: true, weapons: [4], armors: [3, 4], shieldList: [2] },
     maira:      { inn: 25, tools: true, armors: [5] },
     rimuldar:   { inn: 55, tools: true, weapons: [5], armors: [6] },
-    melkido:    { tools: true, weapons: [6], shieldList: [3] }
+    melkido:    { tools: true, weapons: [6], shieldList: [3], bank: true }
 };
+
+// あずかりじょ。1000G単位で預けられ、預けた分はやられても減らない（本家準拠）
+async function useBank() {
+    while (true) {
+        const menu = ['あずける', 'ひきだす', 'やめる'];
+        const i = await chooseFromList(['あずかりじょ「ごようけんを どうぞ」',
+                                        `　もちきん ${player.gold}G　あずかりきん ${player.bank}G`], menu);
+        if (i === 2) return;
+
+        const deposit = i === 0;
+        const limit = deposit ? Math.min(player.gold, BANK_MAX - player.bank) : player.bank;
+        const units = Math.floor(limit / BANK_UNIT);
+        if (units === 0) {
+            await showMessage(deposit
+                ? ['あずかりじょ「1000ゴールドから', '　　　　　　　　おあずかりします」']
+                : ['あずかりじょ「おあずかりが ございません」']);
+            continue;
+        }
+        const amounts = [1000, 5000, 10000].filter(a => a <= units * BANK_UNIT);
+        if (!amounts.includes(units * BANK_UNIT)) amounts.push(units * BANK_UNIT);
+        const opts = amounts.map(a => `${a}G`);
+        opts.push('やめる');
+        const pick = await chooseFromList([`いくら ${deposit ? 'あずけますか' : 'ひきだしますか'}？`,
+                                           `　もちきん ${player.gold}G　あずかりきん ${player.bank}G`], opts);
+        if (pick === opts.length - 1) continue;
+
+        const amount = amounts[pick];
+        if (deposit) { player.gold -= amount; player.bank += amount; }
+        else { player.bank -= amount; player.gold += amount; }
+        await showMessage([`あずかりじょ「たしかに ${deposit ? 'おあずかり' : 'おわたし'}しました」`,
+                           `　もちきん ${player.gold}G　あずかりきん ${player.bank}G`]);
+    }
+}
 
 async function stayInn(price) {
     if (player.gold < price) {
@@ -277,6 +314,7 @@ async function offerTown(townName, shop) {
         if (shop.inn) menu.push({ label: `やどや ${shop.inn}G`, act: () => stayInn(shop.inn) });
         if (shop.tools) menu.push({ label: 'どうぐや', act: () => shopTools() });
         if (shop.weapons || shop.armors || shop.shieldList) menu.push({ label: 'ぶきや', act: () => shopWeapons(shop) });
+        if (shop.bank) menu.push({ label: 'あずかりじょ', act: () => useBank() });
         menu.push({ label: 'でる', act: null });
         const i = await chooseFromList([`${townName}には なにが あるかな？`,
                                         `　もちきん ${player.gold}G`], menu.map(m => m.label));

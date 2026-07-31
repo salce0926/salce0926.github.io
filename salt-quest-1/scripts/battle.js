@@ -298,7 +298,10 @@ async function executeEnemyTurn() {
 
     if (player.hp <= 0) {
         await showMessage([`${player.name}は しんでしまった！`]);
-        playerKilled();
+        const lost = playerKilled();
+        await showMessage(['王様「しっかりするのじゃ！」',
+            lost > 0 ? `ゴールドを ${lost} おとしてしまった...` : '',
+            `のこりの もちきんは ${player.gold}G`]);
         endBattle('lose');
     } else {
         currentState = STATE.BATTLE;
