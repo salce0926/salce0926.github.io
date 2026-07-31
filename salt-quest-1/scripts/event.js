@@ -200,11 +200,11 @@ async function offerRecord() {
 // 品揃えはFC版DQ1の各町の店に合わせている
 // =====================================================================
 const townShops = {
-    radatome:   { inn: 6,  tools: true, weapons: [1, 2, 3], armors: [1, 2], shieldList: [1], bank: true },
-    garai:      { inn: 20, tools: true, weapons: [4], armors: [3, 4], shieldList: [2] },
-    maira:      { inn: 25, tools: true, armors: [5] },
-    rimuldar:   { inn: 55, tools: true, weapons: [5], armors: [6] },
-    melkido:    { tools: true, weapons: [6], shieldList: [3], bank: true }
+    radatome:   { inn: 6,  tools: ['herb', 'water', 'scale'], weapons: [1, 2, 3], armors: [1, 2], shieldList: [1], bank: true },
+    garai:      { inn: 20, tools: ['herb', 'water'], weapons: [4], armors: [3, 4], shieldList: [2] },
+    maira:      { inn: 25, tools: ['herb', 'wing'], armors: [5] },
+    rimuldar:   { inn: 55, tools: ['herb', 'wing'], weapons: [5], armors: [6] },
+    melkido:    { tools: ['herb', 'water', 'wing'], weapons: [6], shieldList: [3], bank: true }
 };
 
 // あずかりじょ。1000G単位で預けられ、預けた分はやられても減らない（本家準拠）
@@ -251,20 +251,42 @@ async function stayInn(price) {
     await showMessage(['やどや「おはようございます', '　　　　よい たびを！」', 'HPとMPが かいふくした！']);
 }
 
-async function shopTools() {
+// 所持数の増減をまとめて扱う（りゅうのうろこは身に付ける装飾なので個数を持たない）
+function toolCount(key) {
+    if (key === 'herb') return player.herb;
+    if (key === 'wing') return player.wing;
+    if (key === 'water') return player.water;
+    return player.scale ? 1 : 0;
+}
+function addTool(key) {
+    if (key === 'herb') player.herb++;
+    else if (key === 'wing') player.wing++;
+    else if (key === 'water') player.water++;
+    else { player.scale = true; recalcPlayerPower(); }
+}
+
+async function shopTools(stock) {
     while (true) {
-        const menu = [`やくそう ${HERB_PRICE}G`, 'やめる'];
-        const i = await chooseFromList([`どうぐや「なにを おかいに なりますか？」`,
-                                        `　もちきん ${player.gold}G　やくそう ${player.herb}こ`], menu);
+        const menu = stock.map(k => `${toolGoods[k].name} ${toolGoods[k].price}G`);
+        menu.push('やめる');
+        const i = await chooseFromList(['どうぐや「なにを おかいに なりますか？」',
+                                        `　もちきん ${player.gold}G`], menu);
         if (i === menu.length - 1) return;
-        if (player.herb >= HERB_MAX) {
-            await showMessage([`どうぐや「やくそうは ${HERB_MAX}こまでしか`, '　　　　　もてませんよ」']);
-        } else if (player.gold < HERB_PRICE) {
+
+        const key = stock[i], goods = toolGoods[key];
+        const max = key === 'herb' ? HERB_MAX : (key === 'scale' ? 1 : ITEM_MAX);
+        if (toolCount(key) >= max) {
+            await showMessage(key === 'scale'
+                ? ['どうぐや「もう みに つけていますよ」']
+                : [`どうぐや「${goods.name}は ${max}こまでしか`, '　　　　　もてませんよ」']);
+        } else if (player.gold < goods.price) {
             await showMessage(['どうぐや「おかねが たりませんね」']);
         } else {
-            player.gold -= HERB_PRICE;
-            player.herb++;
-            await showMessage(['やくそうを かいました！', `のこり ${player.gold}G　やくそう ${player.herb}こ`]);
+            player.gold -= goods.price;
+            addTool(key);
+            await showMessage(key === 'scale'
+                ? ['りゅうのうろこを みに つけた！', `しゅび力が ${player.defense}に なった！`, `のこり ${player.gold}G`]
+                : [`${goods.name}を かいました！`, `のこり ${player.gold}G　${goods.name} ${toolCount(key)}こ`]);
         }
     }
 }
@@ -312,7 +334,7 @@ async function offerTown(townName, shop) {
     while (true) {
         const menu = [];
         if (shop.inn) menu.push({ label: `やどや ${shop.inn}G`, act: () => stayInn(shop.inn) });
-        if (shop.tools) menu.push({ label: 'どうぐや', act: () => shopTools() });
+        if (shop.tools) menu.push({ label: 'どうぐや', act: () => shopTools(shop.tools) });
         if (shop.weapons || shop.armors || shop.shieldList) menu.push({ label: 'ぶきや', act: () => shopWeapons(shop) });
         if (shop.bank) menu.push({ label: 'あずかりじょ', act: () => useBank() });
         menu.push({ label: 'でる', act: null });
@@ -359,9 +381,19 @@ async function castFieldSpell(spellName) {
 async function useFieldItem(itemName) {
     if (itemName === 'やくそう') {
         player.herb--;
-        const heal = 25 + Math.floor(Math.random() * 10);
+        const heal = 23 + Math.floor(Math.random() * 8);   // 本家は23〜30回復
         player.hp = Math.min(player.maxHp, player.hp + heal);
         await showMessage([`${player.name}は やくそうを つかった！`, `HPが ${heal} かいふくした！`]);
+    } else if (itemName === 'キメラのつばさ') {
+        player.wing--;
+        playerPosition.x = 51; playerPosition.y = 51;
+        await showMessage([`${player.name}は キメラのつばさを つかった！`, 'ラダトームの城に もどった！']);
+    } else if (itemName === 'せいすい') {
+        player.water--;
+        repelSteps = 127;                                  // 本家は127歩
+        await showMessage([`${player.name}は せいすいを まいた！`, 'よわい まものが よってこなくなった！']);
+    } else if (itemName === 'りゅうのうろこ') {
+        await showMessage(['りゅうのうろこを みに つけている', `しゅび力が 2 あがっている`]);
     } else {
         await showMessage([`${itemName}は ここでは つかえない！`]);
     }
@@ -379,6 +411,9 @@ function menuOptions() {
     if (menuCursor === 1) return [...player.spells, 'もどる'];
     const opts = [];
     if (player.herb > 0) opts.push('やくそう');
+    if (player.wing > 0) opts.push('キメラのつばさ');
+    if (player.water > 0) opts.push('せいすい');
+    if (player.scale) opts.push('りゅうのうろこ');
     if (player.key > 0) opts.push('かぎ');
     return opts.concat(player.items.map(i => i.name), ['もどる']);
 }
@@ -436,6 +471,8 @@ function drawMenu() {
             const label = (name) => {
                 const padded = name + '　'.repeat(Math.max(0, 7 - name.length));
                 if (name === 'やくそう') return padded + player.herb;
+                if (name === 'キメラのつばさ') return padded + player.wing;
+                if (name === 'せいすい') return padded + player.water;
                 if (name === 'かぎ') return padded + player.key;
                 return name;
             };

@@ -34,6 +34,9 @@ let player = {
     name: 'ソルト', level: 0, hp: 15, maxHp: 15, mp: 0, maxMp: 0, gold: 120, exp: 0,
     strength: 4, agility: 4, attack: 4, defense: 2, herb: 6, key: 0,
     bank: 0,          // あずかりじょの預金。やられても減らない（1000G単位）
+    wing: 0,          // キメラのつばさ（城へ戻る）
+    water: 0,         // せいすい（127歩の敵よけ）
+    scale: false,     // りゅうのうろこ（身に付けると守備力+2）
     items: [], spells: [],
     weaponIndex: 0, armorIndex: 0, shieldIndex: 0,
     weapon: 'なし', armor: 'なし', shield: 'なし'
@@ -43,7 +46,14 @@ let player = {
 // 装備（FC版DQ1の攻撃力・守備力・買値。priceが0のものは非売品）
 // =====================================================================
 const HERB_MAX = 6;      // 本家同様やくそうは6個まで
-const HERB_PRICE = 24;
+const ITEM_MAX = 6;
+// どうぐやの品揃え（買値はFC版準拠）
+const toolGoods = {
+    herb:  { name: 'やくそう',       price: 24 },
+    water: { name: 'せいすい',       price: 38 },
+    scale: { name: 'りゅうのうろこ', price: 20 },
+    wing:  { name: 'キメラのつばさ', price: 70 }
+};
 
 const weapons = [
     { name: 'なし',           power: 0,  price: 0 },
@@ -79,7 +89,7 @@ function recalcPlayerPower() {
     const s = shields[player.shieldIndex] || shields[0];
     player.weapon = w.name; player.armor = a.name; player.shield = s.name;
     player.attack = player.strength + w.power;
-    player.defense = Math.floor(player.agility / 2) + a.power + s.power;
+    player.defense = Math.floor(player.agility / 2) + a.power + s.power + (player.scale ? 2 : 0);
 }
 
 // =====================================================================
@@ -289,7 +299,10 @@ const PASS_FIELDS = [
     { name: 'weapon', bits: 3 },
     { name: 'armor',  bits: 3 },
     { name: 'shield', bits: 2 },
-    { name: 'bank',   bits: 7 }   // 預金は1000G単位で持つ（最大127000G）
+    { name: 'bank',   bits: 7 },  // 預金は1000G単位で持つ（最大127000G）
+    { name: 'wing',   bits: 3 },
+    { name: 'water',  bits: 3 },
+    { name: 'scale',  bits: 1 }
 ];
 const BANK_UNIT = 1000;
 const BANK_MAX = 127 * BANK_UNIT;
@@ -334,7 +347,10 @@ function calcFlagsToCode() {
         weapon: player.weaponIndex,
         armor: player.armorIndex,
         shield: player.shieldIndex,
-        bank: Math.min(Math.floor(player.bank / BANK_UNIT), 127)
+        bank: Math.min(Math.floor(player.bank / BANK_UNIT), 127),
+        wing: Math.min(player.wing, 7),
+        water: Math.min(player.water, 7),
+        scale: player.scale ? 1 : 0
     };
     const bits = [];
     for (const f of PASS_FIELDS) pushBits(bits, values[f.name], f.bits);
@@ -372,6 +388,9 @@ function calcCodeToFlags() {
     player.armorIndex = values.armor;
     player.shieldIndex = values.shield;
     player.bank = values.bank * BANK_UNIT;
+    player.wing = values.wing;
+    player.water = values.water;
+    player.scale = values.scale === 1;
     restorePlayerFromExp();
     return true;
 }
