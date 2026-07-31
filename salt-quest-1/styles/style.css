@@ -56,3 +56,96 @@ canvas {
     margin: 10px;
     cursor: pointer;
 }
+
+/* =====================================================================
+   スマホ用の操作パネル（指の届く画面下に置く。マップは狭めない）
+   指で押す端末だけに出す
+   ===================================================================== */
+#pad { display: none; }
+body.touch #pad {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 400px;
+    box-sizing: border-box;
+    padding: 6px 18px 10px;
+    margin-top: 4px;
+}
+#dpad {
+    position: relative;
+    width: 144px;
+    height: 144px;
+    flex: none;
+}
+.pk {
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border: 2px solid #7a7a7a;
+    background: #dcdcdc;
+    color: #444;
+    border-radius: 8px;
+    touch-action: none;             /* スクロールに取られない */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: pointer;
+}
+.pk:active, .pk.on { background: #9fb8d0; border-color: #4a6a88; }
+.pk.up    { left: 48px; top: 0; }
+.pk.left  { left: 0;    top: 48px; }
+.pk.right { left: 96px; top: 48px; }
+.pk.down  { left: 48px; top: 96px; }
+/* 矢印は文字だと端末で書体が変わるのでCSSの三角で描く */
+.pk.up::before, .pk.down::before, .pk.left::before, .pk.right::before {
+    content: ''; position: absolute; left: 50%; top: 50%; width: 0; height: 0;
+}
+.pk.up::before    { transform: translate(-50%, -60%); border-left: 11px solid transparent; border-right: 11px solid transparent; border-bottom: 14px solid #444; }
+.pk.down::before  { transform: translate(-50%, -40%); border-left: 11px solid transparent; border-right: 11px solid transparent; border-top: 14px solid #444; }
+.pk.left::before  { transform: translate(-60%, -50%); border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-right: 14px solid #444; }
+.pk.right::before { transform: translate(-40%, -50%); border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-left: 14px solid #444; }
+#btnA {
+    position: static;
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    font-size: 26px;
+    font-weight: bold;
+    flex: none;
+}
+/* 横向きは縦の余白が無い代わりに左右が大きく空くので、
+   パネルを流し込みから外して画面の左右下に固定する */
+@media (orientation: landscape) {
+    body.touch #pad {
+        position: fixed;
+        inset: 0;
+        padding: 0;
+        margin: 0;
+        max-width: none;
+        pointer-events: none;   /* パネル本体はタッチを受けない */
+    }
+    body.touch #dpad {
+        position: fixed;
+        left: 14px;
+        bottom: 14px;
+        width: 126px;
+        height: 126px;
+        pointer-events: auto;
+    }
+    .pk { width: 42px; height: 42px; }
+    .pk.up { left: 42px; top: 0; }
+    .pk.left { left: 0; top: 42px; }
+    .pk.right { left: 84px; top: 42px; }
+    .pk.down { left: 42px; top: 84px; }
+    body.touch #btnA {
+        position: fixed;
+        right: 24px;
+        bottom: 40px;
+        width: 74px;
+        height: 74px;
+        font-size: 22px;
+        pointer-events: auto;
+    }
+}

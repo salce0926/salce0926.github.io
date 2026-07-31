@@ -95,58 +95,51 @@ canvas.width = screenWidth * displayTileSize;
 canvas.height = screenHeight * displayTileSize;
 
 // タップ領域(canvas内部座標)。画面の真ん中が決定、外周が方向
-var centerX = displayTileSize * screenWidth / 2, centerY = displayTileSize * screenHeight / 2;
-var centerLeftX = displayTileSize * screenWidth / 3;
-var centerRightX = displayTileSize * screenWidth * 2 / 3;
-var centerTopY = displayTileSize * screenHeight / 3;
-var centerBottomY = displayTileSize * screenHeight * 2 / 3;
-
-// 画面上のタッチ位置をcanvas内部座標へ変換する（拡大縮小・余白に依らず一致させる）
-function touchToCanvas(touch) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-        x: (touch.clientX - rect.left) * canvas.width / rect.width,
-        y: (touch.clientY - rect.top) * canvas.height / rect.height
-    };
+// 画面下の十字キー／Aボタンで操作する。方向はパネルに任せ、
+// canvasはどこを触っても「けってい（メッセージ送り・調べる）」にする。
+// 狙う必要が無くなるので、メッセージ送りが格段に楽になる。
+function enableTouchControls() {
+    if (document.body.classList.contains('touch')) return;
+    document.body.classList.add('touch');
+    Input.isTouch = true;
 }
 
-let touchKey = null; // いま押している扱いのキー
+// 指で操作する端末なら最初からパネルを出す
+if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) enableTouchControls();
 
-function applyTouch(touch) {
-    const p = touchToCanvas(touch);
-    let key;
-    if (p.x > centerLeftX && p.x < centerRightX && p.y > centerTopY && p.y < centerBottomY) {
-        key = ' ';
-    } else {
-        const dx = p.x - centerX, dy = p.y - centerY;
-        key = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'ArrowRight' : 'ArrowLeft')
-                                         : (dy > 0 ? 'ArrowDown' : 'ArrowUp');
-    }
-    if (key === touchKey) return;
-    if (touchKey) Input.release(touchKey);
-    touchKey = key;
-    Input.press(key);  // 方向もjustPressedを立てるのでメニューや店も操作できる
-}
-
-function endTouch() {
-    if (touchKey) Input.release(touchKey);
-    touchKey = null;
-}
-
+let canvasTouching = false;
 canvas.addEventListener('touchstart', e => {
     e.preventDefault();
-    Input.isTouch = true;
-    applyTouch(e.touches[0]);
+    enableTouchControls();
+    if (!canvasTouching) { canvasTouching = true; Input.press(' '); }
 }, { passive: false });
+const endCanvasTouch = e => {
+    if (e && e.cancelable) e.preventDefault();
+    if (canvasTouching) { canvasTouching = false; Input.release(' '); }
+};
+canvas.addEventListener('touchend', endCanvasTouch, { passive: false });
+canvas.addEventListener('touchcancel', endCanvasTouch);
 
-// 指をずらすと方向を変えられる
-canvas.addEventListener('touchmove', e => {
-    e.preventDefault();
-    if (e.touches[0]) applyTouch(e.touches[0]);
-}, { passive: false });
-
-canvas.addEventListener('touchend', e => { e.preventDefault(); endTouch(); }, { passive: false });
-canvas.addEventListener('touchcancel', endTouch);
+// 十字キーとAボタン
+document.querySelectorAll('#pad .pk').forEach(btn => {
+    const key = btn.dataset.key;
+    const down = e => {
+        e.preventDefault();
+        enableTouchControls();
+        btn.classList.add('on');
+        Input.press(key);
+    };
+    const up = e => {
+        if (e && e.cancelable) e.preventDefault();
+        btn.classList.remove('on');
+        Input.release(key);
+    };
+    btn.addEventListener('pointerdown', down);
+    btn.addEventListener('pointerup', up);
+    btn.addEventListener('pointercancel', up);
+    btn.addEventListener('pointerleave', up);
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+});
 
 // =====================================================================
 // 汎用ユーティリティ
@@ -235,11 +228,6 @@ function drawWindowPlayerInfo(){
         `MP　　${alignRight(player.mp, 3)}`, `G 　${alignRight(player.gold, 5)}`, `E 　${alignRight(player.exp, 5)}`
     ];
     drawWindow(displayTileSize / 2, displayTileSize / 2, displayTileSize * 4, displayTileSize * (text.length + 0.5), text);
-}
-function drawTapArea(){ // スマホ用タップ枠線
-    if(!Input.isTouch) return;
-    ctx.beginPath(); ctx.moveTo(centerLeftX, centerTopY); ctx.lineTo(centerRightX, centerTopY); ctx.lineTo(centerRightX, centerBottomY); ctx.lineTo(centerLeftX, centerBottomY); ctx.lineTo(centerLeftX, centerTopY);
-    ctx.strokeStyle = 'red'; ctx.stroke(); ctx.closePath();
 }
 function drawPoint(){ // ローラ姫ナビゲーション＆デバッグ座標
     let text = '';
@@ -401,7 +389,6 @@ function gameLoop(timestamp) {
 
     drawMap();
     drawPoint();
-    drawTapArea();
 
     switch (currentState) {
         case STATE.MESSAGE: drawWindowCommon(currentMessage); break;

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SaltQuestⅠ</title>
-    <link rel="stylesheet" href="styles/style.css?v=4">
+    <link rel="stylesheet" href="styles/style.css?v=6">
 </head>
 <body>
     <div id="buttonContainer">
@@ -16,11 +16,21 @@
         <div id="point"></div>
         <div id="message">SaltQuestⅠ</div>
     </div>
+    <!-- スマホ用の操作パネル。指で確実に押せるよう画面下の余白に置く -->
+    <div id="pad">
+        <div id="dpad">
+            <button class="pk up"    data-key="ArrowUp"    aria-label="うえ"></button>
+            <button class="pk left"  data-key="ArrowLeft"  aria-label="ひだり"></button>
+            <button class="pk right" data-key="ArrowRight" aria-label="みぎ"></button>
+            <button class="pk down"  data-key="ArrowDown"  aria-label="した"></button>
+        </div>
+        <button id="btnA" class="pk" data-key=" " aria-label="けってい">A</button>
+    </div>
     <!-- 更新時は ?v= を上げるとキャッシュが確実に飛ぶ -->
-    <script src="scripts/mapdata.js?v=26"></script>
-    <script src="scripts/data.js?v=26"></script>
-    <script src="scripts/system.js?v=26"></script>
-    <script src="scripts/battle.js?v=26"></script>
-    <script src="scripts/event.js?v=26"></script>
+    <script src="scripts/mapdata.js?v=27"></script>
+    <script src="scripts/data.js?v=27"></script>
+    <script src="scripts/system.js?v=27"></script>
+    <script src="scripts/battle.js?v=27"></script>
+    <script src="scripts/event.js?v=27"></script>
 </body>
 </html>
