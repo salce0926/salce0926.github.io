@@ -117,11 +117,18 @@ async function interactField() {
         }
     } else if (isVisit(gameFlags.rotoArmor.location.x, gameFlags.rotoArmor.location.y)) {
         if(!getGameFlag('rotoArmor')){
-            setGameFlag('rotoArmor');
-            player.armorIndex = armors.findIndex(a => a.name === 'ロトのよろい');
-            recalcPlayerPower();
-            await showMessage(['ここはドムドーラの町だった', '今は はいきょと なってしまっている...', '突然 あくまのきし が現れた！']);
-            await showMessage(['あくまのきし を倒して', 'ロトのよろいを 手に入れた！', `しゅび力が ${player.defense}に なった！`]);
+            await showMessage(['ここはドムドーラの町だった', '今は はいきょと なってしまっている...']);
+            await showMessage(['よろいを まもるように', 'あくまのきし が たちはだかった！']);
+            const result = await startBattle(enemyTable.find(e => e.name === 'あくまのきし'));
+            if (result === 'win') {
+                setGameFlag('rotoArmor');
+                player.armorIndex = armors.findIndex(a => a.name === 'ロトのよろい');
+                recalcPlayerPower();
+                await showMessage(['ロトのよろいを 手に入れた！', `しゅび力が ${player.defense}に なった！`]);
+            } else if (result === 'flee') {
+                await showMessage(['にげだしたが よろいは', 'あくまのきしが まもったままだ...']);
+            }
+            // 敗北時は playerKilled で城に運ばれている
         }else{
             await showMessage(['ここはドムドーラの町だった', '今は はいきょと なってしまっている...']);
             await showMessage(['何故ここにロトのよろいがあったのか', 'その真相は製品版をお買い求めください']);
