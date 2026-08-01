@@ -429,10 +429,12 @@ function updateMenu() {
     if (menuLevel === 1) {
         if (Input.consume('ArrowUp')) menuCursor = modAdd(menuCursor, -1, 4);
         if (Input.consume('ArrowDown')) menuCursor = modAdd(menuCursor, 1, 4);
+        if (consumeCancel()) { menuLevel = 0; currentState = STATE.FIELD; return; }  // メニューを閉じる
         if (Input.consume(' ')) {
             menuLevel = 2; subCursor = 0;
         }
     } else if (menuLevel === 2) {
+        if (consumeCancel()) { menuLevel = 1; return; }   // 一つ前の階層へ戻る
         if (menuCursor === 1 || menuCursor === 2) {
             const options = menuOptions();
             if (Input.consume('ArrowUp')) subCursor = modAdd(subCursor, -1, options.length);
@@ -578,7 +580,7 @@ function refreshPassText() {
     textExplainSave = [
         '←→で もじを えらび ↑↓で かえる',
         PASS_LINE_PREFIX + pass,
-        'スペースで けってい'
+        'スペース＝けってい　B＝もどる'
     ];
 }
 // 選択中のひらがなをカーソル位置に書き込む
@@ -612,6 +614,16 @@ function updatePasscode() {
     if (Input.consume('ArrowDown')) { selectedHiraganaIndex = modAdd(selectedHiraganaIndex, 1, 64); writePassChar(); }
     if (Input.consume('ArrowLeft')) { hiraganaCursorIndex = modAdd(hiraganaCursorIndex, -1, PASS_LENGTH); syncWheelToCursor(); refreshPassText(); }
     if (Input.consume('ArrowRight')) { hiraganaCursorIndex = modAdd(hiraganaCursorIndex, 1, PASS_LENGTH); syncWheelToCursor(); refreshPassText(); }
+
+    // Bは一つ前の文字へ戻る。先頭でもう一度押すとタイトルに戻る
+    if (consumeCancel()) {
+        if (hiraganaCursorIndex > 0) {
+            hiraganaCursorIndex--; syncWheelToCursor(); refreshPassText();
+        } else if (passcodeFromTitle) {
+            currentState = STATE.TITLE;
+        }
+        return;
+    }
 
     if (Input.consume(' ')) confirmPasscode();
 }

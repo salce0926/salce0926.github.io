@@ -318,8 +318,10 @@ function updateBattle() {
     if (battleStateMode === 'COMMAND') {
         if (Input.consume('ArrowUp')) battleCursor = modAdd(battleCursor, -1, 4);
         if (Input.consume('ArrowDown')) battleCursor = modAdd(battleCursor, 1, 4);
+        consumeCancel();   // 戦闘中は逃げられないので、Bは何もしない
         if (Input.consume(' ')) executeBattleTurn();
     } else if (battleStateMode === 'SPELL') {
+        if (consumeCancel()) { battleStateMode = 'COMMAND'; return; }   // 呪文選択をやめる
         // ホイミやギラなど、戦闘で使える呪文のみを抽出
         const combatSpells = player.spells.filter(s => COMBAT_SPELLS.includes(s));
         const options = [...combatSpells, 'もどる'];

@@ -106,15 +106,22 @@ body.touch #pad {
 .pk.down::before  { transform: translate(-50%, -40%); border-left: 11px solid transparent; border-right: 11px solid transparent; border-top: 14px solid #444; }
 .pk.left::before  { transform: translate(-60%, -50%); border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-right: 14px solid #444; }
 .pk.right::before { transform: translate(-40%, -50%); border-top: 11px solid transparent; border-bottom: 11px solid transparent; border-left: 14px solid #444; }
-#btnA {
+#abGroup {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: none;
+}
+#btnA, #btnB {
     position: static;
-    width: 84px;
-    height: 84px;
+    width: 76px;
+    height: 76px;
     border-radius: 50%;
-    font-size: 26px;
+    font-size: 24px;
     font-weight: bold;
     flex: none;
 }
+#btnB { width: 64px; height: 64px; font-size: 20px; background: #cfcfcf; }
 /* 横向きは縦の余白が無い代わりに左右が大きく空くので、
    パネルを流し込みから外して画面の左右下に固定する */
 @media (orientation: landscape) {
@@ -139,13 +146,13 @@ body.touch #pad {
     .pk.left { left: 0; top: 42px; }
     .pk.right { left: 84px; top: 42px; }
     .pk.down { left: 42px; top: 84px; }
-    body.touch #btnA {
+    body.touch #abGroup {
         position: fixed;
-        right: 24px;
-        bottom: 40px;
-        width: 74px;
-        height: 74px;
-        font-size: 22px;
+        right: 18px;
+        bottom: 24px;
         pointer-events: auto;
+        gap: 10px;
     }
+    #btnA, #btnB { width: 68px; height: 68px; font-size: 20px; }
+    #btnB { width: 56px; height: 56px; font-size: 18px; }
 }

@@ -35,6 +35,9 @@ let debugMode = false;
 // 入力バッファシステム
 // =====================================================================
 const ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+// キャンセル（本家のBボタン）。キーボードはEsc/BackSpace/xのどれでも受ける
+const CANCEL_KEYS = ['Escape', 'Backspace', 'x', 'X'];
+function consumeCancel() { return CANCEL_KEYS.some(k => Input.consume(k)); }
 const REPEAT_DELAY = 350; // 長押しを連射に切り替えるまで(ms)
 const REPEAT_INTERVAL = 90;
 
@@ -80,7 +83,7 @@ const Input = {
 };
 
 window.addEventListener('keydown', e => {
-    if ([...ARROW_KEYS, ' '].includes(e.key)) e.preventDefault();
+    if ([...ARROW_KEYS, ' ', 'Backspace'].includes(e.key)) e.preventDefault();
     Input.press(e.key);
 });
 
@@ -276,15 +279,17 @@ function askYesNo(promptLines) {
     return new Promise(resolve => { yesNoResolver = resolve; });
 }
 
+function resolveYesNo(answer) {
+    if (!yesNoResolver) return;
+    const res = yesNoResolver;
+    yesNoResolver = null;
+    res(answer);
+}
+
 function updateYesNo() {
     if (Input.consume('ArrowUp') || Input.consume('ArrowDown')) yesNoCursor = 1 - yesNoCursor;
-    if (Input.consume(' ')) {
-        if (yesNoResolver) {
-            let res = yesNoResolver;
-            yesNoResolver = null;
-            res(yesNoCursor === 0);
-        }
-    }
+    if (consumeCancel()) { yesNoCursor = 1; resolveYesNo(false); return; }  // Bは「いいえ」と同じ
+    if (Input.consume(' ')) resolveYesNo(yesNoCursor === 0);
 }
 
 function drawYesNo() {
@@ -306,16 +311,19 @@ function chooseFromList(promptLines, options) {
     return new Promise(resolve => { choiceResolver = resolve; });
 }
 
+function resolveChoice(index) {
+    if (!choiceResolver) return;
+    const res = choiceResolver;
+    choiceResolver = null;
+    res(index);
+}
+
 function updateChoice() {
     if (Input.consume('ArrowUp')) choiceCursor = modAdd(choiceCursor, -1, choiceOptions.length);
     if (Input.consume('ArrowDown')) choiceCursor = modAdd(choiceCursor, 1, choiceOptions.length);
-    if (Input.consume(' ')) {
-        if (choiceResolver) {
-            let res = choiceResolver;
-            choiceResolver = null;
-            res(choiceCursor);
-        }
-    }
+    // Bは最後の項目（やめる／でる）を選んだのと同じ扱い
+    if (consumeCancel()) { choiceCursor = choiceOptions.length - 1; resolveChoice(choiceCursor); return; }
+    if (Input.consume(' ')) resolveChoice(choiceCursor);
 }
 
 function drawChoice() {
