@@ -53,6 +53,11 @@ function startBattle(enemyDef) {
 
 async function beginBattleSequence(enemyDef) {
     enemy = { ...enemyDef };
+    // 本家同様、敵のHPは図鑑値の75〜100%でばらつく（毎回きっちり満タンではない）
+    if (!enemy.noCritical) {
+        enemy.maxHp = Math.max(1, Math.floor(enemy.maxHp * (0.75 + Math.random() * 0.25)));
+        enemy.hp = enemy.maxHp;
+    }
     battleCursor = 0;
     battleStateMode = 'COMMAND';
     player.asleep = 0;      // 眠り・呪文封じは戦闘ごとに解ける

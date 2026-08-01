@@ -102,12 +102,12 @@ const enemyTable = [
     { name: 'スライム',     hp: 3,  maxHp: 3,  attack: 5,  defense: 3,  agility: 3,  evasion: 1, exp: 1,  gold: 2,   sprite: { x: 5,   y: 2,   w: 20, h: 18 }, flees: true },
     { name: 'ドラキー',     hp: 6,  maxHp: 6,  attack: 9,  defense: 6,  agility: 6,  evasion: 1, exp: 2,  gold: 3,   sprite: { x: 5,   y: 23,  w: 24, h: 18 }, flees: true },
     { name: 'ゴースト',     hp: 7,  maxHp: 7,  attack: 11, defense: 8,  agility: 8,  evasion: 4, exp: 3,  gold: 5,   sprite: { x: 5,   y: 59,  w: 27, h: 30 }, flees: true },
-    { name: 'まほうつかい', hp: 13, maxHp: 13, attack: 11, defense: 12, agility: 12, evasion: 1, exp: 13, gold: 21,  sprite: { x: 44,  y: 103, w: 36, h: 39 }, pattern: ['attack', 'gira', 'gira', 'mahotone'] },
-    { name: 'おおさそり',   hp: 20, maxHp: 20, attack: 18, defense: 16, agility: 16, evasion: 1, exp: 6,  gold: 25,  sprite: { x: 93,  y: 146, w: 40, h: 31 } },
+    { name: 'まほうつかい', hp: 13, maxHp: 13, attack: 11, defense: 12, agility: 12, evasion: 1, exp: 4,  gold: 12,  sprite: { x: 44,  y: 103, w: 36, h: 39 }, pattern: ['attack', 'gira', 'gira', 'mahotone'] },
+    { name: 'おおさそり',   hp: 20, maxHp: 20, attack: 18, defense: 16, agility: 16, evasion: 1, exp: 6,  gold: 16,  sprite: { x: 93,  y: 146, w: 40, h: 31 } },
     { name: 'がいこつ',     hp: 30, maxHp: 30, attack: 28, defense: 22, agility: 22, evasion: 4, exp: 11, gold: 30,  sprite: { x: 6,   y: 250, w: 28, h: 45 } },
     { name: 'リカント',     hp: 34, maxHp: 34, attack: 40, defense: 30, agility: 30, evasion: 2, exp: 16, gold: 50,  sprite: { x: 6,   y: 299, w: 39, h: 41 }, pattern: ['attack', 'attack', 'rarihoo'] },
-    { name: 'キメラ',       hp: 42, maxHp: 42, attack: 56, defense: 48, agility: 48, evasion: 2, exp: 31, gold: 105, sprite: { x: 45,  y: 346, w: 37, h: 44 }, pattern: ['attack', 'attack', 'hoimi'] },
-    { name: 'あくまのきし', hp: 70, maxHp: 70, attack: 94, defense: 82, agility: 82, evasion: 1, exp: 37, gold: 150, sprite: { x: 108, y: 399, w: 48, h: 52 } },
+    { name: 'キメラ',       hp: 42, maxHp: 42, attack: 56, defense: 48, agility: 48, evasion: 2, exp: 24, gold: 100, sprite: { x: 45,  y: 346, w: 37, h: 44 }, pattern: ['attack', 'attack', 'hoimi'] },
+    { name: 'あくまのきし', hp: 70, maxHp: 70, attack: 94, defense: 82, agility: 82, evasion: 1, exp: 54, gold: 165, sprite: { x: 108, y: 399, w: 48, h: 52 } },
     { name: 'ドラゴン',     hp: 65, maxHp: 65, attack: 88, defense: 74, agility: 74, evasion: 2, exp: 45, gold: 160, sprite: { x: 6,   y: 507, w: 45, h: 38 }, pattern: ['attack', 'attack', 'fire'] }
 ];
 let enemy = { ...enemyTable[0] };
@@ -250,14 +250,16 @@ function deleteItemFromPlayer(itemName) {
     if (itemIndex !== -1) player.items.splice(itemIndex, 1);
 }
 
+// 経験値に見合うところまで一気に上げる（1戦で2レベル上がることもある）
 function updatePlayerLevel(){
-    if(player.level >= 30) return;
-    const newStatus = playerStatus.find(s => s.level === player.level + 1);
-    if(player.exp < newStatus.requiredExp) return;
-    player.level = newStatus.level; player.strength = newStatus.strength; player.agility = newStatus.agility;
-    player.maxHp = newStatus.hp; player.maxMp = newStatus.mp;
-    recalcPlayerPower();
-    if(newStatus.spell !== '-') player.spells.push(newStatus.spell);
+    while (player.level < 30) {
+        const newStatus = playerStatus.find(s => s.level === player.level + 1);
+        if (!newStatus || player.exp < newStatus.requiredExp) break;
+        player.level = newStatus.level; player.strength = newStatus.strength; player.agility = newStatus.agility;
+        player.maxHp = newStatus.hp; player.maxMp = newStatus.mp;
+        recalcPlayerPower();
+        if(newStatus.spell !== '-') player.spells.push(newStatus.spell);
+    }
 }
 
 // フラグから持ち物を組み立て直す。consumedBy は「そのフラグが立つと使い切る」印
