@@ -102,56 +102,56 @@ function recalcPlayerPower() {
 // スプライトは色違いを同じ系統として左から弱い順に割り当てている。
 const enemyTable = [
     // --- スライム系 ---
-    { name: 'スライム',       hp: 3,   maxHp: 3,   attack: 5,   defense: 3,   agility: 3,   evasion: 1,  exp: 1,   gold: 2,   sprite: { x: 5,   y: 2,   w: 19, h: 18 }, flees: true },
-    { name: 'スライムベス',   hp: 4,   maxHp: 4,   attack: 7,   defense: 3,   agility: 3,   evasion: 1,  exp: 1,   gold: 3,   sprite: { x: 26,  y: 2,   w: 19, h: 18 }, flees: true },
-    { name: 'メタルスライム', hp: 4,   maxHp: 4,   attack: 10,  defense: 255, agility: 255, evasion: 1,  exp: 115, gold: 6,   sprite: { x: 47,  y: 2,   w: 19, h: 18 }, flees: true, pattern: ['attack', 'gira'] },
+    { name: 'スライム',       hp: 3,   maxHp: 3,   attack: 5,   defense: 3,   agility: 3,   evasion: 1,  exp: 1,   gold: 2,   sprite: { x: 5,   y: 2,   w: 19, h: 18 }, hit: { x: 68, y: 2, w: 19, h: 18 }, flees: true },
+    { name: 'スライムベス',   hp: 4,   maxHp: 4,   attack: 7,   defense: 3,   agility: 3,   evasion: 1,  exp: 1,   gold: 3,   sprite: { x: 26,  y: 2,   w: 19, h: 18 }, hit: { x: 68, y: 2, w: 19, h: 18 }, flees: true },
+    { name: 'メタルスライム', hp: 4,   maxHp: 4,   attack: 10,  defense: 255, agility: 255, evasion: 1,  exp: 115, gold: 6,   sprite: { x: 47,  y: 2,   w: 19, h: 18 }, hit: { x: 68, y: 2, w: 19, h: 18 }, flees: true, pattern: ['attack', 'gira'] },
     // --- ドラキー系 ---
-    { name: 'ドラキー',       hp: 6,   maxHp: 6,   attack: 9,   defense: 6,   agility: 6,   evasion: 1,  exp: 2,   gold: 3,   sprite: { x: 5,   y: 23,  w: 24, h: 18 }, flees: true },
-    { name: 'メイジドラキー', hp: 15,  maxHp: 15,  attack: 14,  defense: 14,  agility: 14,  evasion: 1,  exp: 5,   gold: 12,  sprite: { x: 31,  y: 23,  w: 24, h: 18 }, pattern: ['attack', 'attack', 'gira'] },
-    { name: 'ドラキーマ',     hp: 20,  maxHp: 20,  attack: 22,  defense: 26,  agility: 26,  evasion: 6,  exp: 11,  gold: 20,  sprite: { x: 57,  y: 23,  w: 24, h: 18 }, pattern: ['attack', 'gira', 'hoimi'] },
+    { name: 'ドラキー',       hp: 6,   maxHp: 6,   attack: 9,   defense: 6,   agility: 6,   evasion: 1,  exp: 2,   gold: 3,   sprite: { x: 5,   y: 23,  w: 24, h: 18 }, hit: { x: 83, y: 23, w: 24, h: 18 }, flees: true },
+    { name: 'メイジドラキー', hp: 15,  maxHp: 15,  attack: 14,  defense: 14,  agility: 14,  evasion: 1,  exp: 5,   gold: 12,  sprite: { x: 31,  y: 23,  w: 24, h: 18 }, hit: { x: 83, y: 23, w: 24, h: 18 }, pattern: ['attack', 'attack', 'gira'] },
+    { name: 'ドラキーマ',     hp: 20,  maxHp: 20,  attack: 22,  defense: 26,  agility: 26,  evasion: 6,  exp: 11,  gold: 20,  sprite: { x: 57,  y: 23,  w: 24, h: 18 }, hit: { x: 83, y: 23, w: 24, h: 18 }, pattern: ['attack', 'gira', 'hoimi'] },
     // --- ゴースト系 ---
-    { name: 'ゴースト',       hp: 7,   maxHp: 7,   attack: 11,  defense: 8,   agility: 8,   evasion: 4,  exp: 3,   gold: 5,   sprite: { x: 5,   y: 59,  w: 24, h: 30 }, flees: true },
-    { name: 'メトロゴースト', hp: 23,  maxHp: 23,  attack: 18,  defense: 20,  agility: 20,  evasion: 6,  exp: 8,   gold: 18,  sprite: { x: 31,  y: 59,  w: 24, h: 30 }, pattern: ['attack', 'attack', 'gira'] },
-    { name: 'ヘルゴースト',   hp: 36,  maxHp: 36,  attack: 40,  defense: 38,  agility: 38,  evasion: 4,  exp: 18,  gold: 70,  sprite: { x: 57,  y: 59,  w: 24, h: 30 }, pattern: ['attack', 'gira', 'rarihoo'] },
+    { name: 'ゴースト',       hp: 7,   maxHp: 7,   attack: 11,  defense: 8,   agility: 8,   evasion: 4,  exp: 3,   gold: 5,   sprite: { x: 5,   y: 59,  w: 24, h: 30 }, hit: { x: 83, y: 59, w: 24, h: 30 }, flees: true },
+    { name: 'メトロゴースト', hp: 23,  maxHp: 23,  attack: 18,  defense: 20,  agility: 20,  evasion: 6,  exp: 8,   gold: 18,  sprite: { x: 31,  y: 59,  w: 24, h: 30 }, hit: { x: 83, y: 59, w: 24, h: 30 }, pattern: ['attack', 'attack', 'gira'] },
+    { name: 'ヘルゴースト',   hp: 36,  maxHp: 36,  attack: 40,  defense: 38,  agility: 38,  evasion: 4,  exp: 18,  gold: 70,  sprite: { x: 57,  y: 59,  w: 24, h: 30 }, hit: { x: 83, y: 59, w: 24, h: 30 }, pattern: ['attack', 'gira', 'rarihoo'] },
     // --- まほうつかい系 ---
-    { name: 'まほうつかい',   hp: 13,  maxHp: 13,  attack: 11,  defense: 12,  agility: 12,  evasion: 1,  exp: 4,   gold: 12,  sprite: { x: 6,   y: 107, w: 36, h: 35 }, pattern: ['attack', 'gira', 'gira'] },
-    { name: 'まどうし',       hp: 30,  maxHp: 30,  attack: 28,  defense: 22,  agility: 22,  evasion: 2,  exp: 13,  gold: 35,  sprite: { x: 44,  y: 105, w: 36, h: 37 }, pattern: ['attack', 'gira', 'rarihoo'] },
-    { name: 'だいまどう',     hp: 65,  maxHp: 65,  attack: 80,  defense: 70,  agility: 70,  evasion: 2,  exp: 50,  gold: 165, sprite: { x: 82,  y: 105, w: 36, h: 37 }, pattern: ['attack', 'begirama', 'begirama'] },
+    { name: 'まほうつかい',   hp: 13,  maxHp: 13,  attack: 11,  defense: 12,  agility: 12,  evasion: 1,  exp: 4,   gold: 12,  sprite: { x: 6,   y: 107, w: 36, h: 35 }, hit: { x: 120, y: 107, w: 36, h: 35 }, pattern: ['attack', 'gira', 'gira'] },
+    { name: 'まどうし',       hp: 30,  maxHp: 30,  attack: 28,  defense: 22,  agility: 22,  evasion: 2,  exp: 13,  gold: 35,  sprite: { x: 44,  y: 105, w: 36, h: 37 }, hit: { x: 158, y: 105, w: 36, h: 37 }, pattern: ['attack', 'gira', 'rarihoo'] },
+    { name: 'だいまどう',     hp: 65,  maxHp: 65,  attack: 80,  defense: 70,  agility: 70,  evasion: 2,  exp: 50,  gold: 165, sprite: { x: 82,  y: 105, w: 36, h: 37 }, hit: { x: 158, y: 105, w: 36, h: 37 }, pattern: ['attack', 'begirama', 'begirama'] },
     // --- さそり系 ---
-    { name: 'おおさそり',     hp: 20,  maxHp: 20,  attack: 18,  defense: 16,  agility: 16,  evasion: 1,  exp: 6,   gold: 16,  sprite: { x: 6,   y: 145, w: 41, h: 32 } },
-    { name: 'てつさそり',     hp: 22,  maxHp: 22,  attack: 36,  defense: 42,  agility: 42,  evasion: 2,  exp: 14,  gold: 40,  sprite: { x: 49,  y: 145, w: 41, h: 32 } },
-    { name: 'しのさそり',     hp: 35,  maxHp: 35,  attack: 60,  defense: 90,  agility: 90,  evasion: 2,  exp: 26,  gold: 110, sprite: { x: 92,  y: 145, w: 41, h: 32 } },
+    { name: 'おおさそり',     hp: 20,  maxHp: 20,  attack: 18,  defense: 16,  agility: 16,  evasion: 1,  exp: 6,   gold: 16,  sprite: { x: 6,   y: 145, w: 41, h: 32 }, hit: { x: 135, y: 145, w: 41, h: 32 } },
+    { name: 'てつさそり',     hp: 22,  maxHp: 22,  attack: 36,  defense: 42,  agility: 42,  evasion: 2,  exp: 14,  gold: 40,  sprite: { x: 49,  y: 145, w: 41, h: 32 }, hit: { x: 135, y: 145, w: 41, h: 32 } },
+    { name: 'しのさそり',     hp: 35,  maxHp: 35,  attack: 60,  defense: 90,  agility: 90,  evasion: 2,  exp: 26,  gold: 110, sprite: { x: 92,  y: 145, w: 41, h: 32 }, hit: { x: 135, y: 145, w: 41, h: 32 } },
     // --- メーダ系 ---
-    { name: 'メーダ',         hp: 22,  maxHp: 22,  attack: 20,  defense: 18,  agility: 18,  evasion: 2,  exp: 7,   gold: 16,  sprite: { x: 6,   y: 180, w: 36, h: 29 } },
-    { name: 'メーダロード',   hp: 35,  maxHp: 35,  attack: 47,  defense: 40,  agility: 40,  evasion: 4,  exp: 20,  gold: 85,  sprite: { x: 44,  y: 180, w: 36, h: 29 }, pattern: ['attack', 'gira', 'hoimi'] },
+    { name: 'メーダ',         hp: 22,  maxHp: 22,  attack: 20,  defense: 18,  agility: 18,  evasion: 2,  exp: 7,   gold: 16,  sprite: { x: 6,   y: 180, w: 36, h: 29 }, hit: { x: 82, y: 180, w: 36, h: 29 } },
+    { name: 'メーダロード',   hp: 35,  maxHp: 35,  attack: 47,  defense: 40,  agility: 40,  evasion: 4,  exp: 20,  gold: 85,  sprite: { x: 44,  y: 180, w: 36, h: 29 }, hit: { x: 82, y: 180, w: 36, h: 29 }, pattern: ['attack', 'gira', 'hoimi'] },
     // --- ドロル系 ---
-    { name: 'ドロル',         hp: 25,  maxHp: 25,  attack: 24,  defense: 24,  agility: 24,  evasion: 2,  exp: 10,  gold: 25,  sprite: { x: 6,   y: 212, w: 32, h: 36 } },
-    { name: 'ドロルメイジ',   hp: 38,  maxHp: 38,  attack: 52,  defense: 50,  agility: 50,  evasion: 1,  exp: 22,  gold: 90,  sprite: { x: 40,  y: 212, w: 32, h: 36 }, pattern: ['attack', 'attack', 'mahotone'] },
+    { name: 'ドロル',         hp: 25,  maxHp: 25,  attack: 24,  defense: 24,  agility: 24,  evasion: 2,  exp: 10,  gold: 25,  sprite: { x: 6,   y: 212, w: 32, h: 36 }, hit: { x: 74, y: 212, w: 32, h: 36 } },
+    { name: 'ドロルメイジ',   hp: 38,  maxHp: 38,  attack: 52,  defense: 50,  agility: 50,  evasion: 1,  exp: 22,  gold: 90,  sprite: { x: 40,  y: 212, w: 32, h: 36 }, hit: { x: 74, y: 212, w: 32, h: 36 }, pattern: ['attack', 'attack', 'mahotone'] },
     // --- がいこつ系 ---
-    { name: 'がいこつ',       hp: 30,  maxHp: 30,  attack: 28,  defense: 22,  agility: 22,  evasion: 4,  exp: 11,  gold: 30,  sprite: { x: 6,   y: 251, w: 32, h: 47 } },
-    { name: 'しりょう',       hp: 36,  maxHp: 36,  attack: 44,  defense: 34,  agility: 34,  evasion: 4,  exp: 17,  gold: 60,  sprite: { x: 40,  y: 251, w: 32, h: 47 }, pattern: ['attack', 'attack', 'hoimi'] },
-    { name: 'しりょうのきし', hp: 46,  maxHp: 46,  attack: 68,  defense: 56,  agility: 56,  evasion: 4,  exp: 28,  gold: 120, sprite: { x: 74,  y: 251, w: 32, h: 47 }, pattern: ['attack', 'attack', 'hoimi'] },
+    { name: 'がいこつ',       hp: 30,  maxHp: 30,  attack: 28,  defense: 22,  agility: 22,  evasion: 4,  exp: 11,  gold: 30,  sprite: { x: 6,   y: 251, w: 32, h: 47 }, hit: { x: 146, y: 251, w: 32, h: 47 } },
+    { name: 'しりょう',       hp: 36,  maxHp: 36,  attack: 44,  defense: 34,  agility: 34,  evasion: 4,  exp: 17,  gold: 60,  sprite: { x: 40,  y: 251, w: 32, h: 47 }, hit: { x: 146, y: 251, w: 32, h: 47 }, pattern: ['attack', 'attack', 'hoimi'] },
+    { name: 'しりょうのきし', hp: 46,  maxHp: 46,  attack: 68,  defense: 56,  agility: 56,  evasion: 4,  exp: 28,  gold: 120, sprite: { x: 74,  y: 251, w: 32, h: 47 }, hit: { x: 214, y: 251, w: 34, h: 47 }, pattern: ['attack', 'attack', 'hoimi'] },
     // --- リカント系 ---
-    { name: 'リカント',       hp: 34,  maxHp: 34,  attack: 40,  defense: 30,  agility: 30,  evasion: 2,  exp: 16,  gold: 50,  sprite: { x: 6,   y: 301, w: 44, h: 42 }, pattern: ['attack', 'attack', 'rarihoo'] },
-    { name: 'リカントマムル', hp: 38,  maxHp: 38,  attack: 50,  defense: 36,  agility: 36,  evasion: 2,  exp: 20,  gold: 80,  sprite: { x: 52,  y: 301, w: 44, h: 42 }, pattern: ['attack', 'attack', 'mahotone'] },
-    { name: 'キラーリカント', hp: 60,  maxHp: 60,  attack: 86,  defense: 70,  agility: 70,  evasion: 7,  exp: 40,  gold: 155, sprite: { x: 98,  y: 301, w: 44, h: 42 } },
+    { name: 'リカント',       hp: 34,  maxHp: 34,  attack: 40,  defense: 30,  agility: 30,  evasion: 2,  exp: 16,  gold: 50,  sprite: { x: 6,   y: 301, w: 44, h: 42 }, hit: { x: 144, y: 301, w: 44, h: 42 }, pattern: ['attack', 'attack', 'rarihoo'] },
+    { name: 'リカントマムル', hp: 38,  maxHp: 38,  attack: 50,  defense: 36,  agility: 36,  evasion: 2,  exp: 20,  gold: 80,  sprite: { x: 52,  y: 301, w: 44, h: 42 }, hit: { x: 144, y: 301, w: 44, h: 42 }, pattern: ['attack', 'attack', 'mahotone'] },
+    { name: 'キラーリカント', hp: 60,  maxHp: 60,  attack: 86,  defense: 70,  agility: 70,  evasion: 7,  exp: 40,  gold: 155, sprite: { x: 98,  y: 301, w: 44, h: 42 }, hit: { x: 144, y: 301, w: 44, h: 42 } },
     // --- キメラ系 ---
-    { name: 'キメラ',         hp: 42,  maxHp: 42,  attack: 56,  defense: 48,  agility: 48,  evasion: 2,  exp: 24,  gold: 100, sprite: { x: 6,   y: 346, w: 36, h: 34 } },
-    { name: 'メイジキメラ',   hp: 58,  maxHp: 58,  attack: 78,  defense: 68,  agility: 68,  evasion: 2,  exp: 34,  gold: 140, sprite: { x: 45,  y: 346, w: 37, h: 34 }, pattern: ['attack', 'attack', 'rarihoo'] },
-    { name: 'スターキメラ',   hp: 65,  maxHp: 65,  attack: 86,  defense: 80,  agility: 80,  evasion: 2,  exp: 43,  gold: 160, sprite: { x: 85,  y: 346, w: 36, h: 34 }, pattern: ['attack', 'fire', 'hoimi'] },
+    { name: 'キメラ',         hp: 42,  maxHp: 42,  attack: 56,  defense: 48,  agility: 48,  evasion: 2,  exp: 24,  gold: 100, sprite: { x: 6,   y: 346, w: 36, h: 34 }, hit: { x: 123, y: 346, w: 37, h: 34 } },
+    { name: 'メイジキメラ',   hp: 58,  maxHp: 58,  attack: 78,  defense: 68,  agility: 68,  evasion: 2,  exp: 34,  gold: 140, sprite: { x: 45,  y: 346, w: 37, h: 34 }, hit: { x: 123, y: 346, w: 37, h: 34 }, pattern: ['attack', 'attack', 'rarihoo'] },
+    { name: 'スターキメラ',   hp: 65,  maxHp: 65,  attack: 86,  defense: 80,  agility: 80,  evasion: 2,  exp: 43,  gold: 160, sprite: { x: 85,  y: 346, w: 36, h: 34 }, hit: { x: 123, y: 346, w: 37, h: 34 }, pattern: ['attack', 'fire', 'hoimi'] },
     // --- きし系 ---
-    { name: 'よろいのきし',   hp: 55,  maxHp: 55,  attack: 76,  defense: 78,  agility: 78,  evasion: 1,  exp: 33,  gold: 130, sprite: { x: 6,   y: 405, w: 48, h: 46 }, pattern: ['attack', 'attack', 'mahotone'] },
-    { name: 'かげのきし',     hp: 50,  maxHp: 50,  attack: 79,  defense: 64,  agility: 64,  evasion: 15, exp: 37,  gold: 150, sprite: { x: 56,  y: 401, w: 48, h: 50 } },
-    { name: 'あくまのきし',   hp: 70,  maxHp: 70,  attack: 94,  defense: 82,  agility: 82,  evasion: 1,  exp: 54,  gold: 165, sprite: { x: 108, y: 399, w: 50, h: 52 }, pattern: ['attack', 'attack', 'rarihoo'] },
-    { name: 'しにがみのきし', hp: 90,  maxHp: 90,  attack: 105, defense: 86,  agility: 86,  evasion: 2,  exp: 70,  gold: 140, sprite: { x: 108, y: 399, w: 50, h: 52 }, pattern: ['attack', 'begirama', 'hoimi'] },
+    { name: 'よろいのきし',   hp: 55,  maxHp: 55,  attack: 76,  defense: 78,  agility: 78,  evasion: 1,  exp: 33,  gold: 130, sprite: { x: 6,   y: 405, w: 48, h: 46 }, hit: { x: 160, y: 405, w: 48, h: 46 }, pattern: ['attack', 'attack', 'mahotone'] },
+    { name: 'かげのきし',     hp: 50,  maxHp: 50,  attack: 79,  defense: 64,  agility: 64,  evasion: 15, exp: 37,  gold: 150, sprite: { x: 56,  y: 401, w: 48, h: 50 }, hit: { x: 210, y: 399, w: 50, h: 52 } },
+    { name: 'あくまのきし',   hp: 70,  maxHp: 70,  attack: 94,  defense: 82,  agility: 82,  evasion: 1,  exp: 54,  gold: 165, sprite: { x: 108, y: 399, w: 50, h: 52 }, hit: { x: 262, y: 399, w: 50, h: 52 }, pattern: ['attack', 'attack', 'rarihoo'] },
+    { name: 'しにがみのきし', hp: 90,  maxHp: 90,  attack: 105, defense: 86,  agility: 86,  evasion: 2,  exp: 70,  gold: 140, sprite: { x: 108, y: 399, w: 50, h: 52 }, hit: { x: 262, y: 399, w: 50, h: 52 }, pattern: ['attack', 'begirama', 'hoimi'] },
     // --- ゴーレム系 ---
-    { name: 'ゴールドマン',   hp: 50,  maxHp: 50,  attack: 48,  defense: 40,  agility: 40,  evasion: 1,  exp: 6,   gold: 200, sprite: { x: 6,   y: 454, w: 47, h: 47 } },
-    { name: 'ストーンマン',   hp: 160, maxHp: 160, attack: 100, defense: 40,  agility: 40,  evasion: 1,  exp: 65,  gold: 140, sprite: { x: 55,  y: 454, w: 47, h: 47 } },
-    { name: 'ゴーレム',       hp: 70,  maxHp: 70,  attack: 120, defense: 60,  agility: 60,  evasion: 0,  exp: 5,   gold: 10,  sprite: { x: 104, y: 454, w: 47, h: 47 } },
+    { name: 'ゴールドマン',   hp: 50,  maxHp: 50,  attack: 48,  defense: 40,  agility: 40,  evasion: 1,  exp: 6,   gold: 200, sprite: { x: 6,   y: 454, w: 47, h: 47 }, hit: { x: 153, y: 454, w: 47, h: 47 } },
+    { name: 'ストーンマン',   hp: 160, maxHp: 160, attack: 100, defense: 40,  agility: 40,  evasion: 1,  exp: 65,  gold: 140, sprite: { x: 55,  y: 454, w: 47, h: 47 }, hit: { x: 153, y: 454, w: 47, h: 47 } },
+    { name: 'ゴーレム',       hp: 70,  maxHp: 70,  attack: 120, defense: 60,  agility: 60,  evasion: 0,  exp: 5,   gold: 10,  sprite: { x: 104, y: 454, w: 47, h: 47 }, hit: { x: 153, y: 454, w: 47, h: 47 } },
     // --- ドラゴン系 ---
-    { name: 'ドラゴン',       hp: 65,  maxHp: 65,  attack: 88,  defense: 74,  agility: 74,  evasion: 2,  exp: 45,  gold: 160, sprite: { x: 6,   y: 507, w: 47, h: 38 }, pattern: ['attack', 'attack', 'fire'] },
-    { name: 'キースドラゴン', hp: 70,  maxHp: 70,  attack: 98,  defense: 84,  agility: 84,  evasion: 2,  exp: 60,  gold: 150, sprite: { x: 55,  y: 504, w: 60, h: 41 }, pattern: ['attack', 'attack', 'fire'] },
-    { name: 'ダースドラゴン', hp: 100, maxHp: 100, attack: 120, defense: 90,  agility: 90,  evasion: 2,  exp: 100, gold: 140, sprite: { x: 117, y: 504, w: 60, h: 41 }, pattern: ['attack', 'fire', 'rarihoo'] }
+    { name: 'ドラゴン',       hp: 65,  maxHp: 65,  attack: 88,  defense: 74,  agility: 74,  evasion: 2,  exp: 45,  gold: 160, sprite: { x: 6,   y: 507, w: 47, h: 38 }, hit: { x: 179, y: 507, w: 47, h: 38 }, pattern: ['attack', 'attack', 'fire'] },
+    { name: 'キースドラゴン', hp: 70,  maxHp: 70,  attack: 98,  defense: 84,  agility: 84,  evasion: 2,  exp: 60,  gold: 150, sprite: { x: 55,  y: 504, w: 60, h: 41 }, hit: { x: 228, y: 504, w: 47, h: 38 }, pattern: ['attack', 'attack', 'fire'] },
+    { name: 'ダースドラゴン', hp: 100, maxHp: 100, attack: 120, defense: 90,  agility: 90,  evasion: 2,  exp: 100, gold: 140, sprite: { x: 117, y: 504, w: 60, h: 41 }, hit: { x: 228, y: 504, w: 47, h: 38 }, pattern: ['attack', 'fire', 'rarihoo'] }
 ];
 // 名前から引くための索引（ゾーン表を名前で書けるようにする）
 const enemyByName = {};
@@ -163,13 +163,13 @@ const dragonLordDragon = {
     name: 'りゅうおう', hp: 130, maxHp: 130, attack: 140, defense: 200, agility: 200,
     exp: 0, gold: 0, noCritical: true,
     pattern: ['attack', 'attack', 'firestrong'],
-    sprite: { x: 66, y: 550, w: 68, h: 88 }
+    sprite: { x: 66, y: 550, w: 68, h: 88 }, hit: { x: 141, y: 548, w: 73, h: 91 }
 };
 const dragonLordHuman = {
     name: 'りゅうおう', hp: 100, maxHp: 100, attack: 90, defense: 50, agility: 50,
     exp: 0, gold: 0, noCritical: true,
     pattern: ['attack', 'begirama', 'rarihoo'],
-    sprite: { x: 6, y: 601, w: 22, h: 38 },
+    sprite: { x: 6, y: 601, w: 22, h: 38 }, hit: { x: 35, y: 601, w: 27, h: 38 },
     nextForm: dragonLordDragon,
     nextFormMessage: ['りゅうおうは しょうたいを あらわした！', 'おそろしい りゅうの すがただ！']
 };
@@ -315,7 +315,8 @@ function updatePlayerLevel(){
         player.level = newStatus.level; player.strength = newStatus.strength; player.agility = newStatus.agility;
         player.maxHp = newStatus.hp; player.maxMp = newStatus.mp;
         recalcPlayerPower();
-        if(newStatus.spell !== '-') player.spells.push(newStatus.spell);
+        // 同じ呪文を二重に持たないようにする（つよさ画面に一覧を出すため）
+        if(newStatus.spell !== '-' && !player.spells.includes(newStatus.spell)) player.spells.push(newStatus.spell);
     }
 }
 

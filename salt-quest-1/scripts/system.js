@@ -167,14 +167,28 @@ function drawCharacter(x, y, index){
     var offsetX = 8, offsetY = 8, offsetTile = 8, tileRowLength = 14;
     ctx.drawImage(characterImage, offsetX+(index % tileRowLength) * (tileSize+offsetTile), offsetY+Math.floor(index / tileRowLength) * (tileSize+offsetTile), tileSize, tileSize, x * displayTileSize, y * displayTileSize, displayTileSize, displayTileSize);
 }
+// 敵に当てたときの明滅の残りフレーム数
+// （本家の「画面が赤くなる」はHPが残り1/4を切ったときの警告で、被弾ごとの点滅ではない）
+let enemyFlash = 0;
+const FLASH_FRAMES = 14;
+
 function drawEnemy() {
-    const s = enemy.sprite || { x: 5, y: 2, w: 20, h: 18 };
-    ctx.drawImage(enemyImage, s.x, s.y, s.w, s.h, canvas.width / 2 - s.w, canvas.height / 2 - s.h, s.w * 2, s.h * 2);
+    let s = enemy.sprite || { x: 5, y: 2, w: 20, h: 18 };
+    if (enemyFlash > 0) {
+        // ダメージを与えたら赤いシルエットと通常絵を交互に出す。
+        // 赤絵は素材(enemy.png)に敵ごとに用意されている
+        enemyFlash--;
+        if (enemy.hit && Math.floor(enemyFlash / 3) % 2 === 0) s = enemy.hit;
+    }
+    const dx = canvas.width / 2 - s.w, dy = canvas.height / 2 - s.h;
+    ctx.drawImage(enemyImage, s.x, s.y, s.w, s.h, dx, dy, s.w * 2, s.h * 2);
 }
 function drawWindowBattleEnemy() {
     const w = canvas.width / 2, h = canvas.height / 2;
     const x = canvas.width / 4, y = canvas.height / 4;
-    ctx.fillStyle = '#80D010'; // バトル背景色
+    // 本家仕様: HPが残り1/4を切ると戦闘背景が赤くなる（被弾ごとの点滅ではなく、
+    // 瀕死のあいだ ずっと赤い）
+    ctx.fillStyle = (player.hp <= Math.floor(player.maxHp / 4)) ? '#D82820' : '#80D010';
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = 'black';
     ctx.lineWidth = 2;
@@ -385,6 +399,13 @@ function gameLoop(timestamp) {
         return;
     }
 
+    // オートパイロットは通常の入力と同じ経路でキーを押す（本当に「操作されている」）
+    if (typeof autoTick === 'function') autoTick(timestamp);
+    if (Input.consume('a')) {
+        if (autoPilot.on) autoStop('てどうで ちゅうし');
+        else if (currentState === STATE.FIELD) autoStart();
+    }
+
     switch (currentState) {
         case STATE.FIELD: updateField(); break;
         case STATE.MESSAGE: updateMessage(); break;
@@ -397,6 +418,13 @@ function gameLoop(timestamp) {
 
     drawMap();
     drawPoint();
+
+    // 戦闘中は敵とステータスを出しっぱなしにする。メッセージ表示のたびに
+    // 敵が消えてしまうのを防ぐ（本家も戦闘が終わるまで敵は出たまま）
+    if (typeof battleResolver !== 'undefined' && battleResolver !== null) {
+        drawWindowBattleEnemy();
+        drawWindowPlayerInfo();
+    }
 
     switch (currentState) {
         case STATE.MESSAGE: drawWindowCommon(currentMessage); break;

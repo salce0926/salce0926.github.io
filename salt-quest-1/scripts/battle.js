@@ -46,6 +46,7 @@ function endBattle(result) {
 
 // 敵データを受け取って戦闘を開始する（ランダムエンカウント/Bキー/ボス共通の入口）
 function startBattle(enemyDef) {
+    if (typeof autoPilot !== 'undefined' && autoPilot.on) autoPilot.wasBattle = true;
     const done = new Promise(resolve => { battleResolver = resolve; });
     beginBattleSequence(enemyDef);   // 演出は非同期に進める
     return done;
@@ -94,6 +95,7 @@ async function executeBattleTurn() {
         const critical = !enemy.noCritical && Math.floor(Math.random() * 32) === 0;
         const damage = critical ? calcCritical(player.attack) : calcDamage(player.attack, enemy.defense);
         enemy.hp -= damage;
+        if (damage > 0) enemyFlash = FLASH_FRAMES;
         if (critical) {
             await showMessage([`${player.name}の こうげき！`, 'かいしんの いちげき！！', `${enemy.name}に ${damage}ポイントの ダメージ！`]);
         } else if (damage === 0) {
@@ -177,6 +179,7 @@ async function executeSpellTurn(spellName) {
         await showMessage([`${player.name}の HPが ${heal} かいふくした！`]);
     } else if (damage > 0) {
         enemy.hp -= damage;
+        enemyFlash = FLASH_FRAMES;
         await showMessage([`${enemy.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
     }
 
@@ -342,10 +345,8 @@ function updateBattle() {
     }
 }
 
+// 敵とステータスの窓は gameLoop 側が戦闘中ずっと描いているのでここでは触らない
 function drawBattle() {
-    drawWindowBattleEnemy();
-    drawWindowPlayerInfo();
-
     if (battleStateMode === 'COMMAND') {
         let cmdText = battleCommands.map(c => `　${c}`);
         drawWindow(displayTileSize * screenWidth - displayTileSize * 4.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 4.5, displayTileSize * 4.5, cmdText, battleCursor);

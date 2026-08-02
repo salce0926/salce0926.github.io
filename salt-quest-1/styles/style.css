@@ -122,6 +122,21 @@ body.touch #pad {
     flex: none;
 }
 #btnB { width: 64px; height: 64px; font-size: 20px; background: #cfcfcf; }
+/* 開発用のAUTOキー。誤爆しないよう小さく、十字キーとABの間に置く */
+#btnAuto {
+    position: static;
+    width: 54px;
+    height: 34px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    background: #b8c8a8;
+    border-color: #6a7a5a;
+    align-self: flex-end;
+    margin-bottom: 8px;
+    flex: none;
+}
 /* 横向きは縦の余白が無い代わりに左右が大きく空くので、
    パネルを流し込みから外して画面の左右下に固定する */
 @media (orientation: landscape) {
@@ -155,4 +170,11 @@ body.touch #pad {
     }
     #btnA, #btnB { width: 68px; height: 68px; font-size: 20px; }
     #btnB { width: 56px; height: 56px; font-size: 18px; }
+    body.touch #btnAuto {
+        position: fixed;
+        right: 18px;
+        top: 14px;
+        pointer-events: auto;
+        margin: 0;
+    }
 }

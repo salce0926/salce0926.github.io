@@ -7,7 +7,18 @@ function isVisit(x, y) { return playerPosition.x === x && playerPosition.y === y
 function playerKilled(){
     const lost = player.gold - Math.floor(player.gold / 2);
     player.gold -= lost;
-    playerPosition.x = 51; playerPosition.y = 51; player.hp = player.maxHp;
+    // 本家同様、王様のもとに運ばれてHPもMPも全快する（眠り・封じも解ける）
+    playerPosition.x = 51; playerPosition.y = 51;
+    player.hp = player.maxHp; player.mp = player.maxMp;
+    player.asleep = 0; player.sealed = false;
+    // オート中は城送りになっても、狩っていた場所へ戻して続行する（開発用）
+    if (typeof autoPilot !== 'undefined' && autoPilot.on) {
+        autoPilot.deaths++;
+        if (autoPilot.spot) {
+            playerPosition.x = autoPilot.spot.x; playerPosition.y = autoPilot.spot.y;
+            autoPilot.home = { ...autoPilot.spot };
+        }
+    }
     return lost;
 }
 
@@ -164,6 +175,15 @@ async function interactField() {
         if (getGameFlag('lightBall')) {
             await showMessage(['りゅうおうの しろは しずかだ', 'ひかりのたまは たしかに この手にある']);
         } else {
+            // 本家ではロトのつるぎは竜王の城B2の宝箱。ダンジョンを作るまでの仮置きとして
+            // 城に着いた時点で拾えることにしておく（装備indexで持っているか判定する）
+            const rotoSword = weapons.findIndex(w => w.name === 'ロトのつるぎ');
+            if (player.weaponIndex < rotoSword) {
+                player.weaponIndex = rotoSword;
+                recalcPlayerPower();
+                await showMessage(['しろの ちかに たからばこが あった！', 'ロトのつるぎを 手に入れた！',
+                                   `こうげき力が ${player.attack}に なった！`]);
+            }
             await showMessage(['りゅうおう「よくきたな ゆうしゃよ', '　　　　　　わが しろで ほろびるがよい！」']);
             const result = await startBattle(dragonLordHuman);
             if (result === 'win') {
@@ -207,11 +227,13 @@ async function offerRecord() {
 // 品揃えはFC版DQ1の各町の店に合わせている
 // =====================================================================
 const townShops = {
-    radatome:   { inn: 6,  tools: ['herb', 'water', 'scale'], weapons: [1, 2, 3], armors: [1, 2], shieldList: [1], bank: true },
-    garai:      { inn: 20, tools: ['herb', 'water'], weapons: [4], armors: [3, 4], shieldList: [2] },
-    maira:      { inn: 25, tools: ['herb', 'wing'], armors: [5] },
-    rimuldar:   { inn: 55, tools: ['herb', 'wing'], weapons: [5], armors: [6] },
-    melkido:    { tools: ['herb', 'water', 'wing'], weapons: [6], shieldList: [3], bank: true }
+    // 品揃え・宿代は本家FC版の店データどおり。たいまつだけはダンジョン未実装のため置いていない
+    radatome:   { inn: 6,   tools: ['herb', 'scale'],          weapons: [1, 2, 3],          armors: [1, 2],       shieldList: [1],    bank: true },
+    garai:      { inn: 25,  tools: ['herb', 'scale'],          weapons: [2, 3, 4],          armors: [2, 3, 4],    shieldList: [2] },
+    maira:      { inn: 20,  tools: ['herb', 'scale', 'wing'],  weapons: [3, 4],             armors: [4, 5],       shieldList: [1] },
+    rimuldar:   { inn: 55,  tools: ['herb', 'wing'],           weapons: [3, 4, 5],          armors: [4, 5, 6] },
+    melkido:    { inn: 100, tools: ['herb', 'water', 'scale', 'wing'],
+                  weapons: [1, 2, 3, 4, 5, 6], armors: [2, 3, 5, 6], shieldList: [2, 3], bank: true }
 };
 
 // あずかりじょ。1000G単位で預けられ、預けた分はやられても減らない（本家準拠）
@@ -467,13 +489,20 @@ function drawMenu() {
         drawWindowCommon(explains[menuCursor]);
     } else if (menuLevel === 2) {
         if (menuCursor === 0) {
+            // 並びは本家の「つよさ」に合わせる（さいだいHP/MPを含む9項目）
             const stats = [
                 `　　ちから：　　　${alignRight(player.strength, 3)}`, `　すばやさ：　　　${alignRight(player.agility, 3)}`,
-                `こうげき力：　　　${alignRight(player.attack, 3)}`, `　しゅび力：　　　${alignRight(player.defense, 3)}`,
+                `さいだいHP：　　　${alignRight(player.maxHp, 3)}`,   `さいだいMP：　　　${alignRight(player.maxMp, 3)}`,
+                `こうげき力：　　　${alignRight(player.attack, 3)}`,   `　しゅび力：　　　${alignRight(player.defense, 3)}`,
                 `　ぶき：${alignRightWide(player.weapon, 7)}`, `よろい：${alignRightWide(player.armor, 7)}`, `　たて：${alignRightWide(player.shield, 7)}`
             ];
-            drawWindow(displayTileSize * screenWidth - displayTileSize * 8.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 8.5, displayTileSize * 7.5, stats);
-            drawWindowCommon(['おぼえたじゅもん：']);
+            drawWindow(displayTileSize * screenWidth - displayTileSize * 8.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 8.5, displayTileSize * 9.5, stats);
+            // 覚えたじゅもん。窓は3行までなので4つずつ折り返す（Lv20の全10個がちょうど収まる）
+            const lines = player.spells.length
+                ? Array.from({ length: Math.ceil(player.spells.length / 4) },
+                             (_, i) => '　' + player.spells.slice(i * 4, i * 4 + 4).join('　'))
+                : ['じゅもんは まだ おぼえていない'];
+            drawWindowCommon(lines);
         } else if (menuCursor === 1 || menuCursor === 2) {
             const options = menuOptions();
             // 個数は元の見た目どおり桁を揃えて右に置く
@@ -498,7 +527,9 @@ function drawMenu() {
 // フィールド移動とデバッグ操作
 // =====================================================================
 // 移動は時間基準(ms)。フレームレート(60Hz/120Hz)に依存しない
-const MOVE_INTERVAL = 150; // 1歩あたりのミリ秒
+let MOVE_INTERVAL = 150;          // 1歩あたりのミリ秒
+const MOVE_INTERVAL_NORMAL = 150;
+const MOVE_INTERVAL_AUTO = 40;    // オート中は早送りする（開発用なので待たせない）
 let lastMoveTime = 0;
 function isMoveAllowed(x, y) {
     if (debugMode) return true;
@@ -660,4 +691,292 @@ function drawPasscode() {
         ctx.fillText(passHiraganaList[modAdd(selectedHiraganaIndex, i, 64)], x + displayTileSize / 2, y + displayTileSize * (i + 2.8));
         ctx.fillStyle = 'white';
     }
+}
+
+// =====================================================================
+// 開発用オートパイロット
+// 「勝手に操作される」形で自動的にレベルを上げる。実際に歩いてエンカウントし、
+// 戦って、危なくなったら回復し、近くの宿屋に泊まる。指で押せるようパネルに
+// AUTOボタンを置いてある（キーボードは a）
+// =====================================================================
+const INN_SPOTS = [   // 宿のある町。自動休憩はここへ運んで stayInn を呼ぶ
+    { name: 'ラダトームの町', x: 56, y: 49, shop: 'radatome' },
+    { name: 'ガライの町',     x: 10, y: 10, shop: 'garai' },
+    { name: 'マイラの村',     x: 112, y: 18, shop: 'maira' },
+    { name: 'リムルダールの町', x: 110, y: 80, shop: 'rimuldar' },
+    { name: 'メルキドの町',   x: 81, y: 108, shop: 'melkido' }
+];
+
+const autoPilot = {
+    on: false, targetLevel: 0, battles: 0, rests: 0, deaths: 0,
+    goldGoal: 0, goldGoalName: '',   // 「装備が買えるまで」モードの目標額
+    spot: null,   // 開始した場所。宿や全滅のあとはここへ戻して同じゾーンで狩り続ける
+    home: null, dir: null, dirUntil: 0, lastPos: null, stuck: 0
+};
+
+function autoStop(reason) {
+    if (!autoPilot.on) return;
+    autoPilot.on = false;
+    autoPilot.dir = null;
+    MOVE_INTERVAL = MOVE_INTERVAL_NORMAL;
+    for (const k of ARROW_KEYS) Input.release(k);
+    const pad = document.getElementById('btnAuto');
+    if (pad) pad.classList.remove('on');
+    document.getElementById('message').textContent =
+        `オート終了(${reason})　Lv${player.level}　${player.gold}G　${autoPilot.battles}戦　やどや${autoPilot.rests}回　ぜんめつ${autoPilot.deaths}回`;
+}
+
+// いま立っているゾーンを安全に狩れるようになる推奨レベル。
+// 目分量ではなく、実際の戦闘式でその場の敵と何度も戦わせて死亡率から決める
+function simulateBattle(st, e0) {
+    const magic = d => (armors[player.armorIndex].name === 'まほうのよろい'
+                     || armors[player.armorIndex].name === 'ロトのよろい') ? Math.floor(d * 2 / 3) : d;
+    const e = { ...e0 };
+    e.maxHp = e.noCritical ? e.maxHp : Math.max(1, Math.floor(e.maxHp * (0.75 + Math.random() * 0.25)));
+    e.hp = e.maxHp;
+    let hp = st.hp, mp = st.mp, asleep = 0, sealed = false, turns = 0;
+    const foeTurn = () => {
+        const pat = e.pattern || ['attack'];
+        let act = pat[Math.floor(Math.random() * pat.length)];
+        if (['gira','begirama','hoimi','rarihoo','mahotone'].includes(act) && sealed) act = 'attack';
+        if (act === 'rarihoo' && asleep > 0) act = 'attack';
+        if (act === 'hoimi' && e.hp > e.maxHp * 0.6) act = 'attack';
+        if (act === 'gira') hp -= magic(randRange(3, 10));
+        else if (act === 'begirama') hp -= magic(randRange(30, 45));
+        else if (act === 'fire') hp -= magic(randRange(16, 23));
+        else if (act === 'firestrong') hp -= magic(randRange(65, 72));
+        else if (act === 'hoimi') e.hp = Math.min(e.maxHp, e.hp + randRange(20, 30));
+        else if (act === 'rarihoo') asleep = randRange(2, 4);
+        else if (act === 'mahotone') sealed = true;
+        else hp -= calcEnemyDamage(e.attack, st.def);
+    };
+    if (st.agi * Math.floor(Math.random() * 256) < e.defense * Math.floor(Math.random() * 64)) foeTurn();
+    while (turns++ < 120) {
+        if (hp <= 0) return 'lose';
+        if (asleep > 0) asleep--;
+        else {
+            const beho = !sealed && st.spells.includes('ベホイミ') && mp >= 10 && hp < st.hp * 0.45;
+            const hoi  = !sealed && !beho && st.spells.includes('ホイミ') && mp >= 4 && hp < st.hp * 0.35;
+            if (beho) { mp -= 10; hp = Math.min(st.hp, hp + randRange(85, 100)); }
+            else if (hoi) { mp -= 4; hp = Math.min(st.hp, hp + randRange(10, 17)); }
+            else if (Math.floor(Math.random() * 64) >= (e.evasion || 0)) {
+                const c = !e.noCritical && Math.floor(Math.random() * 32) === 0;
+                e.hp -= c ? calcCritical(st.atk) : calcDamage(st.atk, e.defense);
+            }
+        }
+        if (e.hp <= 0) return 'win';
+        foeTurn();
+    }
+    return 'draw';
+}
+
+function recommendedLevel(x, y) {
+    const set = zoneEnemySets[zoneAt(x, y)].map(i => enemyTable[i]);
+    for (let lv = Math.max(1, player.level); lv <= 30; lv++) {
+        const s = playerStatus.find(p => p.level === lv);
+        if (!s) break;
+        const st = {
+            atk: s.strength + weapons[player.weaponIndex].power,
+            def: Math.floor(s.agility / 2) + armors[player.armorIndex].power
+               + shields[player.shieldIndex].power + (player.scale ? 2 : 0),
+            hp: s.hp, mp: s.mp, agi: s.agility,
+            spells: playerStatus.filter(p => p.level <= lv && p.spell !== '-').map(p => p.spell)
+        };
+        let dead = 0;
+        const N = 150;
+        for (let i = 0; i < N; i++) {
+            if (simulateBattle(st, set[Math.floor(Math.random() * set.length)]) === 'lose') dead++;
+        }
+        if (dead / N <= 0.05) return lv;   // 1戦あたり5%以下で死ぬなら十分
+    }
+    return 30;
+}
+
+// 次に買える装備（行ける町に並んでいて、いま持っているものより強い最安のもの）
+function nextGearGoal() {
+    const towns = ['radatome', 'garai', 'maira', 'rimuldar', 'melkido'];
+    let best = null;
+    const check = (kind, list, idx) => {
+        for (const t of towns) for (const i of (townShops[t][kind] || [])) {
+            if (i > idx && list[i].price > 0 && (!best || list[i].price < best.price)) {
+                best = { name: list[i].name, price: list[i].price };
+            }
+        }
+    };
+    check('weapons', weapons, player.weaponIndex);
+    check('armors', armors, player.armorIndex);
+    check('shieldList', shields, player.shieldIndex);
+    return best;
+}
+
+async function autoStart() {
+    if (autoPilot.on) { autoStop('てどうで ちゅうし'); return; }
+    if (currentState !== STATE.FIELD) return;
+    const rec = recommendedLevel(playerPosition.x, playerPosition.y);
+    const gear = nextGearGoal();
+    const opts = [
+        rec > player.level ? `ここの てきに あわせる（Lv${rec}）` : 'ここの てきには もう まけない',
+        gear ? `${gear.name}が かえるまで（${gear.price}G）` : 'つぎの そうびは もう ない',
+        'つぎの レベルまで',
+        '5レベル あげる',
+        'やめる'
+    ];
+    const i = await chooseFromList(['オート（かいはつよう）',
+        `　いまLv${player.level}　${player.hp}/${player.maxHp}　もちきん${player.gold}G　ゾーンz${zoneAt(playerPosition.x, playerPosition.y)}`], opts);
+    if (i === 4 || i === undefined) { currentState = STATE.FIELD; return; }
+
+    autoPilot.goldGoal = 0;
+    if (i === 0)      autoPilot.targetLevel = Math.min(30, Math.max(player.level + 1, rec));
+    else if (i === 1) {
+        if (!gear) { currentState = STATE.FIELD; return; }
+        autoPilot.goldGoal = gear.price;
+        autoPilot.goldGoalName = gear.name;
+        autoPilot.targetLevel = 30;          // 金が貯まったら止まる
+    }
+    else if (i === 2) autoPilot.targetLevel = player.level + 1;
+    else              autoPilot.targetLevel = Math.min(30, player.level + 5);
+    if (i === 2) autoPilot.targetLevel = Math.min(30, autoPilot.targetLevel);
+    if (!autoPilot.goldGoal && autoPilot.targetLevel <= player.level) { currentState = STATE.FIELD; return; }
+    Object.assign(autoPilot, { on: true, battles: 0, rests: 0, deaths: 0,
+                               spot: { ...playerPosition }, home: { ...playerPosition },
+                               dir: null, dirUntil: 0,
+                               lastPos: { ...playerPosition }, stuck: 0 });
+    debugMode = false;            // デバッグモード中はエンカウントしないので必ず切る
+    MOVE_INTERVAL = MOVE_INTERVAL_AUTO;
+    currentState = STATE.FIELD;
+    document.getElementById('message').textContent = autoPilot.goldGoal
+        ? `オート開始　${autoPilot.goldGoalName}(${autoPilot.goldGoal}G)が かえるまで`
+        : `オート開始　Lv${player.level} → Lv${autoPilot.targetLevel}`;
+}
+
+// 危なくなったら一番近い宿へ運んで泊まる（開発用なので移動は瞬間移動）
+async function autoRest() {
+    const near = INN_SPOTS.reduce((best, s) => {
+        const d = Math.abs(s.x - playerPosition.x) + Math.abs(s.y - playerPosition.y);
+        return (!best || d < best.d) ? { ...s, d } : best;
+    }, null);
+    const price = townShops[near.shop].inn || 0;
+    playerPosition.x = near.x; playerPosition.y = near.y;
+    autoPilot.rests++;
+    if (player.gold >= price) {
+        await stayInn(price);
+    } else {                       // 金欠でも開発用なので止めずに休ませる
+        player.hp = player.maxHp; player.mp = player.maxMp;
+        await showMessage([`オート：${near.name}で やすんだ`, '（もちきんが たりないので ただ）']);
+    }
+    // 泊まったら狩り場へ戻す（歩いて往復させると開発用には遅すぎる）
+    if (autoPilot.spot) { playerPosition.x = autoPilot.spot.x; playerPosition.y = autoPilot.spot.y; }
+    autoPilot.home = { ...playerPosition };
+    currentState = STATE.FIELD;
+}
+
+// 戦闘中の判断。回復・逃走・攻撃を選ぶ
+function autoBattleChoice() {
+    const low = player.hp <= player.maxHp * 0.45;
+    const canBeho = player.spells.includes('ベホイミ') && player.mp >= 10 && !player.sealed;
+    const canHoi  = player.spells.includes('ホイミ')   && player.mp >= 4  && !player.sealed;
+    if (low && (canBeho || canHoi)) return { cmd: 1, spell: canBeho ? 'ベホイミ' : 'ホイミ' };
+    if (low && player.herb > 0) return { cmd: 2 };
+    // 手も足も出ない相手（しゅび力が高すぎる）からは逃げる
+    if (player.attack - Math.floor(enemy.defense / 2) < 2) return { cmd: 3 };
+    // 回復手段が尽きて削られたら粘らずに逃げる（全滅すると所持金が半分になる）
+    if (player.hp <= player.maxHp * 0.3) return { cmd: 3 };
+    return { cmd: 0 };
+}
+
+let autoBusy = false;
+function autoTick(now) {
+    if (!autoPilot.on) return;
+    // autoBusy中（宿の処理待ち）でもメッセージ送りは続ける。ここで止めると
+    // 「やすんだ」の表示から進めなくなって固まる
+
+    // 押しっぱなしだと2回目の justPressed が立たないので、毎フレーム離してから押す。
+    // 方向キーだけは歩き続けるために押したままにする（下のフィールド処理で管理）
+    Input.release(' ');
+    Input.release('Escape');
+    if (currentState !== STATE.FIELD) {
+        for (const k of ARROW_KEYS) Input.release(k);
+        autoPilot.dir = null;
+    }
+
+    if (currentState === STATE.FIELD) {
+        if (autoPilot.goldGoal && player.gold >= autoPilot.goldGoal) {
+            autoStop(`${autoPilot.goldGoalName}が かえる`);
+            return;
+        }
+        if (player.level >= autoPilot.targetLevel) { autoStop('もくひょう とうたつ'); return; }
+    }
+
+    if (currentState === STATE.MESSAGE) { Input.press(' '); return; }
+    if (currentState === STATE.YESNO)   { Input.press('Escape'); return; }
+    if (currentState === STATE.CHOICE) {  // 町のメニューに入ってしまったら出る
+        const idx = choiceOptions.findIndex(o => o === 'でる' || o === 'やめる');
+        if (idx >= 0 && choiceCursor !== idx) { Input.press('ArrowDown'); return; }
+        Input.press(' ');
+        return;
+    }
+
+    if (currentState === STATE.BATTLE) {
+        const pick = autoBattleChoice();
+        if (battleStateMode === 'COMMAND') {
+            battleCursor = pick.cmd;
+            Input.press(' ');
+        } else if (battleStateMode === 'SPELL') {
+            const list = player.spells.filter(s => COMBAT_SPELLS.includes(s));
+            const at = list.indexOf(pick.spell);
+            spellCursor = at >= 0 ? at : list.length;   // 見つからなければ「もどる」
+            Input.press(' ');
+        }
+        return;
+    }
+
+    if (currentState !== STATE.FIELD || autoBusy) return;
+
+    // 戦闘が終わった直後に数える
+    if (autoPilot.wasBattle) { autoPilot.wasBattle = false; autoPilot.battles++; }
+
+    // 戦いに出る前にフィールドで回復しておく。傷ついたまま次の戦闘に入ると
+    // ラリホーで眠らされている間に削り殺される
+    const healSpell = player.spells.includes('ベホイミ') ? 'ベホイミ'
+                    : player.spells.includes('ホイミ')   ? 'ホイミ' : null;
+    const healCost = healSpell === 'ベホイミ' ? 10 : 4;
+    if (healSpell && player.hp < player.maxHp * 0.8 && player.mp >= healCost * 3) {
+        autoBusy = true;
+        Promise.resolve(castFieldSpell(healSpell)).then(() => { autoBusy = false; });
+        return;
+    }
+
+    // HPが半分を切ったら休む。回復呪文が使えるならMP切れも休む合図
+    // （MPが尽きたまま粘ると削られて全滅し、所持金が半分になる）
+    const healMp = player.spells.includes('ベホイミ') ? 10 : 4;
+    if (player.hp <= player.maxHp * 0.5 ||
+        (player.spells.includes('ホイミ') && player.mp < healMp * 3)) {
+        autoBusy = true;
+        autoRest().then(() => { autoBusy = false; });
+        return;
+    }
+
+    // 歩く。同じ向きをしばらく保ち、行き止まりや遠出はホームへ引き返す
+    if (playerPosition.x === autoPilot.lastPos.x && playerPosition.y === autoPilot.lastPos.y) autoPilot.stuck++;
+    else { autoPilot.stuck = 0; autoPilot.lastPos = { ...playerPosition }; }
+
+    const far = Math.abs(playerPosition.x - autoPilot.home.x) + Math.abs(playerPosition.y - autoPilot.home.y) > 10;
+    const blocked = autoPilot.stuck > 6;   // 壁や海に向かって足踏みしている
+    if (!autoPilot.dir || now > autoPilot.dirUntil || blocked) {
+        const prev = autoPilot.dir;
+        if (prev) Input.release(prev);
+        if (far && !blocked) {   // 遠ざかりすぎたらホーム方向へ。ただし詰まっている時は別
+            const dx = autoPilot.home.x - playerPosition.x, dy = autoPilot.home.y - playerPosition.y;
+            autoPilot.dir = Math.abs(dx) > Math.abs(dy)
+                ? (dx > 0 ? 'ArrowRight' : 'ArrowLeft')
+                : (dy > 0 ? 'ArrowDown' : 'ArrowUp');
+        } else {
+            // 詰まったら必ず別の向きを選ぶ。同じ向きを選び直すと永久に足踏みする
+            const choices = blocked ? ARROW_KEYS.filter(k => k !== prev) : ARROW_KEYS;
+            autoPilot.dir = choices[Math.floor(Math.random() * choices.length)];
+        }
+        autoPilot.dirUntil = now + 400 + Math.random() * 600;
+        autoPilot.stuck = 0;
+    }
+    Input.press(autoPilot.dir);
 }
