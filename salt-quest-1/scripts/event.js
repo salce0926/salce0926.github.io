@@ -812,7 +812,7 @@ function nextGearGoal() {
 }
 
 async function autoStart() {
-    if (autoPilot.on) { autoStop('てどうで ちゅうし'); return; }
+    if (autoPilot.on) { autoStop('じぶんで とめた'); return; }
     if (currentState !== STATE.FIELD) return;
     const rec = recommendedLevel(playerPosition.x, playerPosition.y);
     const gear = nextGearGoal();
@@ -908,7 +908,7 @@ function autoTick(now) {
             autoStop(`${autoPilot.goldGoalName}が かえる`);
             return;
         }
-        if (player.level >= autoPilot.targetLevel) { autoStop('もくひょう とうたつ'); return; }
+        if (player.level >= autoPilot.targetLevel) { autoStop('もくひょうに とうたつ'); return; }
     }
 
     if (currentState === STATE.MESSAGE) { Input.press(' '); return; }
@@ -977,22 +977,36 @@ function autoTick(now) {
     const open = ARROW_KEYS.filter(walkable);
     if (!open.length) return;      // 完全に囲まれている（起きないはずだが保険）
 
+    // 行き先のエンカウント率。森・丘(1/16)は草原・砂漠・橋(1/24)より1.5倍出る。
+    // 城・町・洞窟・ほこら・毒沼は0なので、そこを踏む歩数はまるごと無駄になる
+    const rateOf = k => {
+        const [dx, dy] = DIR_DELTA[k];
+        const tile = mapData[modAdd(playerPosition.y, dy, mapHeight)][modAdd(playerPosition.x, dx, mapWidth)];
+        return encounterRates[tile] || 0;
+    };
+    const bestRate = Math.max(...open.map(rateOf));
+    // 出やすい地形だけに絞る。まわりが全部0なら仕方ないので全候補から選んで抜け出す
+    const good = bestRate > 0 ? open.filter(k => rateOf(k) === bestRate) : open;
+
     const far = Math.abs(playerPosition.x - autoPilot.home.x)
               + Math.abs(playerPosition.y - autoPilot.home.y) > 12;
-    if (!autoPilot.dir || now > autoPilot.dirUntil || !walkable(autoPilot.dir)) {
+    // 今の向きがより出やすい地形を素通りしているなら選び直す
+    const dirStale = !autoPilot.dir || now > autoPilot.dirUntil
+                  || !walkable(autoPilot.dir) || rateOf(autoPilot.dir) < bestRate;
+    if (dirStale) {
         const prev = autoPilot.dir;
         if (prev) Input.release(prev);
         const REVERSE = { ArrowUp: 'ArrowDown', ArrowDown: 'ArrowUp',
                           ArrowLeft: 'ArrowRight', ArrowRight: 'ArrowLeft' };
-        let choices = open;
-        if (far) {   // 遠ざかりすぎたらホーム側へ寄せる
+        let choices = good;
+        if (far) {   // 遠ざかりすぎたらホーム側へ寄せる（地形より優先）
             const dx = autoPilot.home.x - playerPosition.x, dy = autoPilot.home.y - playerPosition.y;
             const toward = [ dx > 0 ? 'ArrowRight' : 'ArrowLeft', dy > 0 ? 'ArrowDown' : 'ArrowUp' ]
                            .filter(k => open.includes(k));
             if (toward.length) choices = toward;
-        } else if (open.length > 1) {
+        } else if (choices.length > 1) {
             // 来た道をすぐ引き返すと同じ数マスを往復するだけになる
-            const forward = open.filter(k => k !== REVERSE[prev]);
+            const forward = choices.filter(k => k !== REVERSE[prev]);
             if (forward.length) choices = forward;
         }
         autoPilot.dir = choices[Math.floor(Math.random() * choices.length)];

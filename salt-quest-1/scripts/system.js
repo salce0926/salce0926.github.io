@@ -404,7 +404,7 @@ function gameLoop(timestamp) {
     if (Input.consume('a')) {
         // 始めた直後の押し込みで即中止にならないようにする（AUTOを連打しがちなので）
         if (autoPilot.on) {
-            if (timestamp - autoPilot.startedAt > 1500) autoStop('てどうで ちゅうし');
+            if (timestamp - autoPilot.startedAt > 1500) autoStop('じぶんで とめた');
         } else if (currentState === STATE.FIELD) autoStart();
     }
 
