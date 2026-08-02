@@ -14,6 +14,7 @@ function playerKilled(){
     // オート中は城送りになっても、狩っていた場所へ戻して続行する（開発用）
     if (typeof autoPilot !== 'undefined' && autoPilot.on) {
         autoPilot.deaths++;
+        autoPilot.recentDeaths = (autoPilot.recentDeaths || 0) + 1;
         autoPilot.path = null; autoPilot.goal = null;   // 城へ運ばれたので経路は捨てる
         if (autoPilot.spot) {
             // 城から狩り場までは歩いて戻る
@@ -764,6 +765,7 @@ const autoPilot = {
     goldGoal: 0, goldGoalName: '',   // 「装備が買えるまで」モードの目標額
     battlesAtRest: -1,               // 前回泊まった時点の戦闘数（泊まり直しの歯止め）
     path: null, goal: null, inn: null,   // 目的地への経路（宿へ／狩り場へ）
+    recentBattles: 0, recentDeaths: 0, recentExp: 0, relocated: 0,   // 割に合わない場所で粘らないための記録
     startedAt: 0,
     spot: null,   // 開始した場所。宿や全滅のあとはここへ戻して同じゾーンで狩り続ける
     home: null, dir: null, dirUntil: 0, lastPos: null, stuck: 0
@@ -864,16 +866,85 @@ function nextGearGoal() {
     return best;
 }
 
+// いま歩いて行ける範囲を一度の探索で出す（狩り場候補の絞り込み用）
+function reachableSet() {
+    const seen = new Set(), q = [[playerPosition.x, playerPosition.y]];
+    const key = (x, y) => y * mapWidth + x;
+    seen.add(key(playerPosition.x, playerPosition.y));
+    let head = 0;
+    while (head < q.length) {
+        const [x, y] = q[head++];
+        const nexts = ARROW_KEYS
+            .map(k => { const [dx, dy] = DIR_DELTA[k];
+                        return [modAdd(x, dx, mapWidth), modAdd(y, dy, mapHeight)]; })
+            .filter(([nx, ny]) => isMoveAllowed(nx, ny));
+        const w = warpFrom(x, y);
+        if (w) nexts.push([w.x, w.y]);
+        for (const [nx, ny] of nexts) {
+            const id = key(nx, ny);
+            if (seen.has(id)) continue;
+            seen.add(id); q.push([nx, ny]);
+        }
+    }
+    return seen;
+}
+
+// ゾーンごとの代表地点。森か丘(1/16)のマスで、宿に近いものを1つずつ選ぶ
+function huntingSpots() {
+    const best = {};
+    for (let y = 0; y < mapHeight; y += 2) {
+        for (let x = 0; x < mapWidth; x += 2) {
+            if ((encounterRates[mapData[y][x]] || 0) < 1 / 16) continue;
+            const z = zoneAt(x, y);
+            const d = Math.min(...INN_SPOTS.map(s => Math.abs(s.x - x) + Math.abs(s.y - y)));
+            if (!best[z] || d < best[z].d) best[z] = { x, y, d, zone: z };
+        }
+    }
+    return Object.values(best);
+}
+
+// いまの強さで一番おいしい狩り場を選ぶ。
+// 死亡率が高い所は経験値が多くても除く（全滅すると所持金半分＋やり直しで結局遅い）
+function bestHuntingSpot() {
+    const reach = reachableSet();
+    const key = (x, y) => y * mapWidth + x;
+    const st = {
+        atk: player.attack, def: player.defense, hp: player.maxHp, mp: player.maxMp,
+        agi: player.agility, spells: player.spells
+    };
+    let best = null;
+    for (const spot of huntingSpots()) {
+        if (!reach.has(key(spot.x, spot.y))) continue;
+        const set = zoneEnemySets[spot.zone].map(i => enemyTable[i]);
+        let dead = 0, exp = 0;
+        const N = 150;
+        for (let i = 0; i < N; i++) {
+            const e = set[Math.floor(Math.random() * set.length)];
+            if (simulateBattle(st, e) === 'lose') dead++; else exp += e.exp;
+        }
+        const death = dead / N;
+        if (death > 0.05) continue;
+        // 1歩あたりの期待経験値。ゾーン0は遭遇率が半分
+        let rate = encounterRates[mapData[spot.y][spot.x]] || 0;
+        if (spot.zone === 0) rate /= 2;
+        const score = (exp / N) * rate;
+        if (!best || score > best.score) best = { ...spot, score, death, exp: exp / N };
+    }
+    return best;
+}
+
 async function autoStart() {
     if (autoPilot.on) { autoStop('じぶんで とめた'); return; }
     if (currentState !== STATE.FIELD) return;
     const rec = recommendedLevel(playerPosition.x, playerPosition.y);
     const gear = nextGearGoal();
+    const spot = bestHuntingSpot();
+    const here = zoneAt(playerPosition.x, playerPosition.y);
     const opts = [
         rec > player.level ? `ここの てきに あわせる（Lv${rec}）` : 'ここの てきには もう まけない',
         gear ? `${gear.name}が かえるまで（${gear.price}G）` : 'つぎの そうびは もう ない',
+        spot && spot.zone !== here ? `よい かりばへ いく（z${here}→z${spot.zone}）` : 'ここが いまは さいてきの かりば',
         'つぎの レベルまで',
-        '5レベル あげる',
         'やめる'
     ];
     const i = await chooseFromList(['オート（かいはつよう）',
@@ -881,6 +952,7 @@ async function autoStart() {
     if (i === 4 || i === undefined) { currentState = STATE.FIELD; return; }
 
     autoPilot.goldGoal = 0;
+    let moveTo = null;
     if (i === 0)      autoPilot.targetLevel = Math.min(30, Math.max(player.level + 1, rec));
     else if (i === 1) {
         if (!gear) { currentState = STATE.FIELD; return; }
@@ -888,25 +960,37 @@ async function autoStart() {
         autoPilot.goldGoalName = gear.name;
         autoPilot.targetLevel = 30;          // 金が貯まったら止まる
     }
-    else if (i === 2) autoPilot.targetLevel = player.level + 1;
-    else              autoPilot.targetLevel = Math.min(30, player.level + 5);
-    if (i === 2) autoPilot.targetLevel = Math.min(30, autoPilot.targetLevel);
+    else if (i === 2) {
+        if (!spot || spot.zone === here) { currentState = STATE.FIELD; return; }
+        moveTo = spot;
+        autoPilot.targetLevel = Math.min(30, player.level + 1);
+    }
+    else autoPilot.targetLevel = Math.min(30, player.level + 1);
     if (!autoPilot.goldGoal && autoPilot.targetLevel <= player.level) { currentState = STATE.FIELD; return; }
     Object.assign(autoPilot, { on: true, battles: 0, rests: 0, deaths: 0,
                                battlesAtRest: -1, startedAt: performance.now(),
                                path: null, goal: null, inn: null,
+                               recentBattles: 0, recentDeaths: 0, recentExp: player.exp, relocated: 0,
                                spot: { ...playerPosition }, home: { ...playerPosition },
                                dir: null, dirUntil: 0,
                                lastPos: { ...playerPosition }, stuck: 0 });
     debugMode = false;            // デバッグモード中はエンカウントしないので必ず切る
     MOVE_INTERVAL = MOVE_INTERVAL_AUTO;
     currentState = STATE.FIELD;
+    if (moveTo) {   // 選ばれた狩り場まで歩いて移動してから始める
+        autoPilot.spot = { x: moveTo.x, y: moveTo.y };
+        autoPilot.home = { x: moveTo.x, y: moveTo.y };
+        autoPilot.path = findPath(playerPosition, moveTo);
+        autoPilot.goal = 'かりばへ もどる';
+        document.getElementById('message').textContent =
+            `オート開始　z${moveTo.zone}の かりばへ（${autoPilot.path ? autoPilot.path.length : 0}ほ）`;
+        return;
+    }
     document.getElementById('message').textContent = autoPilot.goldGoal
         ? `オート開始　${autoPilot.goldGoalName}(${autoPilot.goldGoal}G)が かえるまで`
         : `オート開始　Lv${player.level} → Lv${autoPilot.targetLevel}`;
 }
 
-// 危なくなったら一番近い宿へ運んで泊まる（開発用なので移動は瞬間移動）
 // 一番近い宿を「歩いた歩数」で選ぶ。直線距離だと海を挟んだ町を選んでしまう
 function nearestInn() {
     let best = null;
@@ -964,6 +1048,32 @@ function autoTick(now) {
     }
 
     if (currentState === STATE.FIELD) {
+        // 強すぎる場所に置かれると、逃げてばかりで経験値が入らず、たまに全滅して
+        // 所持金だけ半分になる——という運ゲーになる。死亡率だけ見ても逃げて生き延びる
+        // ぶん低く出るので、「実際に稼げている経験値」で判断する
+        // 狩り場へ戻る途中でまた全滅する、を繰り返すと経路が常に残るので、
+        // 「経路が無いとき」を条件にすると永久に判定が走らない。宿へ向かう時だけ除く
+        if (autoPilot.recentBattles >= 30 && autoPilot.goal !== 'やどやへ') {
+            const got = (player.exp - autoPilot.recentExp) / autoPilot.recentBattles;
+            const deathRate = autoPilot.recentDeaths / autoPilot.recentBattles;
+            const best = bestHuntingSpot();
+            const here = zoneAt(playerPosition.x, playerPosition.y);
+            const badly = best && best.zone !== here && (best.exp > got * 1.5 || deathRate > 0.2);
+            autoPilot.recentBattles = 0; autoPilot.recentDeaths = 0; autoPilot.recentExp = player.exp;
+            if (badly) {
+                if (autoPilot.relocated < 3) {
+                    autoPilot.relocated++;
+                    autoPilot.spot = { x: best.x, y: best.y };
+                    autoPilot.path = findPath(playerPosition, best);
+                    autoPilot.goal = 'かりばへ もどる';
+                    document.getElementById('message').textContent =
+                        `オート：ここは わりに あわない（1戦${got.toFixed(1)}exp・${Math.round(deathRate*100)}%ぜんめつ）　z${best.zone}へ うつります`;
+                    return;
+                }
+                autoStop(`かせげません（1戦${got.toFixed(1)}exp・${Math.round(deathRate*100)}%ぜんめつ）`);
+                return;
+            }
+        }
         if (autoPilot.goldGoal && player.gold >= autoPilot.goldGoal) {
             autoStop(`${autoPilot.goldGoalName}が かえる`);
             return;
@@ -997,7 +1107,7 @@ function autoTick(now) {
     if (currentState !== STATE.FIELD || autoBusy) return;
 
     // 戦闘が終わった直後に数える
-    if (autoPilot.wasBattle) { autoPilot.wasBattle = false; autoPilot.battles++; }
+    if (autoPilot.wasBattle) { autoPilot.wasBattle = false; autoPilot.battles++; autoPilot.recentBattles++; }
 
     // 戦いに出る前にフィールドで回復しておく。傷ついたまま次の戦闘に入ると
     // ラリホーで眠らされている間に削り殺される
