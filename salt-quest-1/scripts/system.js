@@ -402,8 +402,10 @@ function gameLoop(timestamp) {
     // オートパイロットは通常の入力と同じ経路でキーを押す（本当に「操作されている」）
     if (typeof autoTick === 'function') autoTick(timestamp);
     if (Input.consume('a')) {
-        if (autoPilot.on) autoStop('てどうで ちゅうし');
-        else if (currentState === STATE.FIELD) autoStart();
+        // 始めた直後の押し込みで即中止にならないようにする（AUTOを連打しがちなので）
+        if (autoPilot.on) {
+            if (timestamp - autoPilot.startedAt > 1500) autoStop('てどうで ちゅうし');
+        } else if (currentState === STATE.FIELD) autoStart();
     }
 
     switch (currentState) {

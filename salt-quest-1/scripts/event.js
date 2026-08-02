@@ -710,6 +710,8 @@ const INN_SPOTS = [   // 宿のある町。自動休憩はここへ運んで sta
 const autoPilot = {
     on: false, targetLevel: 0, battles: 0, rests: 0, deaths: 0,
     goldGoal: 0, goldGoalName: '',   // 「装備が買えるまで」モードの目標額
+    battlesAtRest: -1,               // 前回泊まった時点の戦闘数（泊まり直しの歯止め）
+    startedAt: 0,
     spot: null,   // 開始した場所。宿や全滅のあとはここへ戻して同じゾーンで狩り続ける
     home: null, dir: null, dirUntil: 0, lastPos: null, stuck: 0
 };
@@ -838,6 +840,7 @@ async function autoStart() {
     if (i === 2) autoPilot.targetLevel = Math.min(30, autoPilot.targetLevel);
     if (!autoPilot.goldGoal && autoPilot.targetLevel <= player.level) { currentState = STATE.FIELD; return; }
     Object.assign(autoPilot, { on: true, battles: 0, rests: 0, deaths: 0,
+                               battlesAtRest: -1, startedAt: performance.now(),
                                spot: { ...playerPosition }, home: { ...playerPosition },
                                dir: null, dirUntil: 0,
                                lastPos: { ...playerPosition }, stuck: 0 });
@@ -858,6 +861,7 @@ async function autoRest() {
     const price = townShops[near.shop].inn || 0;
     playerPosition.x = near.x; playerPosition.y = near.y;
     autoPilot.rests++;
+    autoPilot.battlesAtRest = autoPilot.battles;
     if (player.gold >= price) {
         await stayInn(price);
     } else {                       // 金欠でも開発用なので止めずに休ませる
@@ -946,11 +950,13 @@ function autoTick(now) {
         return;
     }
 
-    // HPが半分を切ったら休む。回復呪文が使えるならMP切れも休む合図
-    // （MPが尽きたまま粘ると削られて全滅し、所持金が半分になる）
-    const healMp = player.spells.includes('ベホイミ') ? 10 : 4;
-    if (player.hp <= player.maxHp * 0.5 ||
-        (player.spells.includes('ホイミ') && player.mp < healMp * 3)) {
+    // HPが半分を切ったら休む。回復呪文を1回も唱えられないほどMPが尽きたときも休む。
+    // ここを「MP < 必要量×3」にしていたら、Lv3(最大MP5)は宿から出た瞬間にまた条件が
+    // 成立して延々と泊まり続けた。最大MPで満たせない条件を書いてはいけない
+    const mpDry = healSpell && player.maxMp >= healCost && player.mp < healCost;
+    const wantRest = player.hp <= player.maxHp * 0.5 || (mpDry && player.hp < player.maxHp * 0.8);
+    // 念のための歯止め: 前回の休憩から一度も戦っていなければ泊まり直さない
+    if (wantRest && autoPilot.battles !== autoPilot.battlesAtRest) {
         autoBusy = true;
         autoRest().then(() => { autoBusy = false; });
         return;
@@ -960,23 +966,37 @@ function autoTick(now) {
     if (playerPosition.x === autoPilot.lastPos.x && playerPosition.y === autoPilot.lastPos.y) autoPilot.stuck++;
     else { autoPilot.stuck = 0; autoPilot.lastPos = { ...playerPosition }; }
 
-    const far = Math.abs(playerPosition.x - autoPilot.home.x) + Math.abs(playerPosition.y - autoPilot.home.y) > 10;
-    const blocked = autoPilot.stuck > 6;   // 壁や海に向かって足踏みしている
-    if (!autoPilot.dir || now > autoPilot.dirUntil || blocked) {
+    // 進めない向きを押し続けると、その間ずっと足踏みしてエンカウントしない。
+    // 「実際に進めるマス」だけを候補にする
+    const DIR_DELTA = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    const walkable = k => {
+        const [dx, dy] = DIR_DELTA[k];
+        return isMoveAllowed(modAdd(playerPosition.x, dx, mapWidth),
+                             modAdd(playerPosition.y, dy, mapHeight));
+    };
+    const open = ARROW_KEYS.filter(walkable);
+    if (!open.length) return;      // 完全に囲まれている（起きないはずだが保険）
+
+    const far = Math.abs(playerPosition.x - autoPilot.home.x)
+              + Math.abs(playerPosition.y - autoPilot.home.y) > 12;
+    if (!autoPilot.dir || now > autoPilot.dirUntil || !walkable(autoPilot.dir)) {
         const prev = autoPilot.dir;
         if (prev) Input.release(prev);
-        if (far && !blocked) {   // 遠ざかりすぎたらホーム方向へ。ただし詰まっている時は別
+        const REVERSE = { ArrowUp: 'ArrowDown', ArrowDown: 'ArrowUp',
+                          ArrowLeft: 'ArrowRight', ArrowRight: 'ArrowLeft' };
+        let choices = open;
+        if (far) {   // 遠ざかりすぎたらホーム側へ寄せる
             const dx = autoPilot.home.x - playerPosition.x, dy = autoPilot.home.y - playerPosition.y;
-            autoPilot.dir = Math.abs(dx) > Math.abs(dy)
-                ? (dx > 0 ? 'ArrowRight' : 'ArrowLeft')
-                : (dy > 0 ? 'ArrowDown' : 'ArrowUp');
-        } else {
-            // 詰まったら必ず別の向きを選ぶ。同じ向きを選び直すと永久に足踏みする
-            const choices = blocked ? ARROW_KEYS.filter(k => k !== prev) : ARROW_KEYS;
-            autoPilot.dir = choices[Math.floor(Math.random() * choices.length)];
+            const toward = [ dx > 0 ? 'ArrowRight' : 'ArrowLeft', dy > 0 ? 'ArrowDown' : 'ArrowUp' ]
+                           .filter(k => open.includes(k));
+            if (toward.length) choices = toward;
+        } else if (open.length > 1) {
+            // 来た道をすぐ引き返すと同じ数マスを往復するだけになる
+            const forward = open.filter(k => k !== REVERSE[prev]);
+            if (forward.length) choices = forward;
         }
-        autoPilot.dirUntil = now + 400 + Math.random() * 600;
-        autoPilot.stuck = 0;
+        autoPilot.dir = choices[Math.floor(Math.random() * choices.length)];
+        autoPilot.dirUntil = now + 700 + Math.random() * 900;   // 一直線に歩く時間を長めに
     }
     Input.press(autoPilot.dir);
 }
