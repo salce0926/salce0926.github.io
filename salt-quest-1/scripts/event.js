@@ -14,9 +14,12 @@ function playerKilled(){
     // オート中は城送りになっても、狩っていた場所へ戻して続行する（開発用）
     if (typeof autoPilot !== 'undefined' && autoPilot.on) {
         autoPilot.deaths++;
+        autoPilot.path = null; autoPilot.goal = null;   // 城へ運ばれたので経路は捨てる
         if (autoPilot.spot) {
-            playerPosition.x = autoPilot.spot.x; playerPosition.y = autoPilot.spot.y;
-            autoPilot.home = { ...autoPilot.spot };
+            // 城から狩り場までは歩いて戻る
+            autoPilot.path = findPath(playerPosition, autoPilot.spot);
+            autoPilot.goal = autoPilot.path ? 'かりばへ もどる' : null;
+            autoPilot.home = { ...playerPosition };
         }
     }
     return lost;
@@ -529,7 +532,7 @@ function drawMenu() {
 // 移動は時間基準(ms)。フレームレート(60Hz/120Hz)に依存しない
 let MOVE_INTERVAL = 150;          // 1歩あたりのミリ秒
 const MOVE_INTERVAL_NORMAL = 150;
-const MOVE_INTERVAL_AUTO = 40;    // オート中は早送りする（開発用なので待たせない）
+const MOVE_INTERVAL_AUTO = 0;     // オート中は毎フレーム1歩（開発用なので待たせない）
 let lastMoveTime = 0;
 function isMoveAllowed(x, y) {
     if (debugMode) return true;
@@ -707,10 +710,60 @@ const INN_SPOTS = [   // 宿のある町。自動休憩はここへ運んで sta
     { name: 'メルキドの町',   x: 81, y: 108, shop: 'melkido' }
 ];
 
+// 幅優先探索で歩ける道をたどる。マップは端がつながっているので modAdd で回り込む。
+// 本土と南の陸地(リムルダール側)は洞窟のワープでしかつながっていないので、
+// そこだけは「歩く」ではなく「その場でAを押す」移動として経路に組み込む
+const DIR_DELTA = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+const WARPS = [ [{ x: 112, y: 52 }, { x: 112, y: 57 }], [{ x: 112, y: 57 }, { x: 112, y: 52 }] ];
+function warpFrom(x, y) {
+    const w = WARPS.find(w => w[0].x === x && w[0].y === y);
+    return w ? w[1] : null;
+}
+function findPath(from, to) {
+    if (from.x === to.x && from.y === to.y) return [];
+    const key = (x, y) => y * mapWidth + x;
+    const prev = new Map();
+    const queue = [[from.x, from.y]];
+    prev.set(key(from.x, from.y), null);
+    let head = 0;
+    while (head < queue.length) {
+        const [x, y] = queue[head++];
+        const nexts = ARROW_KEYS
+            .map(k => { const [dx, dy] = DIR_DELTA[k];
+                        return [modAdd(x, dx, mapWidth), modAdd(y, dy, mapHeight)]; })
+            .filter(([nx, ny]) => isMoveAllowed(nx, ny));
+        const w = warpFrom(x, y);
+        if (w) nexts.push([w.x, w.y]);
+        for (const [nx, ny] of nexts) {
+            const id = key(nx, ny);
+            if (prev.has(id)) continue;
+            prev.set(id, [x, y]);
+            if (nx === to.x && ny === to.y) {
+                const path = [];
+                let cur = [nx, ny];
+                while (cur) { path.push({ x: cur[0], y: cur[1] }); cur = prev.get(key(cur[0], cur[1])); }
+                return path.reverse().slice(1);
+            }
+            queue.push([nx, ny]);
+        }
+    }
+    return null;   // たどり着けない（起きないはずだが保険）
+}
+
+// 隣のマスへ向かうキー。回り込みを考慮して差が1になる向きを探す
+function stepKeyToward(from, to) {
+    for (const k of ARROW_KEYS) {
+        const [dx, dy] = DIR_DELTA[k];
+        if (modAdd(from.x, dx, mapWidth) === to.x && modAdd(from.y, dy, mapHeight) === to.y) return k;
+    }
+    return null;
+}
+
 const autoPilot = {
     on: false, targetLevel: 0, battles: 0, rests: 0, deaths: 0,
     goldGoal: 0, goldGoalName: '',   // 「装備が買えるまで」モードの目標額
     battlesAtRest: -1,               // 前回泊まった時点の戦闘数（泊まり直しの歯止め）
+    path: null, goal: null, inn: null,   // 目的地への経路（宿へ／狩り場へ）
     startedAt: 0,
     spot: null,   // 開始した場所。宿や全滅のあとはここへ戻して同じゾーンで狩り続ける
     home: null, dir: null, dirUntil: 0, lastPos: null, stuck: 0
@@ -841,6 +894,7 @@ async function autoStart() {
     if (!autoPilot.goldGoal && autoPilot.targetLevel <= player.level) { currentState = STATE.FIELD; return; }
     Object.assign(autoPilot, { on: true, battles: 0, rests: 0, deaths: 0,
                                battlesAtRest: -1, startedAt: performance.now(),
+                               path: null, goal: null, inn: null,
                                spot: { ...playerPosition }, home: { ...playerPosition },
                                dir: null, dirUntil: 0,
                                lastPos: { ...playerPosition }, stuck: 0 });
@@ -853,25 +907,31 @@ async function autoStart() {
 }
 
 // 危なくなったら一番近い宿へ運んで泊まる（開発用なので移動は瞬間移動）
-async function autoRest() {
-    const near = INN_SPOTS.reduce((best, s) => {
-        const d = Math.abs(s.x - playerPosition.x) + Math.abs(s.y - playerPosition.y);
-        return (!best || d < best.d) ? { ...s, d } : best;
-    }, null);
-    const price = townShops[near.shop].inn || 0;
-    playerPosition.x = near.x; playerPosition.y = near.y;
+// 一番近い宿を「歩いた歩数」で選ぶ。直線距離だと海を挟んだ町を選んでしまう
+function nearestInn() {
+    let best = null;
+    for (const s of INN_SPOTS) {
+        const path = findPath(playerPosition, s);
+        if (path && (!best || path.length < best.path.length)) best = { ...s, path };
+    }
+    return best;
+}
+
+// 宿に着いたら泊まって、狩り場へ歩いて帰る
+async function autoCheckIn(inn) {
+    const price = townShops[inn.shop].inn || 0;
     autoPilot.rests++;
     autoPilot.battlesAtRest = autoPilot.battles;
     if (player.gold >= price) {
         await stayInn(price);
     } else {                       // 金欠でも開発用なので止めずに休ませる
         player.hp = player.maxHp; player.mp = player.maxMp;
-        await showMessage([`オート：${near.name}で やすんだ`, '（もちきんが たりないので ただ）']);
+        await showMessage([`オート：${inn.name}で やすんだ`, '（もちきんが たりないので ただ）']);
     }
-    // 泊まったら狩り場へ戻す（歩いて往復させると開発用には遅すぎる）
-    if (autoPilot.spot) { playerPosition.x = autoPilot.spot.x; playerPosition.y = autoPilot.spot.y; }
-    autoPilot.home = { ...playerPosition };
     currentState = STATE.FIELD;
+    autoPilot.path = autoPilot.spot ? findPath(playerPosition, autoPilot.spot) : null;
+    autoPilot.goal = autoPilot.spot ? 'かりばへ もどる' : null;
+    if (!autoPilot.path) { autoPilot.goal = null; autoPilot.home = { ...playerPosition }; }
 }
 
 // 戦闘中の判断。回復・逃走・攻撃を選ぶ
@@ -950,6 +1010,45 @@ function autoTick(now) {
         return;
     }
 
+    // 目的地があるときは、うろつかずに経路をたどる（宿へ／狩り場へ）
+    if (autoPilot.path && autoPilot.path.length) {
+        const next = autoPilot.path[0];
+        if (playerPosition.x === next.x && playerPosition.y === next.y) {
+            autoPilot.path.shift();
+            if (!autoPilot.path.length) return;     // 到着。次のフレームで判定する
+        }
+        const target = autoPilot.path[0];
+        const k = stepKeyToward(playerPosition, target);
+        if (!k) {
+            const w = warpFrom(playerPosition.x, playerPosition.y);
+            if (w && w.x === target.x && w.y === target.y) {   // 洞窟をくぐる
+                for (const other of ARROW_KEYS) Input.release(other);
+                autoPilot.dir = null;
+                Input.press(' ');
+                return;
+            }
+            autoPilot.path = findPath(playerPosition, target);  // 道から外れたので引き直す
+            return;
+        }
+        for (const other of ARROW_KEYS) if (other !== k) Input.release(other);
+        autoPilot.dir = k;
+        Input.press(k);
+        return;
+    }
+    // 目的地に着いた
+    if (autoPilot.path && !autoPilot.path.length) {
+        autoPilot.path = null;
+        if (autoPilot.goal === 'やどやへ') {
+            autoBusy = true;
+            autoCheckIn(autoPilot.inn).then(() => { autoBusy = false; });
+            autoPilot.goal = null;
+            return;
+        }
+        autoPilot.goal = null;
+        autoPilot.home = { ...playerPosition };
+        return;
+    }
+
     // HPが半分を切ったら休む。回復呪文を1回も唱えられないほどMPが尽きたときも休む。
     // ここを「MP < 必要量×3」にしていたら、Lv3(最大MP5)は宿から出た瞬間にまた条件が
     // 成立して延々と泊まり続けた。最大MPで満たせない条件を書いてはいけない
@@ -957,9 +1056,17 @@ function autoTick(now) {
     const wantRest = player.hp <= player.maxHp * 0.5 || (mpDry && player.hp < player.maxHp * 0.8);
     // 念のための歯止め: 前回の休憩から一度も戦っていなければ泊まり直さない
     if (wantRest && autoPilot.battles !== autoPilot.battlesAtRest) {
-        autoBusy = true;
-        autoRest().then(() => { autoBusy = false; });
-        return;
+        const inn = nearestInn();
+        if (inn) {
+            autoPilot.inn = inn;
+            autoPilot.path = inn.path;
+            autoPilot.goal = 'やどやへ';
+            document.getElementById('message').textContent =
+                `オート：${inn.name}へ むかっています（${inn.path.length}ほ）`;
+            return;
+        }
+        // どの宿へも歩いて行けない場所（起きないはずだが保険）
+        autoPilot.battlesAtRest = autoPilot.battles;
     }
 
     // 歩く。同じ向きをしばらく保ち、行き止まりや遠出はホームへ引き返す
@@ -968,7 +1075,6 @@ function autoTick(now) {
 
     // 進めない向きを押し続けると、その間ずっと足踏みしてエンカウントしない。
     // 「実際に進めるマス」だけを候補にする
-    const DIR_DELTA = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
     const walkable = k => {
         const [dx, dy] = DIR_DELTA[k];
         return isMoveAllowed(modAdd(playerPosition.x, dx, mapWidth),
