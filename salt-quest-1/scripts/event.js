@@ -818,9 +818,16 @@ function simulateBattle(st, e0, startHp, startMp) {
         if (asleep > 0) asleep--;
         else {
             const beho = !sealed && st.spells.includes('ベホイミ') && mp >= 10 && hp < st.hp * 0.45;
-            const hoi  = !sealed && !beho && st.spells.includes('ホイミ') && mp >= 4 && hp < st.hp * 0.35;
+            const hoi  = !sealed && !beho && st.spells.includes('ホイミ') && mp >= 4 && hp < st.hp * 0.45;
+            const phys = expectedHit(st.atk, e.defense);
+            const begi = !sealed && !beho && !hoi && st.spells.includes('ベギラマ') && mp >= 5
+                      && BEGIRAMA_AVG > phys * 1.3;
+            const gira = !sealed && !beho && !hoi && !begi && st.spells.includes('ギラ') && mp >= 2
+                      && GIRA_AVG > phys * 1.3;
             if (beho) { mp -= 10; hp = Math.min(st.hp, hp + randRange(85, 100)); }
             else if (hoi) { mp -= 4; hp = Math.min(st.hp, hp + randRange(10, 17)); }
+            else if (begi) { mp -= 5; e.hp -= randRange(35, 49); }
+            else if (gira) { mp -= 2; e.hp -= randRange(10, 15); }
             else if (Math.floor(Math.random() * 64) >= (e.evasion || 0)) {
                 const c = !e.noCritical && Math.floor(Math.random() * 32) === 0;
                 e.hp -= c ? calcCritical(st.atk) : calcDamage(st.atk, e.defense);
@@ -1170,14 +1177,33 @@ async function autoCheckIn(inn) {
 }
 
 // 戦闘中の判断。回復・逃走・攻撃を選ぶ
+// 呪文の平均ダメージ（守備力を無視するので、硬い相手ほど殴るより効く）
+const GIRA_AVG = (10 + 15) / 2, BEGIRAMA_AVG = (35 + 49) / 2;
+// 殴ったときの1発あたりの期待ダメージ
+function expectedHit(attack, defense) {
+    const base = attack - Math.floor(defense / 2);
+    if (base <= 0) return 0;
+    return (Math.floor(base / 4) + Math.floor(base / 2)) / 2;
+}
+
 function autoBattleChoice() {
+    const can = (name, cost) => player.spells.includes(name) && player.mp >= cost && !player.sealed;
     const low = player.hp <= player.maxHp * 0.45;
-    const canBeho = player.spells.includes('ベホイミ') && player.mp >= 10 && !player.sealed;
-    const canHoi  = player.spells.includes('ホイミ')   && player.mp >= 4  && !player.sealed;
-    if (low && (canBeho || canHoi)) return { cmd: 1, spell: canBeho ? 'ベホイミ' : 'ホイミ' };
+    if (low && can('ベホイミ', 10)) return { cmd: 1, spell: 'ベホイミ' };
+    if (low && can('ホイミ', 4))    return { cmd: 1, spell: 'ホイミ' };
     if (low && player.herb > 0) return { cmd: 2 };
-    // 手も足も出ない相手（しゅび力が高すぎる）からは逃げる
-    if (player.attack - Math.floor(enemy.defense / 2) < 2) return { cmd: 3 };
+
+    const phys = expectedHit(player.attack, enemy.defense);
+    // メタルスライム(しゅび力255)やりゅうおう第2形態(200)は殴っても通らない。
+    // 呪文なら守備力に関係なく通るので、明らかに得なときは呪文を選ぶ
+    if (can('ベギラマ', 5) && BEGIRAMA_AVG > phys * 1.3) return { cmd: 1, spell: 'ベギラマ' };
+    if (can('ギラ', 2)     && GIRA_AVG     > phys * 1.3) return { cmd: 1, spell: 'ギラ' };
+    // 長引きそうで、こちらも傷ついているなら眠らせて態勢を立て直す
+    if (can('ラリホー', 2) && !enemy.asleep && phys > 0
+        && enemy.hp / phys > 4 && player.hp < player.maxHp * 0.8) return { cmd: 1, spell: 'ラリホー' };
+
+    // 殴っても呪文も通らない相手からは逃げる
+    if (phys <= 0) return { cmd: 3 };
     // 回復手段が尽きて削られたら粘らずに逃げる（全滅すると所持金が半分になる）
     if (player.hp <= player.maxHp * 0.3) return { cmd: 3 };
     return { cmd: 0 };
