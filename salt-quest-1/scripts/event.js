@@ -788,13 +788,15 @@ function autoStop(reason) {
 
 // いま立っているゾーンを安全に狩れるようになる推奨レベル。
 // 目分量ではなく、実際の戦闘式でその場の敵と何度も戦わせて死亡率から決める
-function simulateBattle(st, e0) {
+function simulateBattle(st, e0, startHp, startMp) {
     const magic = d => (armors[player.armorIndex].name === 'まほうのよろい'
                      || armors[player.armorIndex].name === 'ロトのよろい') ? Math.floor(d * 2 / 3) : d;
     const e = { ...e0 };
     e.maxHp = e.noCritical ? e.maxHp : Math.max(1, Math.floor(e.maxHp * (0.75 + Math.random() * 0.25)));
     e.hp = e.maxHp;
-    let hp = st.hp, mp = st.mp, asleep = 0, sealed = false, turns = 0;
+    let hp = startHp === undefined ? st.hp : startHp;
+    let mp = startMp === undefined ? st.mp : startMp;
+    let asleep = 0, sealed = false, turns = 0;
     const foeTurn = () => {
         const pat = e.pattern || ['attack'];
         let act = pat[Math.floor(Math.random() * pat.length)];
@@ -812,7 +814,7 @@ function simulateBattle(st, e0) {
     };
     if (st.agi * Math.floor(Math.random() * 256) < e.defense * Math.floor(Math.random() * 64)) foeTurn();
     while (turns++ < 120) {
-        if (hp <= 0) return 'lose';
+        if (hp <= 0) return { r: 'lose', hp: 0, mp };
         if (asleep > 0) asleep--;
         else {
             const beho = !sealed && st.spells.includes('ベホイミ') && mp >= 10 && hp < st.hp * 0.45;
@@ -824,10 +826,10 @@ function simulateBattle(st, e0) {
                 e.hp -= c ? calcCritical(st.atk) : calcDamage(st.atk, e.defense);
             }
         }
-        if (e.hp <= 0) return 'win';
+        if (e.hp <= 0) return { r: 'win', hp, mp };
         foeTurn();
     }
-    return 'draw';
+    return { r: 'draw', hp, mp };
 }
 
 function recommendedLevel(x, y) {
@@ -845,7 +847,7 @@ function recommendedLevel(x, y) {
         let dead = 0;
         const N = 150;
         for (let i = 0; i < N; i++) {
-            if (simulateBattle(st, set[Math.floor(Math.random() * set.length)]) === 'lose') dead++;
+            if (simulateBattle(st, set[Math.floor(Math.random() * set.length)]).r === 'lose') dead++;
         }
         if (dead / N <= 0.05) return lv;   // 1戦あたり5%以下で死ぬなら十分
     }
@@ -910,7 +912,9 @@ function huntingSpots() {
 
 // いまの強さで一番おいしい狩り場を選ぶ。
 // 死亡率が高い所は経験値が多くても除く（全滅すると所持金半分＋やり直しで結局遅い）
-function bestHuntingSpot() {
+function bestHuntingSpot(opt) {
+    const avoidZone = opt && opt.avoidZone !== undefined ? opt.avoidZone : null;
+    const maxDeath  = opt && opt.maxDeath  !== undefined ? opt.maxDeath  : 0.05;
     const reach = reachableSet();
     const key = (x, y) => y * mapWidth + x;
     const st = {
@@ -920,15 +924,31 @@ function bestHuntingSpot() {
     let best = null;
     for (const spot of huntingSpots()) {
         if (!reach.has(key(spot.x, spot.y))) continue;
+        if (avoidZone !== null && spot.zone === avoidZone) continue;
+        // 宿から遠い／宿までの道が危ない狩り場は、休むたびに死ぬので選ばない。
+        // 狩り場そのものが安全でも、往復で全滅していては意味がない
+        const inn = INN_SPOTS.reduce((b, s) => {
+            const d = Math.abs(s.x - spot.x) + Math.abs(s.y - spot.y);
+            return (!b || d < b.d) ? { ...s, d } : b;
+        }, null);
+        const mid = { x: Math.round((inn.x + spot.x) / 2), y: Math.round((inn.y + spot.y) / 2) };
+        const trip = [zoneAt(inn.x, inn.y), zoneAt(mid.x, mid.y)];
+        if (dangerAtLevel(trip, player.level) > 0.15) continue;
         const set = zoneEnemySets[spot.zone].map(i => enemyTable[i]);
         let dead = 0, exp = 0;
         const N = 150;
+        // 毎回満タンから始めると実際より死ににくく出る。傷を持ち越して、
+        // 半分を切ったら宿に戻る——という実際の動きに合わせて数える
+        let hp = st.hp, mp = st.mp;
         for (let i = 0; i < N; i++) {
+            if (hp < st.hp * 0.5) { hp = st.hp; mp = st.mp; }
             const e = set[Math.floor(Math.random() * set.length)];
-            if (simulateBattle(st, e) === 'lose') dead++; else exp += e.exp;
+            const r = simulateBattle(st, e, hp, mp);
+            if (r.r === 'lose') { dead++; hp = st.hp; mp = st.mp; }
+            else { hp = r.hp; mp = r.mp; exp += e.exp; }
         }
         const death = dead / N;
-        if (death > 0.05) continue;
+        if (death > maxDeath) continue;
         // 1歩あたりの期待経験値。ゾーン0は遭遇率が半分
         let rate = encounterRates[mapData[spot.y][spot.x]] || 0;
         if (spot.zone === 0) rate /= 2;
@@ -985,7 +1005,7 @@ function dangerAtLevel(zones, lv) {
         const set = zoneEnemySets[z].map(i => enemyTable[i]);
         let dead = 0; const N = 60;
         for (let i = 0; i < N; i++) {
-            if (simulateBattle(st, set[Math.floor(Math.random() * set.length)]) === 'lose') dead++;
+            if (simulateBattle(st, set[Math.floor(Math.random() * set.length)]).r === 'lose') dead++;
         }
         worst = Math.max(worst, dead / N);
     }
@@ -1187,9 +1207,13 @@ function autoTick(now) {
         if (autoPilot.recentBattles >= 30 && !['やどやへ', 'みせへ', 'もくてきちへ', 'かいものへ'].includes(autoPilot.goal)) {
             const got = (player.exp - autoPilot.recentExp) / autoPilot.recentBattles;
             const deathRate = autoPilot.recentDeaths / autoPilot.recentBattles;
-            const best = bestHuntingSpot();
             const here = zoneAt(playerPosition.x, playerPosition.y);
-            const badly = best && best.zone !== here && (best.exp > got * 1.5 || deathRate > 0.2);
+            // 実際に死にすぎているときは、いまのゾーンを候補から外して安全側へ逃がす。
+            // これが無いと「いまの場所が一番おいしい」判定のままそこで死に続ける
+            let best = deathRate > 0.1
+                ? bestHuntingSpot({ avoidZone: here, maxDeath: 0.03 }) || bestHuntingSpot()
+                : bestHuntingSpot();
+            const badly = best && best.zone !== here && (best.exp > got * 1.5 || deathRate > 0.1);
             autoPilot.recentBattles = 0; autoPilot.recentDeaths = 0; autoPilot.recentExp = player.exp;
             if (badly) {
                 // すでにその狩り場へ向かっている最中なら、数え直すだけにする。
