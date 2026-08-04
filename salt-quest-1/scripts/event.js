@@ -1030,6 +1030,7 @@ async function autoStart() {
     if (i === 0) {
         if (!quest) { currentState = STATE.FIELD; return; }
         autoPilot.questMode = true;          // 本編を最後まで自動で進める
+        autoPilot.noSpotYet = true;          // 狩り場はまだ決まっていない
         autoPilot.targetLevel = 30;
         autoPilot.questFails = 0;
         autoPilot.questName = '';
@@ -1058,6 +1059,7 @@ async function autoStart() {
                                spot: { ...playerPosition }, home: { ...playerPosition },
                                dir: null, dirUntil: 0,
                                lastPos: { ...playerPosition }, stuck: 0 });
+    if (autoPilot.noSpotYet) { autoPilot.spot = null; autoPilot.noSpotYet = false; }
     debugMode = false;            // デバッグモード中はエンカウントしないので必ず切る
     MOVE_INTERVAL = MOVE_INTERVAL_AUTO;
     currentState = STATE.FIELD;
@@ -1121,6 +1123,11 @@ async function autoShop(shopKey) {
     }
     // 買い物のメッセージを出したままだとフィールドに戻れず固まるので必ず戻す
     currentState = STATE.FIELD;
+    // 用が済んだら狩り場へ帰る（町のまわりで戦い続けないように）
+    if (autoPilot.spot && !(playerPosition.x === autoPilot.spot.x && playerPosition.y === autoPilot.spot.y)) {
+        autoPilot.path = findPath(playerPosition, autoPilot.spot);
+        autoPilot.goal = autoPilot.path ? 'かりばへ もどる' : null;
+    }
 }
 
 // 宿に着いたら泊まって、狩り場へ歩いて帰る
@@ -1224,7 +1231,6 @@ function autoTick(now) {
                 if (!at) {
                     autoPilot.path = findPath(playerPosition, buy.town);
                     autoPilot.goal = 'かいものへ';
-                    autoPilot.spot = { x: buy.town.x, y: buy.town.y };
                     autoPilot.shopKey = buy.town.shop;
                     document.getElementById('message').textContent =
                         `オート：${buy.name}を かいに ${buy.town.name}へ（${autoPilot.path ? autoPilot.path.length : 0}ほ）`;
@@ -1278,7 +1284,6 @@ function autoTick(now) {
                 }
                 autoPilot.path = path;
                 autoPilot.goal = 'もくてきちへ';
-                autoPilot.spot = { x: q.x, y: q.y };
                 document.getElementById('message').textContent =
                     `オート：${q.name}へ（${path ? path.length : 0}ほ）`;
             }
@@ -1291,7 +1296,6 @@ function autoTick(now) {
                 if (autoPilot.goal !== 'みせへ') {
                     autoPilot.path = findPath(playerPosition, shop);
                     autoPilot.goal = 'みせへ';
-                    autoPilot.spot = { x: shop.x, y: shop.y };
                     document.getElementById('message').textContent =
                         `オート：${autoPilot.goldGoalName}を かいに ${shop.name}へ（${autoPilot.path ? autoPilot.path.length : 0}ほ）`;
                 }
@@ -1343,6 +1347,15 @@ function autoTick(now) {
         return;
     }
 
+    // 狩り場から離れたまま放置されないようにする。全滅して城へ送られたり、
+    // 町へ寄ったあと戻れないと、弱いゾーンで延々と戦い続けることになる
+    if (autoPilot.spot && !autoPilot.path && !autoPilot.goal
+        && Math.abs(playerPosition.x - autoPilot.spot.x)
+         + Math.abs(playerPosition.y - autoPilot.spot.y) > 12) {
+        autoPilot.path = findPath(playerPosition, autoPilot.spot);
+        if (autoPilot.path) { autoPilot.goal = 'かりばへ もどる'; return; }
+    }
+
     // 目的地があるときは、うろつかずに経路をたどる（宿へ／狩り場へ）
     if (autoPilot.path && autoPilot.path.length) {
         const next = autoPilot.path[0];
@@ -1385,8 +1398,11 @@ function autoTick(now) {
             autoPilot.goal = null;
             return;
         }
+        // うろつく基点を更新するのは狩り場に着いたときだけ。
+        // 町に着くたびに書き換えると、その町のまわり(たいてい弱いゾーン)で
+        // 戦い続けてしまう
+        if (autoPilot.goal === 'かりばへ もどる') autoPilot.home = { ...playerPosition };
         autoPilot.goal = null;
-        autoPilot.home = { ...playerPosition };
         return;   // 次のフレームで目的地判定が走る
     }
 
