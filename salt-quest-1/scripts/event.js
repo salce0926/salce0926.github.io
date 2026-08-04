@@ -764,6 +764,7 @@ function stepKeyToward(from, to) {
 const autoPilot = {
     on: false, targetLevel: 0, battles: 0, rests: 0, deaths: 0,
     goldGoal: 0, goldGoalName: '', goldGoalTown: null,   // 「装備が買えるまで」モードの目標
+    lastLine: '',                        // 画面下に出している状況行
     questMode: false, questName: '', questFails: 0, grindUntil: 0,   // 本編を自動で進めるモード
     shoppedGold: 0, shopKey: null,       // 同じ店で買い直しを繰り返さないための記録
     battlesAtRest: -1,               // 前回泊まった時点の戦闘数（泊まり直しの歯止め）
@@ -778,6 +779,7 @@ function autoStop(reason) {
     if (!autoPilot.on) return;
     autoPilot.on = false;
     autoPilot.dir = null;
+    autoBusy = false;          // 途中で止めると立ちっぱなしになり、再開しても動けなくなる
     MOVE_INTERVAL = MOVE_INTERVAL_NORMAL;
     for (const k of ARROW_KEYS) Input.release(k);
     const pad = document.getElementById('btnAuto');
@@ -820,14 +822,15 @@ function simulateBattle(st, e0, startHp, startMp) {
             const beho = !sealed && st.spells.includes('ベホイミ') && mp >= 10 && hp < st.hp * 0.45;
             const hoi  = !sealed && !beho && st.spells.includes('ホイミ') && mp >= 4 && hp < st.hp * 0.45;
             const phys = expectedHit(st.atk, e.defense);
+            const giraHit = 1 - (e.resist && e.resist.gira || 0) / 16;
             const begi = !sealed && !beho && !hoi && st.spells.includes('ベギラマ') && mp >= 5
-                      && BEGIRAMA_AVG > phys * 1.3;
+                      && BEGIRAMA_AVG * giraHit > phys * 1.3;
             const gira = !sealed && !beho && !hoi && !begi && st.spells.includes('ギラ') && mp >= 2
-                      && GIRA_AVG > phys * 1.3;
+                      && GIRA_AVG * giraHit > phys * 1.3;
             if (beho) { mp -= 10; hp = Math.min(st.hp, hp + randRange(85, 100)); }
             else if (hoi) { mp -= 4; hp = Math.min(st.hp, hp + randRange(10, 17)); }
-            else if (begi) { mp -= 5; e.hp -= randRange(35, 49); }
-            else if (gira) { mp -= 2; e.hp -= randRange(10, 15); }
+            else if (begi) { mp -= 5; if (Math.random() < giraHit) e.hp -= randRange(35, 49); }
+            else if (gira) { mp -= 2; if (Math.random() < giraHit) e.hp -= randRange(10, 15); }
             else if (Math.floor(Math.random() * 64) >= (e.evasion || 0)) {
                 const c = !e.noCritical && Math.floor(Math.random() * 32) === 0;
                 e.hp -= c ? calcCritical(st.atk) : calcDamage(st.atk, e.defense);
@@ -1041,14 +1044,16 @@ async function autoStart() {
     const here = zoneAt(playerPosition.x, playerPosition.y);
     const quest = nextQuestStep();
     const opts = [
-        quest ? `つぎの もくてきち：${quest.name}` : 'ぼうけんは おわっています',
+        quest ? 'ぼうけんを すすめる' : 'ぼうけんは おわっています',
         rec > player.level ? `ここの てきに あわせる（Lv${rec}）` : 'ここの てきには もう まけない',
-        gear ? `${gear.name}が かえるまで（${gear.price}G）` : 'つぎの そうびは もう ない',
+        gear ? `${gear.name}が かえるまで` : 'つぎの そうびは もう ない',
         spot && spot.zone !== here ? `よい かりばへ いく（z${here}→z${spot.zone}）` : 'ここが いまは さいてきの かりば',
         'やめる'
     ];
-    const i = await chooseFromList(['オート（かいはつよう）',
-        `　いまLv${player.level}　${player.hp}/${player.maxHp}　もちきん${player.gold}G　ゾーンz${zoneAt(playerPosition.x, playerPosition.y)}`], opts);
+    const i = await chooseFromList([
+        `オート　Lv${player.level}　${player.gold}G　z${here}`,
+        quest ? `つぎ：${quest.name}` : 'ぼうけんは おわっています',
+        gear ? `つぎの そうび：${gear.name} ${gear.price}G` : ''], opts);
     if (i === 4 || i === undefined) { currentState = STATE.FIELD; return; }
 
     autoPilot.goldGoal = 0;
@@ -1087,6 +1092,7 @@ async function autoStart() {
                                dir: null, dirUntil: 0,
                                lastPos: { ...playerPosition }, stuck: 0 });
     if (autoPilot.noSpotYet) { autoPilot.spot = null; autoPilot.noSpotYet = false; }
+    autoBusy = false;
     debugMode = false;            // デバッグモード中はエンカウントしないので必ず切る
     MOVE_INTERVAL = MOVE_INTERVAL_AUTO;
     currentState = STATE.FIELD;
@@ -1095,14 +1101,10 @@ async function autoStart() {
         autoPilot.home = { x: moveTo.x, y: moveTo.y };
         autoPilot.path = findPath(playerPosition, moveTo);
         autoPilot.goal = 'かりばへ もどる';
-        document.getElementById('message').textContent =
-            `オート開始　z${moveTo.zone}の かりばへ（${autoPilot.path ? autoPilot.path.length : 0}ほ）`;
+        autoPilot.lastLine = '';   // 次のフレームで状況行が出る
         return;
     }
-    document.getElementById('message').textContent =
-          autoPilot.questMode ? `オート開始　ぼうけんを すすめます（${quest.name}）`
-        : autoPilot.goldGoal  ? `オート開始　${autoPilot.goldGoalName}(${autoPilot.goldGoal}G)が かえるまで`
-        :                       `オート開始　Lv${player.level} → Lv${autoPilot.targetLevel}`;
+    autoPilot.lastLine = '';
 }
 
 // 一番近い宿を「歩いた歩数」で選ぶ。直線距離だと海を挟んだ町を選んでしまう
@@ -1194,12 +1196,13 @@ function autoBattleChoice() {
     if (low && player.herb > 0) return { cmd: 2 };
 
     const phys = expectedHit(player.attack, enemy.defense);
-    // メタルスライム(しゅび力255)やりゅうおう第2形態(200)は殴っても通らない。
-    // 呪文なら守備力に関係なく通るので、明らかに得なときは呪文を選ぶ
-    if (can('ベギラマ', 5) && BEGIRAMA_AVG > phys * 1.3) return { cmd: 1, spell: 'ベギラマ' };
-    if (can('ギラ', 2)     && GIRA_AVG     > phys * 1.3) return { cmd: 1, spell: 'ギラ' };
+    // 呪文は守備力を無視するが、敵ごとに回避率がある（本家仕様・記載値/16）。
+    // メタルスライムやりゅうおうはギラ系を15/16で弾くので、当たる分だけで見積もる
+    const hits = key => 1 - (enemy.resist && enemy.resist[key] || 0) / 16;
+    if (can('ベギラマ', 5) && BEGIRAMA_AVG * hits('gira') > phys * 1.3) return { cmd: 1, spell: 'ベギラマ' };
+    if (can('ギラ', 2)     && GIRA_AVG     * hits('gira') > phys * 1.3) return { cmd: 1, spell: 'ギラ' };
     // 長引きそうで、こちらも傷ついているなら眠らせて態勢を立て直す
-    if (can('ラリホー', 2) && !enemy.asleep && phys > 0
+    if (can('ラリホー', 2) && !enemy.asleep && phys > 0 && hits('rariho') >= 0.5
         && enemy.hp / phys > 4 && player.hp < player.maxHp * 0.8) return { cmd: 1, spell: 'ラリホー' };
 
     // 殴っても呪文も通らない相手からは逃げる
@@ -1209,9 +1212,35 @@ function autoBattleChoice() {
     return { cmd: 0 };
 }
 
+// いま何をしているところかを1行で出す。「◯◯へ むかっています」を出しっぱなしに
+// すると、着いたあとも同じ表示のままで何をしているか分からなくなる
+function autoStatusLine() {
+    const p = autoPilot;
+    const left = p.path ? `あと${p.path.length}ほ` : '';
+    if (currentState === STATE.BATTLE || (typeof battleResolver !== 'undefined' && battleResolver !== null))
+        return `せんとう：${typeof enemy !== 'undefined' && enemy ? enemy.name : ''}`;
+    if (p.goal === 'やどやへ')     return `やどやへ いく（${left}）`;
+    if (p.goal === 'かいものへ')   return `${p.goldGoalName || 'そうび'}を かいに いく（${left}）`;
+    if (p.goal === 'みせへ')       return `${p.goldGoalName}を かいに いく（${left}）`;
+    if (p.goal === 'もくてきちへ') return `${p.questName}へ（${left}）`;
+    if (p.goal === 'かりばへ もどる') return `かりばへ もどる（${left}）`;
+    if (p.goldGoal)  return `かせぐ：${p.goldGoalName}まで あと${Math.max(0, p.goldGoal - player.gold)}G`;
+    if (p.grindUntil && player.level < p.grindUntil)
+        return `かりをする：Lv${player.level}→${p.grindUntil}（z${zoneAt(playerPosition.x, playerPosition.y)}）`;
+    if (p.questMode) return `かりをする（z${zoneAt(playerPosition.x, playerPosition.y)}）／つぎ：${p.questName}`;
+    return `かりをする：Lv${player.level}→${p.targetLevel}（z${zoneAt(playerPosition.x, playerPosition.y)}）`;
+}
+
 let autoBusy = false;
 function autoTick(now) {
     if (!autoPilot.on) return;
+
+    // 状況表示（変わったときだけ書き換える）
+    const line = `オート ${autoStatusLine()}　${autoPilot.battles}戦 宿${autoPilot.rests} 死${autoPilot.deaths}`;
+    if (line !== autoPilot.lastLine) {
+        autoPilot.lastLine = line;
+        document.getElementById('message').textContent = line;
+    }
     // autoBusy中（宿の処理待ち）でもメッセージ送りは続ける。ここで止めると
     // 「やすんだ」の表示から進めなくなって固まる
 
@@ -1252,8 +1281,7 @@ function autoTick(now) {
                     autoPilot.spot = { x: best.x, y: best.y };
                     autoPilot.path = findPath(playerPosition, best);
                     autoPilot.goal = 'かりばへ もどる';
-                    document.getElementById('message').textContent =
-                        `オート：ここは わりに あわない（1戦${got.toFixed(1)}exp・${Math.round(deathRate*100)}%ぜんめつ）　z${best.zone}へ うつります`;
+                    autoPilot.lastLine = '';   // 表示を出し直す
                     return;
                 }
                 if (!autoPilot.questMode) {
@@ -1282,8 +1310,7 @@ function autoTick(now) {
                     autoPilot.path = findPath(playerPosition, buy.town);
                     autoPilot.goal = 'かいものへ';
                     autoPilot.shopKey = buy.town.shop;
-                    document.getElementById('message').textContent =
-                        `オート：${buy.name}を かいに ${buy.town.name}へ（${autoPilot.path ? autoPilot.path.length : 0}ほ）`;
+                    autoPilot.lastLine = '';   // 表示を出し直す
                     return;
                 }
                 autoBusy = true;
@@ -1309,8 +1336,7 @@ function autoTick(now) {
                             autoPilot.spot = { x: best.x, y: best.y };
                             autoPilot.path = findPath(playerPosition, best);
                             autoPilot.goal = 'かりばへ もどる';
-                            document.getElementById('message').textContent =
-                                `オート：${q.name}に とどかない　Lv${autoPilot.grindUntil}まで きたえます`;
+                    autoPilot.lastLine = '';   // 表示を出し直す
                         }
                     }
                 });
@@ -1327,15 +1353,13 @@ function autoTick(now) {
                         autoPilot.spot = { x: best.x, y: best.y };
                         autoPilot.path = findPath(playerPosition, best);
                         autoPilot.goal = 'かりばへ もどる';
-                        document.getElementById('message').textContent =
-                            `オート：${q.name}への みちが あぶない（${Math.round(danger*100)}%）　Lv${autoPilot.grindUntil}まで きたえます`;
+                    autoPilot.lastLine = '';   // 表示を出し直す
                         return;
                     }
                 }
                 autoPilot.path = path;
                 autoPilot.goal = 'もくてきちへ';
-                document.getElementById('message').textContent =
-                    `オート：${q.name}へ（${path ? path.length : 0}ほ）`;
+                    autoPilot.lastLine = '';   // 表示を出し直す
             }
         }
         if (autoPilot.goldGoal && player.gold >= autoPilot.goldGoal) {
@@ -1346,8 +1370,7 @@ function autoTick(now) {
                 if (autoPilot.goal !== 'みせへ') {
                     autoPilot.path = findPath(playerPosition, shop);
                     autoPilot.goal = 'みせへ';
-                    document.getElementById('message').textContent =
-                        `オート：${autoPilot.goldGoalName}を かいに ${shop.name}へ（${autoPilot.path ? autoPilot.path.length : 0}ほ）`;
+                    autoPilot.lastLine = '';   // 表示を出し直す
                 }
                 // ここでは止めず、下の経路追従に任せて歩かせる
             } else {
@@ -1468,8 +1491,7 @@ function autoTick(now) {
             autoPilot.inn = inn;
             autoPilot.path = inn.path;
             autoPilot.goal = 'やどやへ';
-            document.getElementById('message').textContent =
-                `オート：${inn.name}へ むかっています（${inn.path.length}ほ）`;
+                    autoPilot.lastLine = '';   // 表示を出し直す
             return;
         }
         // どの宿へも歩いて行けない場所（起きないはずだが保険）

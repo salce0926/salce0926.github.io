@@ -343,9 +343,14 @@ function updateChoice() {
 function drawChoice() {
     drawWindowCommon(choicePrompt);
     const text = choiceOptions.map(o => `　${o}`);
-    const width = displayTileSize * (2 + Math.max(...choiceOptions.map(o => o.length)) * 0.75);
-    drawWindow(displayTileSize * screenWidth - width - displayTileSize / 2, displayTileSize / 2,
-               width, displayTileSize * (text.length + 0.5), text, choiceCursor);
+    // 文字数から幅を決めていたので、長い項目があると画面の左へはみ出していた。
+    // 実際の描画幅で測り、画面に収まるところで止める
+    ctx.font = '16px cinecaption';
+    const margin = displayTileSize / 2;
+    const need = Math.max(...text.map(t => ctx.measureText(t).width)) + displayTileSize;
+    const width = Math.min(need, canvas.width - margin * 2);
+    const x = Math.max(margin, canvas.width - width - margin);
+    drawWindow(x, margin, width, displayTileSize * (text.length + 0.5), text, choiceCursor);
 }
 
 // =====================================================================

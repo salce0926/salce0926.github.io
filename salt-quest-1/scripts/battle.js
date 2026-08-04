@@ -171,6 +171,20 @@ async function executeSpellTurn(spellName) {
     player.mp -= mpCost;
     await showMessage([`${player.name}は ${spellName}を となえた！`]);
 
+    // 本家仕様: 敵ごとに呪文の回避率がある（記載値/16）。メタルスライムや
+    // りゅうおうはギラ系もラリホーも15/16で弾く
+    const resist = enemy.resist || {};
+    const dodges = key => Math.floor(Math.random() * 16) < (resist[key] || 0);
+    const resistKey = (spellName === 'ラリホー') ? 'rariho'
+                    : (spellName === 'マホトーン') ? 'mahoton'
+                    : (spellName === 'ギラ' || spellName === 'ベギラマ') ? 'gira' : null;
+    if (resistKey && dodges(resistKey)) {
+        await showMessage([`しかし ${enemy.name}には`, `きかなかった！`]);
+        battleStateMode = 'COMMAND';
+        await executeEnemyTurn();
+        return;
+    }
+
     if (spellName === 'ラリホー') {
         enemy.asleep = 2 + Math.floor(Math.random() * 2);
         await showMessage([`${enemy.name}は ねむってしまった！`]);
@@ -234,7 +248,10 @@ function randRange(lo, hi) { return lo + Math.floor(Math.random() * (hi - lo + 1
 
 // 敵がこのターン何をするか決める。封じられていれば呪文は選ばない
 function pickEnemyAction() {
-    if (enemy.flees && enemy.hp <= enemy.maxHp / 3 && Math.random() < 0.25) return 'flee';
+    // 本家仕様: 敵の力が勇者の力の2倍以下なら、HPに関係なく毎ターン1/4で逃げる。
+    // 「手負いになったら逃げる」ではない。メタルスライムが捕まらないのはこの規則のため
+    // （出典の「力」を ちから と読んだ。こうげき力で見ると逃げる敵が増えすぎる）
+    if (enemy.attack <= player.strength * 2 && Math.random() < 0.25) return 'flee';
     const pattern = enemy.pattern || ['attack'];
     let action = pattern[Math.floor(Math.random() * pattern.length)];
     const isSpell = ['gira', 'begirama', 'hoimi', 'rarihoo', 'mahotone'].includes(action);
