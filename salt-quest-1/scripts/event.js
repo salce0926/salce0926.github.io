@@ -16,7 +16,8 @@ function playerKilled(){
         autoPilot.deaths++;
         autoPilot.recentDeaths = (autoPilot.recentDeaths || 0) + 1;
         autoPilot.path = null; autoPilot.goal = null;   // 城へ運ばれたので経路は捨てる
-        if (autoPilot.spot) {
+        // 本編モードは目的地を見失わないよう、次のフレームで引き直させる
+        if (!autoPilot.questMode && autoPilot.spot) {
             // 城から狩り場までは歩いて戻る
             autoPilot.path = findPath(playerPosition, autoPilot.spot);
             autoPilot.goal = autoPilot.path ? 'かりばへ もどる' : null;
@@ -762,7 +763,9 @@ function stepKeyToward(from, to) {
 
 const autoPilot = {
     on: false, targetLevel: 0, battles: 0, rests: 0, deaths: 0,
-    goldGoal: 0, goldGoalName: '',   // 「装備が買えるまで」モードの目標額
+    goldGoal: 0, goldGoalName: '', goldGoalTown: null,   // 「装備が買えるまで」モードの目標
+    questMode: false, questName: '', questFails: 0, grindUntil: 0,   // 本編を自動で進めるモード
+    shoppedGold: 0, shopKey: null,       // 同じ店で買い直しを繰り返さないための記録
     battlesAtRest: -1,               // 前回泊まった時点の戦闘数（泊まり直しの歯止め）
     path: null, goal: null, inn: null,   // 目的地への経路（宿へ／狩り場へ）
     recentBattles: 0, recentDeaths: 0, recentExp: 0, relocated: 0,   // 割に合わない場所で粘らないための記録
@@ -856,7 +859,9 @@ function nextGearGoal() {
     const check = (kind, list, idx) => {
         for (const t of towns) for (const i of (townShops[t][kind] || [])) {
             if (i > idx && list[i].price > 0 && (!best || list[i].price < best.price)) {
-                best = { name: list[i].name, price: list[i].price };
+                const town = INN_SPOTS.find(s => s.shop === t)
+                          || { name: 'メルキドの町', x: 81, y: 108, shop: t };
+                best = { name: list[i].name, price: list[i].price, town };
             }
         }
     };
@@ -933,6 +938,73 @@ function bestHuntingSpot() {
     return best;
 }
 
+// 本編の進行順。done が false の一番上が「次に向かうべき場所」になる
+const QUEST_STEPS = [
+    { name: '城で 王様に あう',        x: 51,  y: 51,  done: () => getGameFlag('start') },
+    { name: 'リムルダールで まほうのかぎ', x: 110, y: 80,  done: () => getGameFlag('magicKey') },
+    { name: 'ローラひめを たすける',   x: 112, y: 52,  done: () => getGameFlag('roraRescued') },
+    { name: 'ひめを 城へ つれて かえる', x: 51, y: 51,  done: () => getGameFlag('roraLove') },
+    { name: '城で たいようのいし',     x: 51,  y: 51,  done: () => getGameFlag('sunStone') },
+    { name: 'マイラで ようせいのふえ', x: 112, y: 18,  done: () => getGameFlag('fairyFlute') },
+    { name: 'ガライの はかで ぎんのたてごと', x: 10, y: 10, done: () => getGameFlag('silverHerp') },
+    { name: 'あめのほこらで あまぐものつえ', x: 89, y: 9, done: () => getGameFlag('rainCloudStuff') },
+    { name: 'メルキドの ゴーレム',     x: 81,  y: 108, done: () => getGameFlag('golemKilled') },
+    { name: 'ロトのしるし',            x: 91,  y: 121, done: () => getGameFlag('rotoEmblem') },
+    { name: 'ドムドーラで ロトのよろい', x: 33, y: 97,  done: () => getGameFlag('rotoArmor') },
+    { name: 'にじのしずく',            x: 116, y: 117, done: () => getGameFlag('rainbowDrop') },
+    { name: 'にじの はしを かける',    x: 73,  y: 57,  done: () => getGameFlag('rainbowBridge') },
+    { name: 'りゅうおうを たおす',     x: 56,  y: 56,  done: () => getGameFlag('lightBall') }
+];
+function nextQuestStep() { return QUEST_STEPS.find(q => !q.done()) || null; }
+
+// いまの装備で、そのレベルだったときの能力値
+function statsAtLevel(lv) {
+    const s = playerStatus.find(p => p.level === lv) || playerStatus[playerStatus.length - 1];
+    return {
+        atk: s.strength + weapons[player.weaponIndex].power,
+        def: Math.floor(s.agility / 2) + armors[player.armorIndex].power
+           + shields[player.shieldIndex].power + (player.scale ? 2 : 0),
+        hp: s.hp, mp: s.mp, agi: s.agility,
+        spells: playerStatus.filter(p => p.level <= lv && p.spell !== '-').map(p => p.spell)
+    };
+}
+
+// 経路が通るゾーンを拾う（5マスおきに見れば十分）
+function pathZones(path) {
+    const zones = new Set();
+    for (let i = 0; i < path.length; i += 5) zones.add(zoneAt(path[i].x, path[i].y));
+    if (path.length) zones.add(zoneAt(path[path.length - 1].x, path[path.length - 1].y));
+    return [...zones];
+}
+
+// そのレベルで道中どれだけ死ぬか（通るゾーンのうち一番危険なもの）
+function dangerAtLevel(zones, lv) {
+    const st = statsAtLevel(lv);
+    let worst = 0;
+    for (const z of zones) {
+        const set = zoneEnemySets[z].map(i => enemyTable[i]);
+        let dead = 0; const N = 60;
+        for (let i = 0; i < N; i++) {
+            if (simulateBattle(st, set[Math.floor(Math.random() * set.length)]) === 'lose') dead++;
+        }
+        worst = Math.max(worst, dead / N);
+    }
+    return worst;
+}
+function pathDanger(path) {
+    if (!path || !path.length) return 0;
+    return dangerAtLevel(pathZones(path), player.level);
+}
+// 道中を安全に通れるようになる最小レベル。+2ずつ刻むと何度も往復するので直接求める
+function levelForPath(path) {
+    if (!path || !path.length) return player.level;
+    const zones = pathZones(path);
+    for (let lv = player.level; lv <= 30; lv++) {
+        if (dangerAtLevel(zones, lv) <= 0.15) return lv;
+    }
+    return 30;
+}
+
 async function autoStart() {
     if (autoPilot.on) { autoStop('じぶんで とめた'); return; }
     if (currentState !== STATE.FIELD) return;
@@ -940,11 +1012,12 @@ async function autoStart() {
     const gear = nextGearGoal();
     const spot = bestHuntingSpot();
     const here = zoneAt(playerPosition.x, playerPosition.y);
+    const quest = nextQuestStep();
     const opts = [
+        quest ? `つぎの もくてきち：${quest.name}` : 'ぼうけんは おわっています',
         rec > player.level ? `ここの てきに あわせる（Lv${rec}）` : 'ここの てきには もう まけない',
         gear ? `${gear.name}が かえるまで（${gear.price}G）` : 'つぎの そうびは もう ない',
         spot && spot.zone !== here ? `よい かりばへ いく（z${here}→z${spot.zone}）` : 'ここが いまは さいてきの かりば',
-        'つぎの レベルまで',
         'やめる'
     ];
     const i = await chooseFromList(['オート（かいはつよう）',
@@ -952,25 +1025,36 @@ async function autoStart() {
     if (i === 4 || i === undefined) { currentState = STATE.FIELD; return; }
 
     autoPilot.goldGoal = 0;
+    autoPilot.questMode = false;
     let moveTo = null;
-    if (i === 0)      autoPilot.targetLevel = Math.min(30, Math.max(player.level + 1, rec));
-    else if (i === 1) {
+    if (i === 0) {
+        if (!quest) { currentState = STATE.FIELD; return; }
+        autoPilot.questMode = true;          // 本編を最後まで自動で進める
+        autoPilot.targetLevel = 30;
+        autoPilot.questFails = 0;
+        autoPilot.questName = '';
+    }
+    else if (i === 1) autoPilot.targetLevel = Math.min(30, Math.max(player.level + 1, rec));
+    else if (i === 2) {
         if (!gear) { currentState = STATE.FIELD; return; }
         autoPilot.goldGoal = gear.price;
         autoPilot.goldGoalName = gear.name;
+        autoPilot.goldGoalTown = gear.town;
         autoPilot.targetLevel = 30;          // 金が貯まったら止まる
     }
-    else if (i === 2) {
+    else {
         if (!spot || spot.zone === here) { currentState = STATE.FIELD; return; }
         moveTo = spot;
         autoPilot.targetLevel = Math.min(30, player.level + 1);
     }
-    else autoPilot.targetLevel = Math.min(30, player.level + 1);
-    if (!autoPilot.goldGoal && autoPilot.targetLevel <= player.level) { currentState = STATE.FIELD; return; }
+    if (!autoPilot.goldGoal && !autoPilot.questMode && autoPilot.targetLevel <= player.level) {
+        currentState = STATE.FIELD; return;
+    }
     Object.assign(autoPilot, { on: true, battles: 0, rests: 0, deaths: 0,
                                battlesAtRest: -1, startedAt: performance.now(),
                                path: null, goal: null, inn: null,
                                recentBattles: 0, recentDeaths: 0, recentExp: player.exp, relocated: 0,
+                               questFails: 0, questName: '', grindUntil: 0, shoppedGold: 0, shopKey: null,
                                spot: { ...playerPosition }, home: { ...playerPosition },
                                dir: null, dirUntil: 0,
                                lastPos: { ...playerPosition }, stuck: 0 });
@@ -986,9 +1070,10 @@ async function autoStart() {
             `オート開始　z${moveTo.zone}の かりばへ（${autoPilot.path ? autoPilot.path.length : 0}ほ）`;
         return;
     }
-    document.getElementById('message').textContent = autoPilot.goldGoal
-        ? `オート開始　${autoPilot.goldGoalName}(${autoPilot.goldGoal}G)が かえるまで`
-        : `オート開始　Lv${player.level} → Lv${autoPilot.targetLevel}`;
+    document.getElementById('message').textContent =
+          autoPilot.questMode ? `オート開始　ぼうけんを すすめます（${quest.name}）`
+        : autoPilot.goldGoal  ? `オート開始　${autoPilot.goldGoalName}(${autoPilot.goldGoal}G)が かえるまで`
+        :                       `オート開始　Lv${player.level} → Lv${autoPilot.targetLevel}`;
 }
 
 // 一番近い宿を「歩いた歩数」で選ぶ。直線距離だと海を挟んだ町を選んでしまう
@@ -999,6 +1084,43 @@ function nearestInn() {
         if (path && (!best || path.length < best.path.length)) best = { ...s, path };
     }
     return best;
+}
+
+// その町で買える中で一番強い装備を買う。値段も下取りも本編の店と同じ計算にする
+async function autoShop(shopKey) {
+    const shop = townShops[shopKey];
+    if (!shop) return;
+    const kinds = [
+        { stock: shop.weapons,    list: weapons,  key: 'weaponIndex' },
+        { stock: shop.armors,     list: armors,   key: 'armorIndex' },
+        { stock: shop.shieldList, list: shields,  key: 'shieldIndex' }
+    ];
+    for (const k of kinds) {
+        if (!k.stock) continue;
+        // 強い順に、買えるものが見つかったら買う
+        const candidates = [...k.stock].sort((a, b) => b - a);
+        for (const idx of candidates) {
+            if (idx <= player[k.key]) break;
+            const tradeIn = Math.floor(k.list[player[k.key]].price / 2);
+            const cost = k.list[idx].price - tradeIn;
+            if (cost > player.gold) continue;
+            player.gold -= cost;
+            player[k.key] = idx;
+            recalcPlayerPower();
+            await showMessage([`オート：${k.list[idx].name}を かった（${cost}G）`,
+                               `こうげき力 ${player.attack}　しゅび力 ${player.defense}`]);
+            break;
+        }
+    }
+    // やくそうも切らさないようにする
+    if (shop.tools && shop.tools.includes('herb')) {
+        while (player.herb < HERB_MAX && player.gold >= toolGoods.herb.price * 4) {
+            player.gold -= toolGoods.herb.price;
+            player.herb++;
+        }
+    }
+    // 買い物のメッセージを出したままだとフィールドに戻れず固まるので必ず戻す
+    currentState = STATE.FIELD;
 }
 
 // 宿に着いたら泊まって、狩り場へ歩いて帰る
@@ -1012,6 +1134,8 @@ async function autoCheckIn(inn) {
         player.hp = player.maxHp; player.mp = player.maxMp;
         await showMessage([`オート：${inn.name}で やすんだ`, '（もちきんが たりないので ただ）']);
     }
+    await autoShop(inn.shop);      // 泊まったついでに装備を整える
+    autoPilot.shoppedGold = player.gold;
     currentState = STATE.FIELD;
     autoPilot.path = autoPilot.spot ? findPath(playerPosition, autoPilot.spot) : null;
     autoPilot.goal = autoPilot.spot ? 'かりばへ もどる' : null;
@@ -1053,7 +1177,7 @@ function autoTick(now) {
         // ぶん低く出るので、「実際に稼げている経験値」で判断する
         // 狩り場へ戻る途中でまた全滅する、を繰り返すと経路が常に残るので、
         // 「経路が無いとき」を条件にすると永久に判定が走らない。宿へ向かう時だけ除く
-        if (autoPilot.recentBattles >= 30 && autoPilot.goal !== 'やどやへ') {
+        if (autoPilot.recentBattles >= 30 && !['やどやへ', 'みせへ', 'もくてきちへ', 'かいものへ'].includes(autoPilot.goal)) {
             const got = (player.exp - autoPilot.recentExp) / autoPilot.recentBattles;
             const deathRate = autoPilot.recentDeaths / autoPilot.recentBattles;
             const best = bestHuntingSpot();
@@ -1061,6 +1185,11 @@ function autoTick(now) {
             const badly = best && best.zone !== here && (best.exp > got * 1.5 || deathRate > 0.2);
             autoPilot.recentBattles = 0; autoPilot.recentDeaths = 0; autoPilot.recentExp = player.exp;
             if (badly) {
+                // すでにその狩り場へ向かっている最中なら、数え直すだけにする。
+                // ここで経路を引き直すと、道中の弱い敵で判定が再発して永久に着かない
+                if (autoPilot.spot && autoPilot.spot.x === best.x && autoPilot.spot.y === best.y) {
+                    return;
+                }
                 if (autoPilot.relocated < 3) {
                     autoPilot.relocated++;
                     autoPilot.spot = { x: best.x, y: best.y };
@@ -1070,13 +1199,107 @@ function autoTick(now) {
                         `オート：ここは わりに あわない（1戦${got.toFixed(1)}exp・${Math.round(deathRate*100)}%ぜんめつ）　z${best.zone}へ うつります`;
                     return;
                 }
-                autoStop(`かせげません（1戦${got.toFixed(1)}exp・${Math.round(deathRate*100)}%ぜんめつ）`);
+                if (!autoPilot.questMode) {
+                    autoStop(`かせげません（1戦${got.toFixed(1)}exp・${Math.round(deathRate*100)}%ぜんめつ）`);
+                    return;
+                }
+                autoPilot.relocated = 0;   // 本編モードは止めずに狩り場を選び直し続ける
+            }
+        }
+        // 本編を自動で進める。次の目的地へ歩き、着いたらAを押してイベントを起こす
+        if (autoPilot.questMode && !['やどやへ', 'かいものへ'].includes(autoPilot.goal)) {
+            const q = nextQuestStep();
+            if (!q) { autoStop('ぼうけんを クリアしました'); return; }
+            if (q.name !== autoPilot.questName) {     // 目的地が進んだ
+                autoPilot.questName = q.name;
+                autoPilot.questFails = 0;
+                autoPilot.path = null;
+                autoPilot.grindUntil = 0;
+            }
+            // 買える装備があるなら、鍛えるより先に買う。装備が良くなれば必要レベルも下がる
+            const buy = nextGearGoal();
+            if (!autoPilot.path && buy && buy.town && player.gold >= buy.price
+                && player.gold > autoPilot.shoppedGold) {
+                const at = playerPosition.x === buy.town.x && playerPosition.y === buy.town.y;
+                if (!at) {
+                    autoPilot.path = findPath(playerPosition, buy.town);
+                    autoPilot.goal = 'かいものへ';
+                    autoPilot.spot = { x: buy.town.x, y: buy.town.y };
+                    autoPilot.shopKey = buy.town.shop;
+                    document.getElementById('message').textContent =
+                        `オート：${buy.name}を かいに ${buy.town.name}へ（${autoPilot.path ? autoPilot.path.length : 0}ほ）`;
+                    return;
+                }
+                autoBusy = true;
+                autoPilot.shoppedGold = player.gold;
+                autoPilot.grindUntil = 0;      // 装備が変わるので必要レベルを測り直す
+                Promise.resolve(autoShop(buy.town.shop)).then(() => { autoBusy = false; });
                 return;
+            }
+            // 前回たどり着いてもフラグが立たなかった＝倒せていないので、鍛えてから戻る
+            if (autoPilot.grindUntil && player.level < autoPilot.grindUntil) {
+                // 下の狩り処理にそのまま流す
+            } else if (playerPosition.x === q.x && playerPosition.y === q.y) {
+                autoPilot.grindUntil = 0;
+                autoBusy = true;
+                Promise.resolve(interactField()).then(() => {
+                    autoBusy = false;
+                    if (!q.done()) {                  // まだ達成できていない
+                        autoPilot.questFails++;
+                        if (autoPilot.questFails >= 6) { autoStop(`${q.name}が できません`); return; }
+                        autoPilot.grindUntil = Math.min(30, player.level + 2);
+                        const best = bestHuntingSpot();
+                        if (best) {
+                            autoPilot.spot = { x: best.x, y: best.y };
+                            autoPilot.path = findPath(playerPosition, best);
+                            autoPilot.goal = 'かりばへ もどる';
+                            document.getElementById('message').textContent =
+                                `オート：${q.name}に とどかない　Lv${autoPilot.grindUntil}まで きたえます`;
+                        }
+                    }
+                });
+                return;
+            } else if (!autoPilot.path) {
+                const path = findPath(playerPosition, q);
+                const danger = pathDanger(path);
+                // 道中で死にまくる強さなら、先に安全な狩り場で鍛えてから向かう
+                if (danger > 0.15 && player.level < 30) {
+                    const best = bestHuntingSpot();
+                    if (best) {
+                        autoPilot.grindUntil = Math.max(player.level + 1, levelForPath(path));
+                        autoPilot.relocated = 0;   // 鍛え直しのたびに移動回数はリセット
+                        autoPilot.spot = { x: best.x, y: best.y };
+                        autoPilot.path = findPath(playerPosition, best);
+                        autoPilot.goal = 'かりばへ もどる';
+                        document.getElementById('message').textContent =
+                            `オート：${q.name}への みちが あぶない（${Math.round(danger*100)}%）　Lv${autoPilot.grindUntil}まで きたえます`;
+                        return;
+                    }
+                }
+                autoPilot.path = path;
+                autoPilot.goal = 'もくてきちへ';
+                autoPilot.spot = { x: q.x, y: q.y };
+                document.getElementById('message').textContent =
+                    `オート：${q.name}へ（${path ? path.length : 0}ほ）`;
             }
         }
         if (autoPilot.goldGoal && player.gold >= autoPilot.goldGoal) {
-            autoStop(`${autoPilot.goldGoalName}が かえる`);
-            return;
+            const shop = autoPilot.goldGoalTown;
+            const atShop = shop && playerPosition.x === shop.x && playerPosition.y === shop.y;
+            // 貯まったら、その装備を売っている町まで歩いてから止まる
+            if (shop && !atShop) {
+                if (autoPilot.goal !== 'みせへ') {
+                    autoPilot.path = findPath(playerPosition, shop);
+                    autoPilot.goal = 'みせへ';
+                    autoPilot.spot = { x: shop.x, y: shop.y };
+                    document.getElementById('message').textContent =
+                        `オート：${autoPilot.goldGoalName}を かいに ${shop.name}へ（${autoPilot.path ? autoPilot.path.length : 0}ほ）`;
+                }
+                // ここでは止めず、下の経路追従に任せて歩かせる
+            } else {
+                autoStop(`${autoPilot.goldGoalName}を かえます`);
+                return;
+            }
         }
         if (player.level >= autoPilot.targetLevel) { autoStop('もくひょうに とうたつ'); return; }
     }
@@ -1154,9 +1377,17 @@ function autoTick(now) {
             autoPilot.goal = null;
             return;
         }
+        if (autoPilot.goal === 'かいものへ') {
+            autoBusy = true;
+            autoPilot.shoppedGold = player.gold;
+            autoPilot.grindUntil = 0;      // 装備が変わるので必要レベルを測り直す
+            Promise.resolve(autoShop(autoPilot.shopKey)).then(() => { autoBusy = false; });
+            autoPilot.goal = null;
+            return;
+        }
         autoPilot.goal = null;
         autoPilot.home = { ...playerPosition };
-        return;
+        return;   // 次のフレームで目的地判定が走る
     }
 
     // HPが半分を切ったら休む。回復呪文を1回も唱えられないほどMPが尽きたときも休む。

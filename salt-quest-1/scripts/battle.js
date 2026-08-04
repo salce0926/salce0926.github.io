@@ -61,6 +61,9 @@ async function beginBattleSequence(enemyDef) {
     }
     battleCursor = 0;
     battleStateMode = 'COMMAND';
+    // 前の戦闘を倒した瞬間や逃げた直後は明滅の残りが消化されずに残るため、
+    // ここで戻さないと次の敵が出てきた瞬間から赤く点滅する
+    enemyFlash = 0;
     player.asleep = 0;      // 眠り・呪文封じは戦闘ごとに解ける
     player.sealed = false;
     await showMessage([`${enemy.name}が あらわれた！`]);
