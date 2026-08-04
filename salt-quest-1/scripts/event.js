@@ -947,7 +947,10 @@ function bestHuntingSpot(opt) {
         }, null);
         const mid = { x: Math.round((inn.x + spot.x) / 2), y: Math.round((inn.y + spot.y) / 2) };
         const trip = [zoneAt(inn.x, inn.y), zoneAt(mid.x, mid.y)];
-        if (dangerAtLevel(trip, player.level) > 0.15) continue;
+        if (dangerAtLevel(trip, player.level) > 0.05) continue;
+        // そこへ辿り着くまでの道も見る。行き帰りで死んでいては意味がない
+        const approach = findPath(playerPosition, spot);
+        if (!approach || pathRisk(approach) > 0.2) continue;
         const set = zoneEnemySets[spot.zone].map(i => enemyTable[i]);
         let dead = 0, exp = 0;
         const N = 150;
@@ -1025,16 +1028,24 @@ function dangerAtLevel(zones, lv) {
     }
     return worst;
 }
-function pathDanger(path) {
+// 道中で何回くらい戦うことになるか（遭遇率はおおむね1/16〜1/24なので20歩に1回）
+function battlesOnPath(path) { return Math.max(1, Math.round(path.length / 20)); }
+
+// 「1戦あたりの死亡率」で道中の安全を判断してはいけない。
+// 200歩の道なら10回前後戦うので、1戦15%でも通り抜けられる確率は2割しかない。
+// 道中ぜんぶを無事に抜けられる確率で見る
+function pathRisk(path, lv) {
     if (!path || !path.length) return 0;
-    return dangerAtLevel(pathZones(path), player.level);
+    const d = dangerAtLevel(pathZones(path), lv === undefined ? player.level : lv);
+    return 1 - Math.pow(1 - d, battlesOnPath(path));
 }
+function pathDanger(path) { return pathRisk(path); }
+
 // 道中を安全に通れるようになる最小レベル。+2ずつ刻むと何度も往復するので直接求める
 function levelForPath(path) {
     if (!path || !path.length) return player.level;
-    const zones = pathZones(path);
     for (let lv = player.level; lv <= 30; lv++) {
-        if (dangerAtLevel(zones, lv) <= 0.15) return lv;
+        if (pathRisk(path, lv) <= 0.2) return lv;   // 8割方 無事に抜けられるレベル
     }
     return 30;
 }
@@ -1111,14 +1122,22 @@ async function autoStart() {
     autoPilot.lastLine = '';
 }
 
-// 一番近い宿を「歩いた歩数」で選ぶ。直線距離だと海を挟んだ町を選んでしまう
+// 宿は「歩数」だけでなく「道中の危険度」も見て選ぶ。
+// 近くても強いゾーンを突っ切る道だと、休みに行く途中で全滅する
 function nearestInn() {
-    let best = null;
+    const cands = [];
     for (const s of INN_SPOTS) {
         const path = findPath(playerPosition, s);
-        if (path && (!best || path.length < best.path.length)) best = { ...s, path };
+        if (!path) continue;
+        cands.push({ ...s, path, danger: pathRisk(path) });
     }
-    return best;
+    if (!cands.length) return null;
+    const safe = cands.filter(c => c.danger <= 0.1);
+    const pool = safe.length ? safe : cands;
+    // 危険が同程度なら近いほうを選ぶ。安全な道が無ければ一番マシな道を選ぶ
+    pool.sort((a, b) => safe.length ? a.path.length - b.path.length
+                                    : (a.danger - b.danger) || (a.path.length - b.path.length));
+    return pool[0];
 }
 
 // その町で買える中で一番強い装備を買う。値段も下取りも本編の店と同じ計算にする
