@@ -800,6 +800,8 @@ function simulateBattle(st, e0, startHp, startMp) {
     let mp = startMp === undefined ? st.mp : startMp;
     let asleep = 0, sealed = false, turns = 0;
     const foeTurn = () => {
+        // 本家の逃走規則。これが無いと実際より危険に見積もってしまう
+        if (e.attack <= (st.str || 0) * 2 && Math.random() < 0.25) return 'fled';
         const pat = e.pattern || ['attack'];
         let act = pat[Math.floor(Math.random() * pat.length)];
         if (['gira','begirama','hoimi','rarihoo','mahotone'].includes(act) && sealed) act = 'attack';
@@ -814,7 +816,9 @@ function simulateBattle(st, e0, startHp, startMp) {
         else if (act === 'mahotone') sealed = true;
         else hp -= calcEnemyDamage(e.attack, st.def);
     };
-    if (st.agi * Math.floor(Math.random() * 256) < e.defense * Math.floor(Math.random() * 64)) foeTurn();
+    if (st.agi * Math.floor(Math.random() * 256) < e.defense * Math.floor(Math.random() * 64)) {
+        if (foeTurn() === 'fled') return { r: 'fled', hp, mp };
+    }
     while (turns++ < 120) {
         if (hp <= 0) return { r: 'lose', hp: 0, mp };
         if (asleep > 0) asleep--;
@@ -837,7 +841,7 @@ function simulateBattle(st, e0, startHp, startMp) {
             }
         }
         if (e.hp <= 0) return { r: 'win', hp, mp };
-        foeTurn();
+        if (foeTurn() === 'fled') return { r: 'fled', hp, mp };
     }
     return { r: 'draw', hp, mp };
 }
@@ -851,7 +855,7 @@ function recommendedLevel(x, y) {
             atk: s.strength + weapons[player.weaponIndex].power,
             def: Math.floor(s.agility / 2) + armors[player.armorIndex].power
                + shields[player.shieldIndex].power + (player.scale ? 2 : 0),
-            hp: s.hp, mp: s.mp, agi: s.agility,
+            hp: s.hp, mp: s.mp, agi: s.agility, str: s.strength,
             spells: playerStatus.filter(p => p.level <= lv && p.spell !== '-').map(p => p.spell)
         };
         let dead = 0;
@@ -929,7 +933,7 @@ function bestHuntingSpot(opt) {
     const key = (x, y) => y * mapWidth + x;
     const st = {
         atk: player.attack, def: player.defense, hp: player.maxHp, mp: player.maxMp,
-        agi: player.agility, spells: player.spells
+        agi: player.agility, str: player.strength, spells: player.spells
     };
     let best = null;
     for (const spot of huntingSpots()) {
@@ -955,7 +959,7 @@ function bestHuntingSpot(opt) {
             const e = set[Math.floor(Math.random() * set.length)];
             const r = simulateBattle(st, e, hp, mp);
             if (r.r === 'lose') { dead++; hp = st.hp; mp = st.mp; }
-            else { hp = r.hp; mp = r.mp; exp += e.exp; }
+            else { hp = r.hp; mp = r.mp; if (r.r === 'win') exp += e.exp; }
         }
         const death = dead / N;
         if (death > maxDeath) continue;
@@ -994,7 +998,7 @@ function statsAtLevel(lv) {
         atk: s.strength + weapons[player.weaponIndex].power,
         def: Math.floor(s.agility / 2) + armors[player.armorIndex].power
            + shields[player.shieldIndex].power + (player.scale ? 2 : 0),
-        hp: s.hp, mp: s.mp, agi: s.agility,
+        hp: s.hp, mp: s.mp, agi: s.agility, str: s.strength,
         spells: playerStatus.filter(p => p.level <= lv && p.spell !== '-').map(p => p.spell)
     };
 }
