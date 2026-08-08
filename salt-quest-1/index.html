@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SaltQuestⅠ</title>
-    <link rel="stylesheet" href="styles/style.css?v=8">
+    <link rel="stylesheet" href="styles/style.css?v=10">
 </head>
 <body>
     <div id="buttonContainer">
         <a href="../index.html" class="link">Return to main page</a>
-        <a onclick="location.reload()" class="link">Play Again</a>
+        <a onclick="if(confirm('さいしょから やりなおしますか？\nいまの ぼうけんは きえます'))location.reload()" class="link">Play Again</a>
     </div>
     <canvas id="canvas"></canvas>
     <div id="game-info">
@@ -32,10 +32,10 @@
         <button id="btnAuto" class="pk" data-key="a" aria-label="オートレベルあげ">AUTO</button>
     </div>
     <!-- 更新時は ?v= を上げるとキャッシュが確実に飛ぶ -->
-    <script src="scripts/mapdata.js?v=79"></script>
-    <script src="scripts/data.js?v=79"></script>
-    <script src="scripts/system.js?v=79"></script>
-    <script src="scripts/battle.js?v=79"></script>
-    <script src="scripts/event.js?v=79"></script>
+    <script src="scripts/mapdata.js?v=83"></script>
+    <script src="scripts/data.js?v=83"></script>
+    <script src="scripts/system.js?v=83"></script>
+    <script src="scripts/battle.js?v=83"></script>
+    <script src="scripts/event.js?v=83"></script>
 </body>
 </html>

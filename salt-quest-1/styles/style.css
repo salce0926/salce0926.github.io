@@ -20,10 +20,11 @@ canvas {
     display: block;
     border: 2px solid #555;
     box-sizing: border-box;   /* 枠線ぶんで画面幅を超えないように */
-    /* 横向きでも画面からはみ出さないよう、高さからも上限をかける
-       （150pxはボタン列とメッセージ欄のぶん） */
-    width: min(100%, 384px, calc(100vh - 150px));
-    width: min(100%, 384px, calc(100dvh - 150px));
+    /* 画面からはみ出さないよう高さからも上限をかける。
+       縦向きは リンク列57 + メッセージ欄64 + 操作パネル160 ＝ 約290px を空ける
+       （横向きは操作パネルが固定配置で場所を取らないので下の @media で緩める） */
+    width: min(100%, 384px, calc(100vh - 300px));
+    width: min(100%, 384px, calc(100dvh - 300px));
     height: auto;
     touch-action: none;             /* スクロール・ズームにタッチを取られない */
     -webkit-touch-callout: none;    /* 長押しでiOSのメニューが出ないように */
@@ -122,24 +123,47 @@ body.touch #pad {
     flex: none;
 }
 #btnB { width: 64px; height: 64px; font-size: 20px; background: #cfcfcf; }
-/* 開発用のAUTOキー。誤爆しないよう小さく、十字キーとABの間に置く */
+/* 開発用のAUTOキー。操作パネルの並びに入れると十字キーとABを押し出して
+   すき間が無くなり誤爆するので、画面の隅に固定して並びから外す */
 #btnAuto {
-    position: static;
-    width: 54px;
-    height: 34px;
+    position: fixed;
+    right: 6px;
+    top: 6px;
+    width: 48px;
+    height: 30px;
     border-radius: 6px;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: bold;
     letter-spacing: 1px;
     background: #b8c8a8;
     border-color: #6a7a5a;
-    align-self: flex-end;
-    margin-bottom: 8px;
+    opacity: 0.55;
+    z-index: 10;
+    margin: 0;
     flex: none;
 }
 /* 横向きは縦の余白が無い代わりに左右が大きく空くので、
    パネルを流し込みから外して画面の左右下に固定する */
+/* 横幅の狭い端末は操作パネルを一回り小さくする。
+   そのままだと十字キーとABがぶつかってすき間が無くなり、押し間違える */
+@media (max-width: 359px) {
+    #dpad { width: 120px; height: 120px; }
+    .pk { width: 40px; height: 40px; }
+    .pk.up { left: 40px; top: 0; }
+    .pk.left { left: 0; top: 40px; }
+    .pk.right { left: 80px; top: 40px; }
+    .pk.down { left: 40px; top: 80px; }
+    #btnA { width: 64px; height: 64px; font-size: 20px; }
+    #btnB { width: 54px; height: 54px; font-size: 17px; }
+    body.touch #pad { padding: 4px 10px 8px; }
+    #abGroup { gap: 8px; }
+}
+
 @media (orientation: landscape) {
+    canvas {
+        width: min(100%, 384px, calc(100vh - 140px));
+        width: min(100%, 384px, calc(100dvh - 140px));
+    }
     body.touch #pad {
         position: fixed;
         inset: 0;
@@ -170,11 +194,5 @@ body.touch #pad {
     }
     #btnA, #btnB { width: 68px; height: 68px; font-size: 20px; }
     #btnB { width: 56px; height: 56px; font-size: 18px; }
-    body.touch #btnAuto {
-        position: fixed;
-        right: 18px;
-        top: 14px;
-        pointer-events: auto;
-        margin: 0;
-    }
+    body.touch #btnAuto { pointer-events: auto; }
 }

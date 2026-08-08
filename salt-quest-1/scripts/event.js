@@ -55,7 +55,7 @@ async function interactField() {
     } else if (isVisit(gameFlags.sunStone.location.x, gameFlags.sunStone.location.y)) {
         await showMessage(['ここはラダトームの城だ']);
         if(getGameFlag('lightBall')){
-            await showMessage(['王様「勇者よ！よくぞりゅうおうを倒してくれた！', '　　　わしに代わってこの国を治めてくれい！　　」']);
+            await showMessage(['王様「勇者よ！', '　　　よくぞ りゅうおうを 倒してくれた！', '　　　わしに代わって この国を 治めよ」']);
             await showMessage(['しかし あなたは いいました（←！？）']);
             await showMessage(['勇者「自分の治める国があるなら', '　　　それは自分で探したいのです」']);
             await showMessage(['ローラ姫「私も連れて行ってください！」', 'ローラ姫は 返事も聞かずに隣に立った！']);
@@ -159,7 +159,7 @@ async function interactField() {
                 await showMessage(['老人「勇者だと？嘘をつくな！」']);
                 await showMessage(['老人「もし本物の勇者なら', '　　　どこかにしるしがあるはずじゃ！」']);
             }else{
-                await showMessage(['老人「しるしを持っているな！本物の勇者じゃ」']);
+                await showMessage(['老人「しるしを持っているな！', '　　　本物の勇者じゃ」']);
                 await showMessage(['老人「太陽と雨雲が揃ったとき', '　　　虹の橋が架かるとの言い伝えじゃ！」']);
             }
         }else{
@@ -543,20 +543,21 @@ function isMoveAllowed(x, y) {
 }
 
 function updateField() {
-    if (Input.consume('d')) { debugMode = !debugMode; }
-    if (Input.consume('l')) { // デバッグ: 1レベル上げてHP/MP全快
-        const next = playerStatus.find(s => s.level === player.level + 1);
-        if (next) {
-            player.exp = Math.max(player.exp, next.requiredExp);
-            updatePlayerLevel();
-            player.hp = player.maxHp; player.mp = player.maxMp;
+    // 開発用キー（d=すり抜け l=レベルアップ b=エンカウント）。?dev=1 のときだけ効く
+    if (devMode) {
+        if (Input.consume('d')) { debugMode = !debugMode; }
+        if (Input.consume('l')) {
+            const next = playerStatus.find(s => s.level === player.level + 1);
+            if (next) {
+                player.exp = Math.max(player.exp, next.requiredExp);
+                updatePlayerLevel();
+                player.hp = player.maxHp; player.mp = player.maxMp;
+            }
         }
-    }
-
-    // Bキーでエンカウントテスト（その場のゾーンの敵が出る）
-    if (Input.consume('b')) {
-        startBattle(pickFieldEnemy(playerPosition.x, playerPosition.y));
-        return;
+        if (Input.consume('b')) {
+            startBattle(pickFieldEnemy(playerPosition.x, playerPosition.y));
+            return;
+        }
     }
 
     if (Input.consume(' ')) {

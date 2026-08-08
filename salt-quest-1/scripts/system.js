@@ -32,6 +32,26 @@ let currentState = STATE.FIELD;
 let debugMode = false;
 
 // =====================================================================
+// 開発者モード
+// URLに ?dev=1 を付けて開くと有効になり、その端末では覚えておく（?dev=0 で解除）。
+// 普通に開いた人にはAUTOボタンも開発用キーも存在しない
+// =====================================================================
+const devMode = (() => {
+    let on = false;
+    try {
+        const q = new URLSearchParams(location.search).get('dev');
+        if (q === '1') localStorage.setItem('sq1dev', '1');
+        if (q === '0') localStorage.removeItem('sq1dev');
+        on = localStorage.getItem('sq1dev') === '1';
+    } catch (e) { /* localStorageが使えない環境では常にoff */ }
+    return on;
+})();
+if (!devMode) {
+    const btn = document.getElementById('btnAuto');
+    if (btn) btn.remove();
+}
+
+// =====================================================================
 // 入力バッファシステム
 // =====================================================================
 const ARROW_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
@@ -405,8 +425,8 @@ function gameLoop(timestamp) {
     }
 
     // オートパイロットは通常の入力と同じ経路でキーを押す（本当に「操作されている」）
-    if (typeof autoTick === 'function') autoTick(timestamp);
-    if (Input.consume('a')) {
+    if (devMode && typeof autoTick === 'function') autoTick(timestamp);
+    if (devMode && Input.consume('a')) {
         // 始めた直後の押し込みで即中止にならないようにする（AUTOを連打しがちなので）
         if (autoPilot.on) {
             if (timestamp - autoPilot.startedAt > 1500) autoStop('じぶんで とめた');
