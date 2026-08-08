@@ -716,6 +716,9 @@ const INN_SPOTS = [   // 宿のある町。自動休憩はここへ運んで sta
 // 幅優先探索で歩ける道をたどる。マップは端がつながっているので modAdd で回り込む。
 // 本土と南の陸地(リムルダール側)は洞窟のワープでしかつながっていないので、
 // そこだけは「歩く」ではなく「その場でAを押す」移動として経路に組み込む
+// オートの慎重さ。SPOT=狩り場の1戦あたり死亡率の上限、PATH=道中で
+// 死なずに通り抜けられなくなる確率の上限。上げるほど危険を承知で先へ進む
+let RISK_SPOT = 0.05, RISK_PATH = 0.20;
 const DIR_DELTA = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
 const WARPS = [ [{ x: 112, y: 52 }, { x: 112, y: 57 }], [{ x: 112, y: 57 }, { x: 112, y: 52 }] ];
 function warpFrom(x, y) {
@@ -929,7 +932,7 @@ function huntingSpots() {
 // 死亡率が高い所は経験値が多くても除く（全滅すると所持金半分＋やり直しで結局遅い）
 function bestHuntingSpot(opt) {
     const avoidZone = opt && opt.avoidZone !== undefined ? opt.avoidZone : null;
-    const maxDeath  = opt && opt.maxDeath  !== undefined ? opt.maxDeath  : 0.05;
+    const maxDeath  = opt && opt.maxDeath  !== undefined ? opt.maxDeath  : RISK_SPOT;
     const reach = reachableSet();
     const key = (x, y) => y * mapWidth + x;
     const st = {
@@ -948,10 +951,10 @@ function bestHuntingSpot(opt) {
         }, null);
         const mid = { x: Math.round((inn.x + spot.x) / 2), y: Math.round((inn.y + spot.y) / 2) };
         const trip = [zoneAt(inn.x, inn.y), zoneAt(mid.x, mid.y)];
-        if (dangerAtLevel(trip, player.level) > 0.05) continue;
+        if (dangerAtLevel(trip, player.level) > RISK_SPOT) continue;
         // そこへ辿り着くまでの道も見る。行き帰りで死んでいては意味がない
         const approach = findPath(playerPosition, spot);
-        if (!approach || pathRisk(approach) > 0.2) continue;
+        if (!approach || pathRisk(approach) > RISK_PATH) continue;
         const set = zoneEnemySets[spot.zone].map(i => enemyTable[i]);
         let dead = 0, exp = 0;
         const N = 150;
@@ -1046,7 +1049,7 @@ function pathDanger(path) { return pathRisk(path); }
 function levelForPath(path) {
     if (!path || !path.length) return player.level;
     for (let lv = player.level; lv <= 30; lv++) {
-        if (pathRisk(path, lv) <= 0.2) return lv;   // 8割方 無事に抜けられるレベル
+        if (pathRisk(path, lv) <= RISK_PATH) return lv;
     }
     return 30;
 }
@@ -1369,7 +1372,7 @@ function autoTick(now) {
                 const path = findPath(playerPosition, q);
                 const danger = pathDanger(path);
                 // 道中で死にまくる強さなら、先に安全な狩り場で鍛えてから向かう
-                if (danger > 0.15 && player.level < 30) {
+                if (danger > RISK_PATH && player.level < 30) {
                     const best = bestHuntingSpot();
                     if (best) {
                         autoPilot.grindUntil = Math.max(player.level + 1, levelForPath(path));

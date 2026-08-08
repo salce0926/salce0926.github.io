@@ -313,6 +313,9 @@ let currentMessage = [];
 
 function showMessage(textLines) {
     currentMessage = textLines;
+    // オート中は1フレームで流れて読めないので、待たずに先へ進む。
+    // 待ち時間が消えるぶん戦闘そのものも速くなる
+    if (typeof autoPilot !== 'undefined' && autoPilot.on) return Promise.resolve();
     currentState = STATE.MESSAGE;
     return new Promise(resolve => { messageResolver = resolve; });
 }
