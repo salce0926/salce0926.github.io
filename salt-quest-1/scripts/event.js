@@ -534,6 +534,16 @@ function drawMenu() {
 // フィールド移動とデバッグ操作
 // =====================================================================
 // 移動は時間基準(ms)。フレームレート(60Hz/120Hz)に依存しない
+// 本家: まほうのよろいは4歩ごと、ロトのよろいは1歩ごとにHPが1回復する
+let walkSteps = 0;
+function healWhileWalking() {
+    const name = armors[player.armorIndex] ? armors[player.armorIndex].name : '';
+    const every = name === 'ロトのよろい' ? 1 : name === 'まほうのよろい' ? 4 : 0;
+    if (!every || player.hp >= player.maxHp) return;
+    walkSteps++;
+    if (walkSteps % every === 0) player.hp = Math.min(player.maxHp, player.hp + 1);
+}
+
 let MOVE_INTERVAL = 150;          // 1歩あたりのミリ秒
 const MOVE_INTERVAL_NORMAL = 150;
 const MOVE_INTERVAL_AUTO = 0;     // オート中は毎フレーム1歩（開発用なので待たせない）
@@ -583,11 +593,13 @@ function updateField() {
                 playerPosition.x = nx;
                 playerPosition.y = ny;
                 if (repelSteps > 0) repelSteps--; // トヘロスは128歩で切れる
+                healWhileWalking();
                 // ランダムエンカウント（デバッグモード中は発生しない）
                 if (!debugMode && checkEncounter(nx, ny)) {
                     const foe = pickFieldEnemy(nx, ny);
-                    // トヘロス効果中は勇者の守備力より攻撃力が低い敵を避ける(本家仕様)
-                    if (!(repelSteps > 0 && foe.attack < player.defense)) {
+                    // 本家: 敵攻撃力/2 ≧ 敵攻撃力 － 勇者の守備力/2 を満たす敵は出ない
+                    // （整理すると 勇者の守備力 ≧ 敵の攻撃力）
+                    if (!(repelSteps > 0 && player.defense >= foe.attack)) {
                         startBattle(foe);
                         return;
                     }
@@ -808,16 +820,27 @@ function simulateBattle(st, e0, startHp, startMp) {
     const foeTurn = () => {
         // 本家の逃走規則。これが無いと実際より危険に見積もってしまう
         if (!e.noFlee && st.atk >= e.attack * 2 && Math.random() < 0.25) return 'fled';
-        const pat = e.pattern || ['attack'];
-        let act = pat[Math.floor(Math.random() * pat.length)];
-        if (['gira','begirama','hoimi','rarihoo','mahotone'].includes(act) && sealed) act = 'attack';
-        if (act === 'rarihoo' && asleep > 0) act = 'attack';
-        if (act === 'hoimi' && e.hp > e.maxHp * 0.6) act = 'attack';
+        // 行動決定も本家と同じ手順（補助呪文 → 攻撃呪文 → たたかう）
+        const acts = e.acts || {};
+        let act = 'attack';
+        const sup = acts.support;
+        if (sup && !e.sealed && Math.random() < sup.p) {
+            const heal = (sup.spell === 'hoimi' || sup.spell === 'behoimi');
+            const blocked = (heal && e.hp > e.maxHp / 4)
+                         || (sup.spell === 'rarihoo' && asleep > 0)
+                         || (sup.spell === 'mahotone' && sealed);
+            if (!blocked) act = sup.spell;
+        }
+        if (act === 'attack' && acts.attack && Math.random() < acts.attack.p) {
+            const isSpell = (acts.attack.spell === 'gira' || acts.attack.spell === 'begirama');
+            if (!(isSpell && e.sealed)) act = acts.attack.spell;
+        }
         if (act === 'gira') hp -= magic(randRange(3, 10));
         else if (act === 'begirama') hp -= magic(randRange(30, 45));
         else if (act === 'fire') hp -= magic(randRange(16, 23));
         else if (act === 'firestrong') hp -= magic(randRange(65, 72));
         else if (act === 'hoimi') e.hp = Math.min(e.maxHp, e.hp + randRange(20, 27));
+        else if (act === 'behoimi') e.hp = Math.min(e.maxHp, e.hp + randRange(85, 100));
         else if (act === 'rarihoo') asleep = randRange(2, 4);
         else if (act === 'mahotone') sealed = true;
         else hp -= calcEnemyDamage(e.attack, st.def);

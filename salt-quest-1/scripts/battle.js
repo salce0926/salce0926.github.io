@@ -242,29 +242,45 @@ async function checkEnemySurvival() {
 }
 
 // 呪文・炎のダメージは まほうのよろい / ロトのよろい で2/3に軽減される（本家仕様）
+// 本家: まほうのよろいは「呪文ダメージ」だけ2/3、ロトのよろいは「呪文と炎」を2/3
 function mitigateMagic(damage) {
     const name = armors[player.armorIndex] ? armors[player.armorIndex].name : '';
     if (name === 'まほうのよろい' || name === 'ロトのよろい') return Math.floor(damage * 2 / 3);
     return damage;
 }
+function mitigateFire(damage) {
+    const name = armors[player.armorIndex] ? armors[player.armorIndex].name : '';
+    if (name === 'ロトのよろい') return Math.floor(damage * 2 / 3);
+    return damage;
+}
 function randRange(lo, hi) { return lo + Math.floor(Math.random() * (hi - lo + 1)); }
 
 // 敵がこのターン何をするか決める。封じられていれば呪文は選ばない
+// 本家の行動決定手順。上から順に判定し、決まらなければ次へ落ちる
+//   1. 逃げる → 2. 補助呪文(ホイミ/ベホイミ/ラリホー/マホトーン) → 3. 攻撃呪文 → 4. たたかう
+// 確率は敵ごとに 1/4・2/4・3/4 が決まっている
 function pickEnemyAction() {
     // 本家仕様: 勇者のこうげき力が敵のこうげき力の2倍以上なら、毎ターン1/4で逃げる。
-    // HPは関係ない。メタルスライム(攻10)が捕まらないのはこの規則のため。
-    // この条件だと りゅうおう(攻140)やあくまのきし(攻94)は最大攻撃力180でも
-    // 逃げないので、ボスが勝手に逃げる問題も式のうえで起こらない
+    // HPは関係ない。メタルスライム(攻10)が捕まらないのはこの規則のため
     if (!enemy.noFlee && player.attack >= enemy.attack * 2 && Math.random() < 0.25) return 'flee';
-    const pattern = enemy.pattern || ['attack'];
-    let action = pattern[Math.floor(Math.random() * pattern.length)];
-    const isSpell = ['gira', 'begirama', 'hoimi', 'rarihoo', 'mahotone'].includes(action);
-    if (isSpell && enemy.sealed) return 'attack';
-    // 本家: 敵のHPが最大の1/4を超えているときはホイミ・ベホイミを使わない
-    if (action === 'hoimi' && enemy.hp > enemy.maxHp / 4) return 'attack';
-    if (action === 'rarihoo' && player.asleep > 0) return 'attack';
-    if (action === 'mahotone' && player.sealed) return 'attack';
-    return action;
+
+    const acts = enemy.acts || {};
+    const sup = acts.support;
+    if (sup && !enemy.sealed && Math.random() < sup.p) {
+        // 唱えようとしても、条件を満たさなければ「行動が決まらなかった」ことになり次へ落ちる
+        const heal = (sup.spell === 'hoimi' || sup.spell === 'behoimi');
+        const blocked = (heal && enemy.hp > enemy.maxHp / 4)
+                     || (sup.spell === 'rarihoo' && player.asleep > 0)
+                     || (sup.spell === 'mahotone' && player.sealed);
+        if (!blocked) return sup.spell;
+    }
+    const atk = acts.attack;
+    if (atk && Math.random() < atk.p) {
+        // 炎は呪文ではないのでマホトーンで封じられない
+        const isSpell = (atk.spell === 'gira' || atk.spell === 'begirama');
+        if (!(isSpell && enemy.sealed)) return atk.spell;
+    }
+    return 'attack';
 }
 
 async function executeEnemyTurn() {
@@ -292,15 +308,21 @@ async function executeEnemyTurn() {
             await showMessage([`${enemy.name}は ベギラマを となえた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
             break;
         case 'fire':
-            damage = mitigateMagic(randRange(16, 23));
+            damage = mitigateFire(randRange(16, 23));
             player.hp -= damage;
             await showMessage([`${enemy.name}は ほのおを はいた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
             break;
         case 'firestrong':
-            damage = mitigateMagic(randRange(65, 72));
+            damage = mitigateFire(randRange(65, 72));
             player.hp -= damage;
             await showMessage([`${enemy.name}は はげしい ほのおを はいた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
             break;
+        case 'behoimi': {
+            const heal = randRange(85, 100);
+            enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal);
+            await showMessage([`${enemy.name}は ベホイミを となえた！`, `${enemy.name}の きずが かいふくした！`]);
+            break;
+        }
         case 'hoimi': {
             const heal = randRange(20, 27);
             enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal);
@@ -308,21 +330,20 @@ async function executeEnemyTurn() {
             break;
         }
         case 'rarihoo':
+            // 本家: 敵のラリホーは必ず成功する（ロトのよろいでも防げない）
             await showMessage([`${enemy.name}は ラリホーを となえた！`]);
-            if (armors[player.armorIndex] && armors[player.armorIndex].name === 'ロトのよろい') {
-                await showMessage(['しかし ロトのよろいが ひかり', 'ねむけを はねかえした！']);
-            } else {
-                player.asleep = randRange(2, 4);
-                await showMessage([`${player.name}は ねむって しまった！`]);
-            }
+            player.asleep = randRange(2, 4);
+            await showMessage([`${player.name}は ねむって しまった！`]);
             break;
         case 'mahotone':
             await showMessage([`${enemy.name}は マホトーンを となえた！`]);
             if (armors[player.armorIndex] && armors[player.armorIndex].name === 'ロトのよろい') {
                 await showMessage(['しかし ロトのよろいが ひかり', 'じゅもんを まもった！']);
-            } else {
+            } else if (Math.random() < 0.5) {   // 本家: 成功率50%
                 player.sealed = true;
                 await showMessage([`${player.name}の じゅもんが`, 'ふうじこめられた！']);
+            } else {
+                await showMessage([`しかし ${player.name}には`, 'きかなかった！']);
             }
             break;
         default:
