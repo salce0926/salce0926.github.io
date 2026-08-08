@@ -135,7 +135,9 @@ async function interactField() {
         if(!getGameFlag('rotoArmor')){
             await showMessage(['ここはドムドーラの町だった', '今は はいきょと なってしまっている...']);
             await showMessage(['よろいを まもるように', 'あくまのきし が たちはだかった！']);
-            const result = await startBattle(enemyTable.find(e => e.name === 'あくまのきし'));
+            // 門番として出すぶんは逃げないようにする（逃げられると戦わずに よろいが手に入る）
+            const guard = { ...enemyTable.find(e => e.name === 'あくまのきし'), noFlee: true };
+            const result = await startBattle(guard);
             if (result === 'win') {
                 setGameFlag('rotoArmor');
                 player.armorIndex = armors.findIndex(a => a.name === 'ロトのよろい');

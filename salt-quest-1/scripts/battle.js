@@ -251,7 +251,9 @@ function pickEnemyAction() {
     // 本家仕様: 敵の力が勇者の力の2倍以下なら、HPに関係なく毎ターン1/4で逃げる。
     // 「手負いになったら逃げる」ではない。メタルスライムが捕まらないのはこの規則のため
     // （出典の「力」を ちから と読んだ。こうげき力で見ると逃げる敵が増えすぎる）
-    if (enemy.attack <= player.strength * 2 && Math.random() < 0.25) return 'flee';
+    // ただしボスは逃げない。逃げられると「勝った」ことになって、戦わずに
+    // ロトのよろいやひかりのたまが手に入ってしまう
+    if (!enemy.noFlee && enemy.attack <= player.strength * 2 && Math.random() < 0.25) return 'flee';
     const pattern = enemy.pattern || ['attack'];
     let action = pattern[Math.floor(Math.random() * pattern.length)];
     const isSpell = ['gira', 'begirama', 'hoimi', 'rarihoo', 'mahotone'].includes(action);

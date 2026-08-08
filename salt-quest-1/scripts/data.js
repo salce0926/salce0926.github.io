@@ -161,14 +161,14 @@ let enemy = { ...enemyTable[0] };
 // ボス（ランダムエンカウントには出さない）。noCriticalは会心の一撃が通らない印
 const dragonLordDragon = {
     name: 'りゅうおう', hp: 130, maxHp: 130, attack: 140, defense: 200, agility: 200,
-    exp: 0, gold: 0, noCritical: true,
+    exp: 0, gold: 0, noCritical: true, noFlee: true,
     pattern: ['attack', 'attack', 'firestrong'],
     sprite: { x: 66, y: 550, w: 68, h: 88 }, hit: { x: 141, y: 548, w: 73, h: 91 },
     resist: { rariho: 15, mahoton: 15, gira: 15 }
 };
 const dragonLordHuman = {
     name: 'りゅうおう', hp: 100, maxHp: 100, attack: 90, defense: 50, agility: 50,
-    exp: 0, gold: 0, noCritical: true,
+    exp: 0, gold: 0, noCritical: true, noFlee: true,
     pattern: ['attack', 'begirama', 'rarihoo'],
     sprite: { x: 6, y: 601, w: 22, h: 38 }, hit: { x: 35, y: 601, w: 27, h: 38 },
     resist: { rariho: 15, mahoton: 15, gira: 15 },
