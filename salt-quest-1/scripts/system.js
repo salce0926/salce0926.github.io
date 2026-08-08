@@ -33,23 +33,48 @@ let debugMode = false;
 
 // =====================================================================
 // 開発者モード
-// URLに ?dev=1 を付けて開くと有効になり、その端末では覚えておく（?dev=0 で解除）。
-// 普通に開いた人にはAUTOボタンも開発用キーも存在しない
+// 画面下のメッセージ欄を3秒以内に7回タップすると切り替わる（端末に記憶する）。
+// 普通に遊ぶ人にはAUTOボタンも開発用キーも存在しない
 // =====================================================================
-const devMode = (() => {
-    let on = false;
-    try {
-        const q = new URLSearchParams(location.search).get('dev');
-        if (q === '1') localStorage.setItem('sq1dev', '1');
-        if (q === '0') localStorage.removeItem('sq1dev');
-        on = localStorage.getItem('sq1dev') === '1';
-    } catch (e) { /* localStorageが使えない環境では常にoff */ }
-    return on;
-})();
-if (!devMode) {
-    const btn = document.getElementById('btnAuto');
-    if (btn) btn.remove();
+const DEV_TAPS = 7, DEV_TAP_WINDOW = 3000;
+let devMode = false;
+try { devMode = localStorage.getItem('sq1dev') === '1'; } catch (e) { /* 使えない環境ではoff */ }
+
+function setDevMode(on) {
+    devMode = on;
+    try { on ? localStorage.setItem('sq1dev', '1') : localStorage.removeItem('sq1dev'); } catch (e) {}
+    const exist = document.getElementById('btnAuto');
+    if (on && !exist) {
+        const b = document.createElement('button');
+        b.id = 'btnAuto'; b.className = 'pk'; b.dataset.key = 'a';
+        b.setAttribute('aria-label', 'オートレベルあげ');
+        b.textContent = 'AUTO';
+        document.getElementById('game-info').appendChild(b);   // 操作パネルの並びを崩さない
+        bindPadKey(b);
+    } else if (!on && exist) {
+        exist.remove();
+    }
+    const msg = document.getElementById('message');
+    if (msg) msg.textContent = on ? 'かいはつモード ON（AUTOボタンが つかえます）'
+                                  : 'かいはつモード OFF';
 }
+
+// メッセージ欄の連打で切り替える。ゲーム操作には使わない場所なので誤爆しにくい
+let devTaps = [];
+function setupDevToggle() {
+    const area = document.getElementById('game-info');
+    if (!area) return;
+    area.addEventListener('pointerdown', () => {
+        const now = Date.now();
+        devTaps = devTaps.filter(t => now - t < DEV_TAP_WINDOW);
+        devTaps.push(now);
+        if (devTaps.length >= DEV_TAPS) { devTaps = []; setDevMode(!devMode); }
+    });
+    if (devMode) setDevMode(true);   // 記憶していたらボタンを出す
+}
+// このスクリプトはbody末尾で読まれるので、すでに描き終わっている場合にも備える
+if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', setupDevToggle);
+else setupDevToggle();
 
 // =====================================================================
 // 入力バッファシステム
@@ -143,8 +168,8 @@ const endCanvasTouch = e => {
 canvas.addEventListener('touchend', endCanvasTouch, { passive: false });
 canvas.addEventListener('touchcancel', endCanvasTouch);
 
-// 十字キーとAボタン
-document.querySelectorAll('#pad .pk').forEach(btn => {
+// 十字キーとAボタン（あとから足すAUTOボタンにも同じ処理を使う）
+function bindPadKey(btn) {
     const key = btn.dataset.key;
     const down = e => {
         e.preventDefault();
@@ -162,7 +187,8 @@ document.querySelectorAll('#pad .pk').forEach(btn => {
     btn.addEventListener('pointercancel', up);
     btn.addEventListener('pointerleave', up);
     btn.addEventListener('contextmenu', e => e.preventDefault());
-});
+}
+document.querySelectorAll('#pad .pk').forEach(bindPadKey);
 
 // =====================================================================
 // 汎用ユーティリティ

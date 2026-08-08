@@ -38,6 +38,7 @@ canvas {
     box-sizing: border-box;
 }
 #game-info {
+    position: relative;   /* 開発用AUTOキーをこの中の右上に置く */
     padding: 10px;
     background-color: rgba(255, 255, 255, 0.8);
     border-radius: 5px;
@@ -124,20 +125,21 @@ body.touch #pad {
 }
 #btnB { width: 64px; height: 64px; font-size: 20px; background: #cfcfcf; }
 /* 開発用のAUTOキー。操作パネルの並びに入れると十字キーとABを押し出して
-   すき間が無くなり誤爆するので、画面の隅に固定して並びから外す */
+   すき間が無くなり誤爆する。画面の隅だと上のリンクとぶつかるので、
+   ゲーム操作に使わないメッセージ欄の右上に重ねる */
 #btnAuto {
-    position: fixed;
+    position: absolute;
     right: 6px;
     top: 6px;
-    width: 48px;
-    height: 30px;
+    width: 46px;
+    height: 26px;
     border-radius: 6px;
     font-size: 10px;
     font-weight: bold;
     letter-spacing: 1px;
     background: #b8c8a8;
     border-color: #6a7a5a;
-    opacity: 0.55;
+    opacity: 0.5;
     z-index: 10;
     margin: 0;
     flex: none;
@@ -194,5 +196,5 @@ body.touch #pad {
     }
     #btnA, #btnB { width: 68px; height: 68px; font-size: 20px; }
     #btnB { width: 56px; height: 56px; font-size: 18px; }
-    body.touch #btnAuto { pointer-events: auto; }
+
 }
