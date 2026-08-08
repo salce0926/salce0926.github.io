@@ -56,7 +56,9 @@ async function beginBattleSequence(enemyDef) {
     enemy = { ...enemyDef };
     // 本家同様、敵のHPは図鑑値の75〜100%でばらつく（毎回きっちり満タンではない）
     if (!enemy.noCritical) {
-        enemy.maxHp = Math.max(1, Math.floor(enemy.maxHp * (0.75 + Math.random() * 0.25)));
+        // 本家: 現在HP = 最大HP － [最大HP×乱数(0〜255)÷1024]（＝75〜100%）
+        const drop = Math.floor(enemy.maxHp * Math.floor(Math.random() * 256) / 1024);
+        enemy.maxHp = Math.max(1, enemy.maxHp - drop);
         enemy.hp = enemy.maxHp;
     }
     battleCursor = 0;
@@ -67,10 +69,9 @@ async function beginBattleSequence(enemyDef) {
     player.asleep = 0;      // 眠り・呪文封じは戦闘ごとに解ける
     player.sealed = false;
     await showMessage([`${enemy.name}が あらわれた！`]);
-    // 先制判定: すばやさ勝負に負けると敵に先に殴られる
-    const heroRoll = player.agility * Math.floor(Math.random() * 256);
-    const foeRoll = enemy.defense * Math.floor(Math.random() * 64);
-    if (heroRoll < foeRoll) {
+    // 先制判定（本家の式）: すばやさ×4 ÷ (すばやさ×4 + 敵のすばやさ) で勇者が先手
+    const a4 = player.agility * 4;
+    if (Math.random() >= a4 / (a4 + (enemy.agility || enemy.defense || 1))) {
         await showMessage([`${enemy.name}の きゅうしゅう！`]);
         await executeEnemyTurn();
     } else {
@@ -128,7 +129,7 @@ async function executeBattleTurn() {
     } else if (battleCursor === 2) { // どうぐ（やくそう）
         if (player.herb > 0) {
             player.herb--;
-            const heal = 25 + Math.floor(Math.random() * 10);
+            const heal = randRange(23, 30);   // 本家は23〜30
             player.hp = Math.min(player.maxHp, player.hp + heal);
             await showMessage([`${player.name}は やくそうを つかった！`, `HPが ${heal} かいふくした！`]);
             await executeEnemyTurn();
@@ -138,8 +139,10 @@ async function executeBattleTurn() {
         }
 
     } else if (battleCursor === 3) { // にげる
-        // 敏捷性による逃走確率の判定
-        const escapeChance = player.agility >= enemy.agility ? 0.75 : 0.5;
+        // 本家の逃走成功確率。敵ごとに逃げにくさが4段階ある（escapeRank）
+        const A = player.agility, B = enemy.agility || enemy.defense || 1;
+        const k = [4, 8 / 3, 2, 1][enemy.escapeRank || 0];
+        const escapeChance = (A * k) / (A * k + B);
         if (Math.random() < escapeChance) {
             await showMessage([`${player.name}は にげだした！`]);
             endBattle('flee');
@@ -157,8 +160,8 @@ async function executeSpellTurn(spellName) {
     // 呪文の性能定義(MP消費・回復量は本家DQ1準拠)
     if (spellName === 'ホイミ') { mpCost = 4; heal = 10 + Math.floor(Math.random() * 8); }
     else if (spellName === 'ベホイミ') { mpCost = 10; heal = 85 + Math.floor(Math.random() * 16); }
-    else if (spellName === 'ギラ') { mpCost = 2; damage = 10 + Math.floor(Math.random() * 6); }
-    else if (spellName === 'ベギラマ') { mpCost = 5; damage = 35 + Math.floor(Math.random() * 15); }
+    else if (spellName === 'ギラ') { mpCost = 2; damage = randRange(5, 12); }
+    else if (spellName === 'ベギラマ') { mpCost = 5; damage = randRange(58, 65); }
     else if (spellName === 'ラリホー') { mpCost = 2; }
     else if (spellName === 'マホトーン') { mpCost = 2; }
 
@@ -248,17 +251,17 @@ function randRange(lo, hi) { return lo + Math.floor(Math.random() * (hi - lo + 1
 
 // 敵がこのターン何をするか決める。封じられていれば呪文は選ばない
 function pickEnemyAction() {
-    // 本家仕様: 敵の力が勇者の力の2倍以下なら、HPに関係なく毎ターン1/4で逃げる。
-    // 「手負いになったら逃げる」ではない。メタルスライムが捕まらないのはこの規則のため
-    // （出典の「力」を ちから と読んだ。こうげき力で見ると逃げる敵が増えすぎる）
-    // ただしボスは逃げない。逃げられると「勝った」ことになって、戦わずに
-    // ロトのよろいやひかりのたまが手に入ってしまう
-    if (!enemy.noFlee && enemy.attack <= player.strength * 2 && Math.random() < 0.25) return 'flee';
+    // 本家仕様: 勇者のこうげき力が敵のこうげき力の2倍以上なら、毎ターン1/4で逃げる。
+    // HPは関係ない。メタルスライム(攻10)が捕まらないのはこの規則のため。
+    // この条件だと りゅうおう(攻140)やあくまのきし(攻94)は最大攻撃力180でも
+    // 逃げないので、ボスが勝手に逃げる問題も式のうえで起こらない
+    if (!enemy.noFlee && player.attack >= enemy.attack * 2 && Math.random() < 0.25) return 'flee';
     const pattern = enemy.pattern || ['attack'];
     let action = pattern[Math.floor(Math.random() * pattern.length)];
     const isSpell = ['gira', 'begirama', 'hoimi', 'rarihoo', 'mahotone'].includes(action);
     if (isSpell && enemy.sealed) return 'attack';
-    if (action === 'hoimi' && enemy.hp > enemy.maxHp * 0.6) return 'attack';
+    // 本家: 敵のHPが最大の1/4を超えているときはホイミ・ベホイミを使わない
+    if (action === 'hoimi' && enemy.hp > enemy.maxHp / 4) return 'attack';
     if (action === 'rarihoo' && player.asleep > 0) return 'attack';
     if (action === 'mahotone' && player.sealed) return 'attack';
     return action;
@@ -299,7 +302,7 @@ async function executeEnemyTurn() {
             await showMessage([`${enemy.name}は はげしい ほのおを はいた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
             break;
         case 'hoimi': {
-            const heal = randRange(20, 30);
+            const heal = randRange(20, 27);
             enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal);
             await showMessage([`${enemy.name}は ホイミを となえた！`, `${enemy.name}の きずが かいふくした！`]);
             break;

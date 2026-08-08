@@ -807,7 +807,7 @@ function simulateBattle(st, e0, startHp, startMp) {
     let asleep = 0, sealed = false, turns = 0;
     const foeTurn = () => {
         // 本家の逃走規則。これが無いと実際より危険に見積もってしまう
-        if (e.attack <= (st.str || 0) * 2 && Math.random() < 0.25) return 'fled';
+        if (!e.noFlee && st.atk >= e.attack * 2 && Math.random() < 0.25) return 'fled';
         const pat = e.pattern || ['attack'];
         let act = pat[Math.floor(Math.random() * pat.length)];
         if (['gira','begirama','hoimi','rarihoo','mahotone'].includes(act) && sealed) act = 'attack';
@@ -817,12 +817,13 @@ function simulateBattle(st, e0, startHp, startMp) {
         else if (act === 'begirama') hp -= magic(randRange(30, 45));
         else if (act === 'fire') hp -= magic(randRange(16, 23));
         else if (act === 'firestrong') hp -= magic(randRange(65, 72));
-        else if (act === 'hoimi') e.hp = Math.min(e.maxHp, e.hp + randRange(20, 30));
+        else if (act === 'hoimi') e.hp = Math.min(e.maxHp, e.hp + randRange(20, 27));
         else if (act === 'rarihoo') asleep = randRange(2, 4);
         else if (act === 'mahotone') sealed = true;
         else hp -= calcEnemyDamage(e.attack, st.def);
     };
-    if (st.agi * Math.floor(Math.random() * 256) < e.defense * Math.floor(Math.random() * 64)) {
+    const a4 = st.agi * 4;
+    if (Math.random() >= a4 / (a4 + (e.agility || e.defense || 1))) {
         if (foeTurn() === 'fled') return { r: 'fled', hp, mp };
     }
     while (turns++ < 120) {
@@ -839,8 +840,8 @@ function simulateBattle(st, e0, startHp, startMp) {
                       && GIRA_AVG * giraHit > phys * 1.3;
             if (beho) { mp -= 10; hp = Math.min(st.hp, hp + randRange(85, 100)); }
             else if (hoi) { mp -= 4; hp = Math.min(st.hp, hp + randRange(10, 17)); }
-            else if (begi) { mp -= 5; if (Math.random() < giraHit) e.hp -= randRange(35, 49); }
-            else if (gira) { mp -= 2; if (Math.random() < giraHit) e.hp -= randRange(10, 15); }
+            else if (begi) { mp -= 5; if (Math.random() < giraHit) e.hp -= randRange(58, 65); }
+            else if (gira) { mp -= 2; if (Math.random() < giraHit) e.hp -= randRange(5, 12); }
             else if (Math.floor(Math.random() * 64) >= (e.evasion || 0)) {
                 const c = !e.noCritical && Math.floor(Math.random() * 32) === 0;
                 e.hp -= c ? calcCritical(st.atk) : calcDamage(st.atk, e.defense);
@@ -1209,7 +1210,7 @@ async function autoCheckIn(inn) {
 
 // 戦闘中の判断。回復・逃走・攻撃を選ぶ
 // 呪文の平均ダメージ（守備力を無視するので、硬い相手ほど殴るより効く）
-const GIRA_AVG = (10 + 15) / 2, BEGIRAMA_AVG = (35 + 49) / 2;
+const GIRA_AVG = (5 + 12) / 2, BEGIRAMA_AVG = (58 + 65) / 2;   // 本家の威力
 // 殴ったときの1発あたりの期待ダメージ
 function expectedHit(attack, defense) {
     const base = attack - Math.floor(defense / 2);

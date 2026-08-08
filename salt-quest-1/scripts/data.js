@@ -116,11 +116,11 @@ const enemyTable = [
     // --- まほうつかい系 ---
     { name: 'まほうつかい',   hp: 13,  maxHp: 13,  attack: 11,  defense: 12,  agility: 12,  evasion: 1,  exp: 4,   gold: 12,  sprite: { x: 6,   y: 107, w: 36, h: 35 }, hit: { x: 120, y: 107, w: 36, h: 35 }, resist: { rariho: 0, mahoton: 0, gira: 0 }, pattern: ['attack', 'gira', 'gira'] },
     { name: 'まどうし',       hp: 30,  maxHp: 30,  attack: 28,  defense: 22,  agility: 22,  evasion: 2,  exp: 13,  gold: 35,  sprite: { x: 44,  y: 105, w: 36, h: 37 }, hit: { x: 158, y: 105, w: 36, h: 37 }, resist: { rariho: 3, mahoton: 1, gira: 0 }, pattern: ['attack', 'gira', 'rarihoo'] },
-    { name: 'だいまどう',     hp: 65,  maxHp: 65,  attack: 80,  defense: 70,  agility: 70,  evasion: 2,  exp: 50,  gold: 165, sprite: { x: 82,  y: 105, w: 36, h: 37 }, hit: { x: 158, y: 105, w: 36, h: 37 }, resist: { rariho: 15, mahoton: 7, gira: 15 }, pattern: ['attack', 'begirama', 'begirama'] },
+    { name: 'だいまどう',     hp: 65,  maxHp: 65,  attack: 80,  defense: 70,  agility: 70,  evasion: 2,  exp: 50,  gold: 165, sprite: { x: 82,  y: 105, w: 36, h: 37 }, hit: { x: 158, y: 105, w: 36, h: 37 }, resist: { rariho: 15, mahoton: 7, gira: 15 }, escapeRank: 2, pattern: ['attack', 'begirama', 'begirama'] },
     // --- さそり系 ---
     { name: 'おおさそり',     hp: 20,  maxHp: 20,  attack: 18,  defense: 16,  agility: 16,  evasion: 1,  exp: 6,   gold: 16,  sprite: { x: 6,   y: 145, w: 41, h: 32 }, hit: { x: 135, y: 145, w: 41, h: 32 }, resist: { rariho: 0, mahoton: 15, gira: 0 } },
     { name: 'てつさそり',     hp: 22,  maxHp: 22,  attack: 36,  defense: 42,  agility: 42,  evasion: 2,  exp: 14,  gold: 40,  sprite: { x: 49,  y: 145, w: 41, h: 32 }, hit: { x: 135, y: 145, w: 41, h: 32 }, resist: { rariho: 0, mahoton: 15, gira: 0 } },
-    { name: 'しのさそり',     hp: 35,  maxHp: 35,  attack: 60,  defense: 90,  agility: 90,  evasion: 2,  exp: 26,  gold: 110, sprite: { x: 92,  y: 145, w: 41, h: 32 }, hit: { x: 135, y: 145, w: 41, h: 32 }, resist: { rariho: 7, mahoton: 15, gira: 0 } },
+    { name: 'しのさそり',     hp: 35,  maxHp: 35,  attack: 60,  defense: 90,  agility: 90,  evasion: 2,  exp: 26,  gold: 110, sprite: { x: 92,  y: 145, w: 41, h: 32 }, hit: { x: 135, y: 145, w: 41, h: 32 }, resist: { rariho: 7, mahoton: 15, gira: 0 }, escapeRank: 1 },
     // --- メーダ系 ---
     { name: 'メーダ',         hp: 22,  maxHp: 22,  attack: 20,  defense: 18,  agility: 18,  evasion: 2,  exp: 7,   gold: 16,  sprite: { x: 6,   y: 180, w: 36, h: 29 }, hit: { x: 82, y: 180, w: 36, h: 29 }, resist: { rariho: 0, mahoton: 15, gira: 0 } },
     { name: 'メーダロード',   hp: 35,  maxHp: 35,  attack: 47,  defense: 40,  agility: 40,  evasion: 4,  exp: 20,  gold: 85,  sprite: { x: 44,  y: 180, w: 36, h: 29 }, hit: { x: 82, y: 180, w: 36, h: 29 }, resist: { rariho: 15, mahoton: 0, gira: 0 }, pattern: ['attack', 'gira', 'hoimi'] },
@@ -130,28 +130,28 @@ const enemyTable = [
     // --- がいこつ系 ---
     { name: 'がいこつ',       hp: 30,  maxHp: 30,  attack: 28,  defense: 22,  agility: 22,  evasion: 4,  exp: 11,  gold: 30,  sprite: { x: 6,   y: 251, w: 32, h: 47 }, hit: { x: 146, y: 251, w: 32, h: 47 }, resist: { rariho: 0, mahoton: 15, gira: 0 } },
     { name: 'しりょう',       hp: 36,  maxHp: 36,  attack: 44,  defense: 34,  agility: 34,  evasion: 4,  exp: 17,  gold: 60,  sprite: { x: 40,  y: 251, w: 32, h: 47 }, hit: { x: 146, y: 251, w: 32, h: 47 }, resist: { rariho: 7, mahoton: 0, gira: 0 }, pattern: ['attack', 'attack', 'hoimi'] },
-    { name: 'しりょうのきし', hp: 46,  maxHp: 46,  attack: 68,  defense: 56,  agility: 56,  evasion: 4,  exp: 28,  gold: 120, sprite: { x: 74,  y: 251, w: 32, h: 47 }, hit: { x: 214, y: 251, w: 34, h: 47 }, resist: { rariho: 5, mahoton: 0, gira: 3 }, pattern: ['attack', 'attack', 'hoimi'] },
+    { name: 'しりょうのきし', hp: 46,  maxHp: 46,  attack: 68,  defense: 56,  agility: 56,  evasion: 4,  exp: 28,  gold: 120, sprite: { x: 74,  y: 251, w: 32, h: 47 }, hit: { x: 214, y: 251, w: 34, h: 47 }, resist: { rariho: 5, mahoton: 0, gira: 3 }, escapeRank: 1, pattern: ['attack', 'attack', 'hoimi'] },
     // --- リカント系 ---
     { name: 'リカント',       hp: 34,  maxHp: 34,  attack: 40,  defense: 30,  agility: 30,  evasion: 2,  exp: 16,  gold: 50,  sprite: { x: 6,   y: 301, w: 44, h: 42 }, hit: { x: 144, y: 301, w: 44, h: 42 }, resist: { rariho: 1, mahoton: 15, gira: 0 }, pattern: ['attack', 'attack', 'rarihoo'] },
     { name: 'リカントマムル', hp: 38,  maxHp: 38,  attack: 50,  defense: 36,  agility: 36,  evasion: 2,  exp: 20,  gold: 80,  sprite: { x: 52,  y: 301, w: 44, h: 42 }, hit: { x: 144, y: 301, w: 44, h: 42 }, resist: { rariho: 4, mahoton: 7, gira: 0 }, pattern: ['attack', 'attack', 'mahotone'] },
-    { name: 'キラーリカント', hp: 60,  maxHp: 60,  attack: 86,  defense: 70,  agility: 70,  evasion: 7,  exp: 40,  gold: 155, sprite: { x: 98,  y: 301, w: 44, h: 42 }, hit: { x: 144, y: 301, w: 44, h: 42 }, resist: { rariho: 7, mahoton: 15, gira: 0 } },
+    { name: 'キラーリカント', hp: 60,  maxHp: 60,  attack: 86,  defense: 70,  agility: 70,  evasion: 7,  exp: 40,  gold: 155, sprite: { x: 98,  y: 301, w: 44, h: 42 }, hit: { x: 144, y: 301, w: 44, h: 42 }, resist: { rariho: 7, mahoton: 15, gira: 0 }, escapeRank: 1 },
     // --- キメラ系 ---
-    { name: 'キメラ',         hp: 42,  maxHp: 42,  attack: 56,  defense: 48,  agility: 48,  evasion: 2,  exp: 24,  gold: 100, sprite: { x: 6,   y: 346, w: 36, h: 34 }, hit: { x: 123, y: 346, w: 37, h: 34 }, resist: { rariho: 4, mahoton: 15, gira: 0 } },
-    { name: 'メイジキメラ',   hp: 58,  maxHp: 58,  attack: 78,  defense: 68,  agility: 68,  evasion: 2,  exp: 34,  gold: 140, sprite: { x: 45,  y: 346, w: 37, h: 34 }, hit: { x: 123, y: 346, w: 37, h: 34 }, resist: { rariho: 2, mahoton: 0, gira: 0 }, pattern: ['attack', 'attack', 'rarihoo'] },
-    { name: 'スターキメラ',   hp: 65,  maxHp: 65,  attack: 86,  defense: 80,  agility: 80,  evasion: 2,  exp: 43,  gold: 160, sprite: { x: 85,  y: 346, w: 36, h: 34 }, hit: { x: 123, y: 346, w: 37, h: 34 }, resist: { rariho: 8, mahoton: 0, gira: 1 }, pattern: ['attack', 'fire', 'hoimi'] },
+    { name: 'キメラ',         hp: 42,  maxHp: 42,  attack: 56,  defense: 48,  agility: 48,  evasion: 2,  exp: 24,  gold: 100, sprite: { x: 6,   y: 346, w: 36, h: 34 }, hit: { x: 123, y: 346, w: 37, h: 34 }, resist: { rariho: 4, mahoton: 15, gira: 0 }, escapeRank: 1 },
+    { name: 'メイジキメラ',   hp: 58,  maxHp: 58,  attack: 78,  defense: 68,  agility: 68,  evasion: 2,  exp: 34,  gold: 140, sprite: { x: 45,  y: 346, w: 37, h: 34 }, hit: { x: 123, y: 346, w: 37, h: 34 }, resist: { rariho: 2, mahoton: 0, gira: 0 }, escapeRank: 1, pattern: ['attack', 'attack', 'rarihoo'] },
+    { name: 'スターキメラ',   hp: 65,  maxHp: 65,  attack: 86,  defense: 80,  agility: 80,  evasion: 2,  exp: 43,  gold: 160, sprite: { x: 85,  y: 346, w: 36, h: 34 }, hit: { x: 123, y: 346, w: 37, h: 34 }, resist: { rariho: 8, mahoton: 0, gira: 1 }, escapeRank: 2, pattern: ['attack', 'fire', 'hoimi'] },
     // --- きし系 ---
-    { name: 'よろいのきし',   hp: 55,  maxHp: 55,  attack: 76,  defense: 78,  agility: 78,  evasion: 1,  exp: 33,  gold: 130, sprite: { x: 6,   y: 405, w: 48, h: 46 }, hit: { x: 160, y: 405, w: 48, h: 46 }, resist: { rariho: 6, mahoton: 7, gira: 0 }, pattern: ['attack', 'attack', 'mahotone'] },
-    { name: 'かげのきし',     hp: 50,  maxHp: 50,  attack: 79,  defense: 64,  agility: 64,  evasion: 15, exp: 37,  gold: 150, sprite: { x: 56,  y: 401, w: 48, h: 50 }, hit: { x: 210, y: 399, w: 50, h: 52 }, resist: { rariho: 15, mahoton: 15, gira: 15 } },
-    { name: 'あくまのきし',   hp: 70,  maxHp: 70,  attack: 94,  defense: 82,  agility: 82,  evasion: 1,  exp: 54,  gold: 165, sprite: { x: 108, y: 399, w: 50, h: 52 }, hit: { x: 262, y: 399, w: 50, h: 52 }, resist: { rariho: 15, mahoton: 3, gira: 1 }, pattern: ['attack', 'attack', 'rarihoo'] },
-    { name: 'しにがみのきし', hp: 90,  maxHp: 90,  attack: 105, defense: 86,  agility: 86,  evasion: 2,  exp: 70,  gold: 140, sprite: { x: 108, y: 399, w: 50, h: 52 }, hit: { x: 262, y: 399, w: 50, h: 52 }, resist: { rariho: 15, mahoton: 7, gira: 1 }, pattern: ['attack', 'begirama', 'hoimi'] },
+    { name: 'よろいのきし',   hp: 55,  maxHp: 55,  attack: 76,  defense: 78,  agility: 78,  evasion: 1,  exp: 33,  gold: 130, sprite: { x: 6,   y: 405, w: 48, h: 46 }, hit: { x: 160, y: 405, w: 48, h: 46 }, resist: { rariho: 6, mahoton: 7, gira: 0 }, escapeRank: 1, pattern: ['attack', 'attack', 'mahotone'] },
+    { name: 'かげのきし',     hp: 50,  maxHp: 50,  attack: 79,  defense: 64,  agility: 64,  evasion: 15, exp: 37,  gold: 150, sprite: { x: 56,  y: 401, w: 48, h: 50 }, hit: { x: 210, y: 399, w: 50, h: 52 }, resist: { rariho: 15, mahoton: 15, gira: 15 }, escapeRank: 1 },
+    { name: 'あくまのきし',   hp: 70,  maxHp: 70,  attack: 94,  defense: 82,  agility: 82,  evasion: 1,  exp: 54,  gold: 165, sprite: { x: 108, y: 399, w: 50, h: 52 }, hit: { x: 262, y: 399, w: 50, h: 52 }, resist: { rariho: 15, mahoton: 3, gira: 1 }, escapeRank: 2, pattern: ['attack', 'attack', 'rarihoo'] },
+    { name: 'しにがみのきし', hp: 90,  maxHp: 90,  attack: 105, defense: 86,  agility: 86,  evasion: 2,  exp: 70,  gold: 140, sprite: { x: 108, y: 399, w: 50, h: 52 }, hit: { x: 262, y: 399, w: 50, h: 52 }, resist: { rariho: 15, mahoton: 7, gira: 1 }, escapeRank: 3, pattern: ['attack', 'begirama', 'hoimi'] },
     // --- ゴーレム系 ---
-    { name: 'ゴールドマン',   hp: 50,  maxHp: 50,  attack: 48,  defense: 40,  agility: 40,  evasion: 1,  exp: 6,   gold: 200, sprite: { x: 6,   y: 454, w: 47, h: 47 }, hit: { x: 153, y: 454, w: 47, h: 47 }, resist: { rariho: 13, mahoton: 15, gira: 0 } },
-    { name: 'ストーンマン',   hp: 160, maxHp: 160, attack: 100, defense: 40,  agility: 40,  evasion: 1,  exp: 65,  gold: 140, sprite: { x: 55,  y: 454, w: 47, h: 47 }, hit: { x: 153, y: 454, w: 47, h: 47 }, resist: { rariho: 2, mahoton: 15, gira: 7 } },
-    { name: 'ゴーレム',       hp: 70,  maxHp: 70,  attack: 120, defense: 60,  agility: 60,  evasion: 0,  exp: 5,   gold: 10,  sprite: { x: 104, y: 454, w: 47, h: 47 }, hit: { x: 153, y: 454, w: 47, h: 47 }, resist: { rariho: 15, mahoton: 15, gira: 15 } },
+    { name: 'ゴールドマン',   hp: 50,  maxHp: 50,  attack: 48,  defense: 40,  agility: 40,  evasion: 1,  exp: 6,   gold: 200, sprite: { x: 6,   y: 454, w: 47, h: 47 }, hit: { x: 153, y: 454, w: 47, h: 47 }, resist: { rariho: 13, mahoton: 15, gira: 0 }, escapeRank: 1 },
+    { name: 'ストーンマン',   hp: 160, maxHp: 160, attack: 100, defense: 40,  agility: 40,  evasion: 1,  exp: 65,  gold: 140, sprite: { x: 55,  y: 454, w: 47, h: 47 }, hit: { x: 153, y: 454, w: 47, h: 47 }, resist: { rariho: 2, mahoton: 15, gira: 7 }, escapeRank: 2 },
+    { name: 'ゴーレム',       hp: 70,  maxHp: 70,  attack: 120, defense: 60,  agility: 60,  evasion: 0,  exp: 5,   gold: 10,  sprite: { x: 104, y: 454, w: 47, h: 47 }, hit: { x: 153, y: 454, w: 47, h: 47 }, resist: { rariho: 15, mahoton: 15, gira: 15 }, escapeRank: 1 },
     // --- ドラゴン系 ---
-    { name: 'ドラゴン',       hp: 65,  maxHp: 65,  attack: 88,  defense: 74,  agility: 74,  evasion: 2,  exp: 45,  gold: 160, sprite: { x: 6,   y: 507, w: 47, h: 38 }, hit: { x: 179, y: 507, w: 47, h: 38 }, resist: { rariho: 7, mahoton: 15, gira: 2 }, pattern: ['attack', 'attack', 'fire'] },
-    { name: 'キースドラゴン', hp: 70,  maxHp: 70,  attack: 98,  defense: 84,  agility: 84,  evasion: 2,  exp: 60,  gold: 150, sprite: { x: 55,  y: 504, w: 60, h: 41 }, hit: { x: 228, y: 504, w: 47, h: 38 }, resist: { rariho: 15, mahoton: 15, gira: 7 }, pattern: ['attack', 'attack', 'fire'] },
-    { name: 'ダースドラゴン', hp: 100, maxHp: 100, attack: 120, defense: 90,  agility: 90,  evasion: 2,  exp: 100, gold: 140, sprite: { x: 117, y: 504, w: 60, h: 41 }, hit: { x: 228, y: 504, w: 47, h: 38 }, resist: { rariho: 15, mahoton: 7, gira: 15 }, pattern: ['attack', 'fire', 'rarihoo'] }
+    { name: 'ドラゴン',       hp: 65,  maxHp: 65,  attack: 88,  defense: 74,  agility: 74,  evasion: 2,  exp: 45,  gold: 160, sprite: { x: 6,   y: 507, w: 47, h: 38 }, hit: { x: 179, y: 507, w: 47, h: 38 }, resist: { rariho: 7, mahoton: 15, gira: 2 }, escapeRank: 1, pattern: ['attack', 'attack', 'fire'] },
+    { name: 'キースドラゴン', hp: 70,  maxHp: 70,  attack: 98,  defense: 84,  agility: 84,  evasion: 2,  exp: 60,  gold: 150, sprite: { x: 55,  y: 504, w: 60, h: 41 }, hit: { x: 228, y: 504, w: 47, h: 38 }, resist: { rariho: 15, mahoton: 15, gira: 7 }, escapeRank: 2, pattern: ['attack', 'attack', 'fire'] },
+    { name: 'ダースドラゴン', hp: 100, maxHp: 100, attack: 120, defense: 90,  agility: 90,  evasion: 2,  exp: 100, gold: 140, sprite: { x: 117, y: 504, w: 60, h: 41 }, hit: { x: 228, y: 504, w: 47, h: 38 }, resist: { rariho: 15, mahoton: 7, gira: 15 }, escapeRank: 3, pattern: ['attack', 'fire', 'rarihoo'] }
 ];
 // 名前から引くための索引（ゾーン表を名前で書けるようにする）
 const enemyByName = {};
@@ -161,14 +161,14 @@ let enemy = { ...enemyTable[0] };
 // ボス（ランダムエンカウントには出さない）。noCriticalは会心の一撃が通らない印
 const dragonLordDragon = {
     name: 'りゅうおう', hp: 130, maxHp: 130, attack: 140, defense: 200, agility: 200,
-    exp: 0, gold: 0, noCritical: true, noFlee: true,
+    exp: 0, gold: 0, noCritical: true, noFlee: true, escapeRank: 3,
     pattern: ['attack', 'attack', 'firestrong'],
     sprite: { x: 66, y: 550, w: 68, h: 88 }, hit: { x: 141, y: 548, w: 73, h: 91 },
     resist: { rariho: 15, mahoton: 15, gira: 15 }
 };
 const dragonLordHuman = {
     name: 'りゅうおう', hp: 100, maxHp: 100, attack: 90, defense: 50, agility: 50,
-    exp: 0, gold: 0, noCritical: true, noFlee: true,
+    exp: 0, gold: 0, noCritical: true, noFlee: true, escapeRank: 3,
     pattern: ['attack', 'begirama', 'rarihoo'],
     sprite: { x: 6, y: 601, w: 22, h: 38 }, hit: { x: 35, y: 601, w: 27, h: 38 },
     resist: { rariho: 15, mahoton: 15, gira: 15 },
