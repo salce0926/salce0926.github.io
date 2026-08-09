@@ -1,14 +1,15 @@
 // =====================================================================
 // フィールドロジックと全イベント
 // =====================================================================
-function isVisit(x, y) { return playerPosition.x === x && playerPosition.y === y; }
+// 地上のイベント地点かどうか。ダンジョンでは座標がぶつかっても発動させない
+function isVisit(x, y) { return !inDungeon() && playerPosition.x === x && playerPosition.y === y; }
 
 // 本家同様、やられると所持金が半分になる
 function playerKilled(){
     const lost = player.gold - Math.floor(player.gold / 2);
     player.gold -= lost;
     // 本家同様、王様のもとに運ばれてHPもMPも全快する（眠り・封じも解ける）
-    playerPosition.x = 51; playerPosition.y = 51;
+    if (inDungeon()) leaveDungeon(51, 51); else { playerPosition.x = 51; playerPosition.y = 51; }
     player.hp = player.maxHp; player.mp = player.maxMp;
     player.asleep = 0; player.sealed = false;
     // オート中は城送りになっても、狩っていた場所へ戻して続行する（開発用）
@@ -27,8 +28,54 @@ function playerKilled(){
     return lost;
 }
 
+// 足元の宝箱を開ける（本家どおり、宝箱の上で しらべる）
+async function openChestHere() {
+    const id = chestHere();
+    if (!id) return false;
+    openedChests.add(currentMapId + ':' + id);
+    const got = CHEST_TABLE[id]();
+    if (got.gold) {
+        player.gold = Math.min(65535, player.gold + got.gold);
+        await showMessage(['たからばこを あけた！', `${got.gold} ゴールドを てにいれた！`]);
+    } else if (got.tool) {
+        const max = got.tool === 'herb' ? HERB_MAX : ITEM_MAX;
+        if (player[got.tool] >= max) await showMessage(['たからばこを あけた！', `しかし ${got.name}は もう もてない`]);
+        else {
+            player[got.tool]++;
+            await showMessage(['たからばこを あけた！', `${got.name}を てにいれた！`]);
+        }
+    } else {
+        if (getGameFlag(got.flag)) await showMessage(['たからばこを あけた！', 'しかし からっぽだった']);
+        else {
+            setGameFlag(got.flag); addItemToPlayer(got.item);
+            await showMessage(['たからばこを あけた！', `${got.item}を てにいれた！`]);
+        }
+    }
+    currentState = STATE.FIELD;
+    return true;
+}
+
+// 階段・洞窟の出入口。本家FC版は「かいだん」コマンドで昇り降りするので、
+// 乗っただけでは移動せず、しらべたときに移動する
+async function useStairsHere() {
+    if (inDungeon()) {
+        if (!useStairs(playerPosition.x, playerPosition.y)) return false;
+        const d = currentDungeon();
+        await showMessage(d ? [`${d.name} ${d.floorName}`] : ['どうくつの そとに でた']);
+    } else {
+        if (!enterDungeonAt(playerPosition.x, playerPosition.y)) return false;
+        const d = currentDungeon();
+        await showMessage([`${d.name} ${d.floorName}`, 'あたりは まっくらだ...']);
+    }
+    currentState = STATE.FIELD;
+    return true;
+}
+
 async function interactField() {
     let handled = true;
+
+    if (await openChestHere()) return;
+    if (await useStairsHere()) return;
 
     if (isVisit(gameFlags.fairyFlute.location.x, gameFlags.fairyFlute.location.y)) {
         if(!getGameFlag('fairyFlute')){
@@ -54,6 +101,11 @@ async function interactField() {
         }else await showMessage(['ここはリムルダールの町だ']);
         await offerTown('リムルダールの町', townShops.rimuldar);
     } else if (isVisit(gameFlags.sunStone.location.x, gameFlags.sunStone.location.y)) {
+        // 本家: 呪われていると門番に追い返される＝王様に会えない＝記録もできない
+        if (getGameFlag('cursed')) {
+            await showMessage(['へいし「のろわれし ものよ でていけっ！」']);
+            await showMessage(['（ラダトームの まちで のろいを', '　といて もらうしか なさそうだ）']);
+        } else {
         await showMessage(['ここはラダトームの城だ']);
         if(getGameFlag('lightBall')){
             await showMessage(['王様「勇者よ！', '　　　よくぞ りゅうおうを 倒してくれた！', '　　　わしに代わって この国を 治めよ」']);
@@ -89,6 +141,7 @@ async function interactField() {
                 }
             }
             await offerRecord();
+        }
         }
     } else if (isVisit(gameFlags.silverHerp.location.x, gameFlags.silverHerp.location.y)) {
         if(!getGameFlag('silverHerp')){
@@ -216,6 +269,14 @@ async function interactField() {
         }
     } else if (isVisit(56, 49)) {
         await showMessage(['ここは ラダトームの町だ', 'みせと やどやが ならんでいる']);
+        // 本家: 町の東の家で、ただで呪いを解いてくれる（呪いの品は消えてなくなる）
+        if (getGameFlag('cursed')) {
+            await showMessage(['ひがしの いえの ろうじん', '「おお なんという のろいじゃ！」']);
+            await showMessage(['ろうじん「わしが といてしんぜよう」']);
+            clearGameFlag('cursed');
+            if (getGameFlag('deathNecklace')) setGameFlag('necklaceGone');
+            await showMessage(['のろいが とけた！', 'のろいの しなは きえてしまった...']);
+        }
         await offerTown('ラダトームの町', townShops.radatome);
     } else {
         handled = false;
@@ -276,12 +337,15 @@ async function offerRecord() {
 // 品揃えはFC版DQ1の各町の店に合わせている
 // =====================================================================
 const townShops = {
-    // 品揃え・宿代は本家FC版の店データどおり。たいまつだけはダンジョン未実装のため置いていない
-    radatome:   { inn: 6,   tools: ['herb', 'scale', 'key'],   weapons: [1, 2, 3],          armors: [1, 2],       shieldList: [1] },
-    garai:      { inn: 25,  tools: ['herb', 'scale'],          weapons: [2, 3, 4],          armors: [2, 3, 4],    shieldList: [2] },
-    maira:      { inn: 20,  tools: ['herb', 'scale', 'wing'],  weapons: [3, 4],             armors: [4, 5],       shieldList: [1] },
-    rimuldar:   { inn: 55,  tools: ['herb', 'wing', 'key'],    weapons: [3, 4, 5],          armors: [4, 5, 6] },
-    melkido:    { inn: 100, tools: ['herb', 'water', 'scale', 'wing', 'key'],
+    // 品揃え・宿代・かぎの値段は本家FC版の店データどおり(way78.com/dq1/fc/shop.html)。
+    // 本家はラダトームだけ城に鍵屋があるが、本作は城と町を分けていないので町でまとめる。
+    // リムルダールに道具屋を置いているのは本家との意図的な差（本家は鍵屋のみ）。
+    radatome:   { inn: 6,   tools: ['herb', 'torch', 'scale', 'water', 'key'], keyPrice: 85,
+                  weapons: [1, 2, 3], armors: [1, 2], shieldList: [1] },
+    garai:      { inn: 25,  tools: ['herb', 'torch', 'scale'],  weapons: [2, 3, 4],  armors: [2, 3, 4], shieldList: [2] },
+    maira:      { inn: 20,  tools: ['herb', 'torch', 'scale', 'wing'], weapons: [3, 4], armors: [4, 5], shieldList: [1] },
+    rimuldar:   { inn: 55,  tools: ['herb', 'wing', 'key'], keyPrice: 53, weapons: [3, 4, 5], armors: [4, 5, 6] },
+    melkido:    { inn: 100, tools: ['herb', 'torch', 'water', 'scale', 'wing', 'key'], keyPrice: 98,
                   weapons: [1, 2, 3, 4, 5, 6], armors: [2, 3, 5, 6], shieldList: [2, 3] }
 };
 
@@ -298,29 +362,28 @@ async function stayInn(price) {
 
 // 所持数の増減をまとめて扱う（りゅうのうろこは身に付ける装飾なので個数を持たない）
 function toolCount(key) {
-    if (key === 'herb') return player.herb;
-    if (key === 'wing') return player.wing;
-    if (key === 'water') return player.water;
-    if (key === 'key') return player.key;
-    return player.scale ? 1 : 0;
+    if (key === 'scale') return player.scale ? 1 : 0;
+    return player[key];
 }
 function addTool(key) {
-    if (key === 'herb') player.herb++;
-    else if (key === 'wing') player.wing++;
-    else if (key === 'water') player.water++;
-    else if (key === 'key') player.key++;
-    else { player.scale = true; recalcPlayerPower(); }
+    if (key === 'scale') { player.scale = true; recalcPlayerPower(); }
+    else player[key]++;
 }
 
-async function shopTools(stock) {
+// かぎは店ごとに値段が違う（本家: リムルダール53／ラダトーム85／メルキド98）
+function toolPrice(shop, key) {
+    return (key === 'key' && shop && shop.keyPrice) ? shop.keyPrice : toolGoods[key].price;
+}
+
+async function shopTools(stock, shop) {
     while (true) {
-        const menu = stock.map(k => `${toolGoods[k].name} ${toolGoods[k].price}G`);
+        const menu = stock.map(k => `${toolGoods[k].name} ${toolPrice(shop, k)}G`);
         menu.push('やめる');
         const i = await chooseFromList(['どうぐや「なにを おかいに なりますか？」',
                                         `　もちきん ${player.gold}G`], menu);
         if (i === menu.length - 1) return;
 
-        const key = stock[i], goods = toolGoods[key];
+        const key = stock[i], goods = { ...toolGoods[key], price: toolPrice(shop, key) };
         const max = key === 'herb' ? HERB_MAX : (key === 'scale' ? 1 : ITEM_MAX);
         if (toolCount(key) >= max) {
             await showMessage(key === 'scale'
@@ -381,7 +444,7 @@ async function offerTown(townName, shop) {
     while (true) {
         const menu = [];
         if (shop.inn) menu.push({ label: `やどや ${shop.inn}G`, act: () => stayInn(shop.inn) });
-        if (shop.tools) menu.push({ label: 'どうぐや', act: () => shopTools(shop.tools) });
+        if (shop.tools) menu.push({ label: 'どうぐや', act: () => shopTools(shop.tools, shop) });
         if (shop.weapons || shop.armors || shop.shieldList) menu.push({ label: 'ぶきや', act: () => shopWeapons(shop) });
         menu.push({ label: 'でる', act: null });
         const i = await chooseFromList([`${townName}には なにが あるかな？`,
@@ -411,8 +474,22 @@ async function castFieldSpell(spellName) {
         await showMessage([`${player.name}は ${spellName}を となえた！`, `HPが ${heal} かいふくした！`]);
     } else if (spellName === 'ルーラ') {
         player.mp -= mpCost;
-        playerPosition.x = 51; playerPosition.y = 51;
-        await showMessage([`${player.name}は ルーラを となえた！`, 'ラダトームの城に もどった！']);
+        // 本家: ダンジョンの中では効かない
+        if (inDungeon()) await showMessage([`${player.name}は ルーラを となえた！`, 'しかし なにも おこらなかった！']);
+        else {
+            playerPosition.x = 51; playerPosition.y = 51;
+            await showMessage([`${player.name}は ルーラを となえた！`, 'ラダトームの城に もどった！']);
+        }
+    } else if (spellName === 'レミーラ') {
+        player.mp -= mpCost;
+        await showMessage([`${player.name}は レミーラを となえた！`]);
+        if (inDungeon()) { radiantSteps = RADIANT_STEPS; await showMessage(['あたりが あかるく なった！']); }
+        else await showMessage(['しかし なにも おこらなかった！']);
+    } else if (spellName === 'リレミト') {
+        player.mp -= mpCost;
+        await showMessage([`${player.name}は リレミトを となえた！`]);
+        if (inDungeon()) { leaveDungeon(); await showMessage(['どうくつの そとに もどった！']); }
+        else await showMessage(['しかし なにも おこらなかった！']);
     } else if (spellName === 'トヘロス') {
         player.mp -= mpCost;
         repelSteps = 128;
@@ -431,9 +508,30 @@ async function useFieldItem(itemName) {
         player.hp = Math.min(player.maxHp, player.hp + heal);
         await showMessage([`${player.name}は やくそうを つかった！`, `HPが ${heal} かいふくした！`]);
     } else if (itemName === 'キメラのつばさ') {
+        // 本家: ダンジョンの中では効かない（つばさは消える）
         player.wing--;
-        playerPosition.x = 51; playerPosition.y = 51;
-        await showMessage([`${player.name}は キメラのつばさを つかった！`, 'ラダトームの城に もどった！']);
+        await showMessage([`${player.name}は キメラのつばさを つかった！`]);
+        if (inDungeon()) await showMessage(['しかし なにも おこらなかった！']);
+        else {
+            playerPosition.x = 51; playerPosition.y = 51;
+            await showMessage(['ラダトームの城に もどった！']);
+        }
+    } else if (itemName === 'たいまつ') {
+        // 本家: 一度つければダンジョンを出るまで消えない。周囲1マスを照らす
+        player.torch--;
+        await showMessage([`${player.name}は たいまつに ひを つけた！`]);
+        if (inDungeon()) { torchLit = true; await showMessage(['あたりが あかるく なった！']); }
+        else await showMessage(['しかし ここは あかるい']);
+    } else if (itemName === 'せんしのゆびわ') {
+        // 本家: 特に効果はない
+        await showMessage(['せんしのゆびわを みに つけた！', 'しかし なにも おこらなかった！']);
+    } else if (itemName === 'しのくびかざり' || itemName === 'のろいのベルト') {
+        if (getGameFlag('cursed')) await showMessage([`すでに のろわれている...`]);
+        else {
+            setGameFlag('cursed');
+            await showMessage([`${player.name}は ${itemName}を みに つけた！`]);
+            await showMessage(['うっ！ からだが うごかない！', `${player.name}は のろわれてしまった！`]);
+        }
     } else if (itemName === 'せいすい') {
         player.water--;
         repelSteps = 127;                                  // 本家は127歩
@@ -441,12 +539,14 @@ async function useFieldItem(itemName) {
     } else if (itemName === 'りゅうのうろこ') {
         await showMessage(['りゅうのうろこを みに つけている', `しゅび力が 2 あがっている`]);
     } else if (itemName === 'ぎんのたてごと') {
-        // 本家: 奏でるとモンスターを呼び寄せてしまう
+        // 本家: フィールドで奏でると スライム/スライムベス/ドラキー/ゴースト/
+        // まほうつかい/おおさそり のどれかがほぼ等確率で必ず出てくる
         await showMessage([`${player.name}は ぎんのたてごとを かなでた！`]);
-        if ((encounterRates[mapData[playerPosition.y][playerPosition.x]] || 0) > 0) {
+        if (!inDungeon() && encounterRateAt(playerPosition.x, playerPosition.y) > 0) {
             await showMessage(['まものが よってきた！']);
             currentState = STATE.FIELD;
-            startBattle(pickFieldEnemy(playerPosition.x, playerPosition.y));
+            const harp = ['スライム', 'スライムベス', 'ドラキー', 'ゴースト', 'まほうつかい', 'おおさそり'];
+            startBattle(enemyTable[enemyByName[harp[Math.floor(Math.random() * harp.length)]]]);
             return;
         }
         await showMessage(['しかし なにも おこらなかった']);
@@ -479,6 +579,7 @@ function menuOptions() {
     if (menuCursor === 1) return [...player.spells, 'もどる'];
     const opts = [];
     if (player.herb > 0) opts.push('やくそう');
+    if (player.torch > 0) opts.push('たいまつ');
     if (player.wing > 0) opts.push('キメラのつばさ');
     if (player.water > 0) opts.push('せいすい');
     if (player.scale) opts.push('りゅうのうろこ');
@@ -600,8 +701,9 @@ const MOVE_INTERVAL_NORMAL = 150;
 const MOVE_INTERVAL_AUTO = 0;     // オート中は毎フレーム1歩（開発用なので待たせない）
 let lastMoveTime = 0;
 function isMoveAllowed(x, y) {
-    if (debugMode) return true;
     if (typeof mapData === 'undefined' || !mapData[y] || mapData[y][x] === undefined) return false;
+    if (debugMode) return true;
+    if (inDungeon()) return mapData[y][x] !== D_WALL;
     return [25, 26, 27, 28, 29, 31, 32, 33, 34, 35].includes(mapData[y][x]);
 }
 
@@ -638,12 +740,14 @@ function updateField() {
         const now = performance.now();
         if (now - lastMoveTime >= MOVE_INTERVAL) {
             lastMoveTime = now;
-            let nx = modAdd(playerPosition.x, dx, mapWidth);
-            let ny = modAdd(playerPosition.y, dy, mapHeight);
+            // 地上は端がつながっているが、ダンジョンはつながっていない
+            let nx = mapWraps() ? modAdd(playerPosition.x, dx, mapWidth) : playerPosition.x + dx;
+            let ny = mapWraps() ? modAdd(playerPosition.y, dy, mapHeight) : playerPosition.y + dy;
             if (isMoveAllowed(nx, ny)) {
                 playerPosition.x = nx;
                 playerPosition.y = ny;
                 if (repelSteps > 0) repelSteps--; // トヘロスは128歩で切れる
+                if (radiantSteps > 0) radiantSteps--; // レミーラは合計200歩で切れる
                 if (applyPoison(nx, ny)) return;   // 毒沼で倒れたら以降は処理しない
                 healWhileWalking();
                 // ランダムエンカウント（デバッグモード中は発生しない）
@@ -998,13 +1102,19 @@ function reachableSet() {
     return seen;
 }
 
-// ゾーンごとの代表地点。森か丘(1/16)のマスで、宿に近いものを1つずつ選ぶ
+// オート用の遭遇率。毒沼は1歩2ダメージなので狩り場としては使わない（0扱い）
+function autoRateAt(x, y) {
+    return mapData[y][x] === POISON_TILE ? 0 : encounterRateAt(x, y);
+}
+
+// ゾーンごとの代表地点。よく敵が出るマス(森・丘・砂漠)で、宿に近いものを1つずつ選ぶ。
+// ゾーン0だけは遭遇率がどこも半分なので、そのぶん基準も下げる
 function huntingSpots() {
     const best = {};
     for (let y = 0; y < mapHeight; y += 2) {
         for (let x = 0; x < mapWidth; x += 2) {
-            if ((encounterRates[mapData[y][x]] || 0) < 1 / 16) continue;
             const z = zoneAt(x, y);
+            if (autoRateAt(x, y) < (z === 0 ? 1 / 32 : 1 / 16)) continue;
             const d = Math.min(...INN_SPOTS.map(s => Math.abs(s.x - x) + Math.abs(s.y - y)));
             if (!best[z] || d < best[z].d) best[z] = { x, y, d, zone: z };
         }
@@ -1054,9 +1164,8 @@ function bestHuntingSpot(opt) {
         }
         const death = dead / N;
         if (death > maxDeath) continue;
-        // 1歩あたりの期待経験値。ゾーン0は遭遇率が半分
-        let rate = encounterRates[mapData[spot.y][spot.x]] || 0;
-        if (spot.zone === 0) rate /= 2;
+        // 1歩あたりの期待経験値（ゾーン0の割引は encounterRateAt が見ている）
+        const rate = autoRateAt(spot.x, spot.y);
         const score = (exp / N) * rate;
         if (!best || score > best.score) best = { ...spot, score, death, exp: exp / N };
     }
@@ -1116,8 +1225,13 @@ function dangerAtLevel(zones, lv) {
     }
     return worst;
 }
-// 道中で何回くらい戦うことになるか（遭遇率はおおむね1/16〜1/24なので20歩に1回）
-function battlesOnPath(path) { return Math.max(1, Math.round(path.length / 20)); }
+// 道中で何回くらい戦うことになるか。遭遇率は地形で1/48〜1/8と6倍ちがうので、
+// 「何歩に1回」の決め打ちではなく通るマスの遭遇率を実際に足し合わせる
+function battlesOnPath(path) {
+    let n = 0;
+    for (const p of path) n += encounterRateAt(p.x, p.y);
+    return Math.max(1, Math.round(n));
+}
 
 // 「1戦あたりの死亡率」で道中の安全を判断してはいけない。
 // 200歩の道なら10回前後戦うので、1戦15%でも通り抜けられる確率は2割しかない。
@@ -1141,6 +1255,8 @@ function levelForPath(path) {
 async function autoStart() {
     if (autoPilot.on) { autoStop('じぶんで とめた'); return; }
     if (currentState !== STATE.FIELD) return;
+    // 経路探索は地上のマップ前提なので、ダンジョンの中では動かさない
+    if (inDungeon()) { await showMessage(['オート：どうくつの なかでは つかえません']); currentState = STATE.FIELD; return; }
     const rec = recommendedLevel(playerPosition.x, playerPosition.y);
     const gear = nextGearGoal();
     const spot = bestHuntingSpot();
@@ -1650,12 +1766,11 @@ function autoTick(now) {
     const open = ARROW_KEYS.filter(walkable);
     if (!open.length) return;      // 完全に囲まれている（起きないはずだが保険）
 
-    // 行き先のエンカウント率。森・丘(1/16)は草原・砂漠・橋(1/24)より1.5倍出る。
-    // 城・町・洞窟・ほこら・毒沼は0なので、そこを踏む歩数はまるごと無駄になる
+    // 行き先のエンカウント率。丘・砂漠(1/8)＞森(1/16)＞草原・橋(1/24)。
+    // 城・町・洞窟・ほこらは0、毒沼はダメージを受けるので0扱いにして避ける
     const rateOf = k => {
         const [dx, dy] = DIR_DELTA[k];
-        const tile = mapData[modAdd(playerPosition.y, dy, mapHeight)][modAdd(playerPosition.x, dx, mapWidth)];
-        return encounterRates[tile] || 0;
+        return autoRateAt(modAdd(playerPosition.x, dx, mapWidth), modAdd(playerPosition.y, dy, mapHeight));
     };
     const bestRate = Math.max(...open.map(rateOf));
     // 出やすい地形だけに絞る。まわりが全部0なら仕方ないので全候補から選んで抜け出す

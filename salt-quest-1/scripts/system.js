@@ -243,14 +243,26 @@ function drawWindowBattleEnemy() {
     drawEnemy();
 }
 function drawMap(){
+    // ダンジョンは床が真っ黒で、明かりの届く範囲(正方形)だけが見える
+    const dark = (typeof inDungeon === 'function') && inDungeon();
+    const wrap = (typeof mapWraps !== 'function') || mapWraps();
+    const light = dark ? lightRadius() : Infinity;
+    if (dark) { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
     for (var y = 0; y <= screenHeight; y++) {
         for (var x = 0; x <= screenWidth; x++) {
-            var worldY = modAdd(playerPosition.y - screenHeight/2, y, mapHeight);
-            var worldX = modAdd(playerPosition.x - screenWidth/2, x, mapWidth);
+            if (Math.max(Math.abs(x - screenWidth/2), Math.abs(y - screenHeight/2)) > light) continue;
+            var worldY, worldX;
+            if (wrap) {
+                worldY = modAdd(playerPosition.y - screenHeight/2, y, mapHeight);
+                worldX = modAdd(playerPosition.x - screenWidth/2, x, mapWidth);
+            } else {
+                worldY = playerPosition.y - screenHeight/2 + y;
+                worldX = playerPosition.x - screenWidth/2 + x;
+            }
             if (typeof mapData === 'undefined' || !mapData[worldY] || mapData[worldY][worldX] === undefined) continue;
             var tileIndex = mapData[worldY][worldX];
             if(tileIndex >= 350) tileIndex -= 12*25;
-            drawTile(x, y, tileIndex);
+            if(tileIndex >= 0) drawTile(x, y, tileIndex);   // 負の番号は「絵のない床」
             if(x === screenWidth/2 && y === screenHeight/2) drawCharacter(x, y, playerIndex);
         }
     }

@@ -15,7 +15,12 @@ var gameFlags = {
     rotoArmor:      { bit: 10, flag: false, location: { x: 33, y: 97 } },
     rainbowDrop:    { bit: 11, flag: false, location: { x: 116, y: 117 } },
     rainbowBridge:  { bit: 12, flag: false, location: { x: 73, y: 57 } },
-    lightBall:      { bit: 13, flag: false, location: { x: 56, y: 56 } }
+    lightBall:      { bit: 13, flag: false, location: { x: 56, y: 56 } },
+    // ダンジョンの宝で1回だけ手に入るもの
+    warriorRing:    { bit: 14, flag: false, location: { x: 0, y: 0 } },
+    deathNecklace:  { bit: 15, flag: false, location: { x: 0, y: 0 } },
+    cursed:         { bit: 16, flag: false, location: { x: 0, y: 0 } },
+    necklaceGone:   { bit: 17, flag: false, location: { x: 0, y: 0 } }   // 解呪で消えた
 };
 
 function setGameFlag(flagName) { gameFlags[flagName].flag = true; }
@@ -35,6 +40,7 @@ let player = {
     strength: 4, agility: 4, attack: 4, defense: 2, herb: 6, key: 0,
     wing: 0,          // キメラのつばさ（城へ戻る）
     water: 0,         // せいすい（127歩の敵よけ）
+    torch: 0,         // たいまつ（ダンジョンで周囲1マスを照らす）
     scale: false,     // りゅうのうろこ（身に付けると守備力+2）
     items: [], spells: [],
     weaponIndex: 0, armorIndex: 0, shieldIndex: 0,
@@ -47,8 +53,11 @@ let player = {
 const HERB_MAX = 6;      // 本家同様やくそうは6個まで
 const ITEM_MAX = 6;
 // どうぐやの品揃え（買値はFC版準拠）
+// かぎだけは店ごとに値段が違う（リムルダール53／ラダトーム85／メルキド98）ので
+// 店側で price を上書きする
 const toolGoods = {
     herb:  { name: 'やくそう',       price: 24 },
+    torch: { name: 'たいまつ',       price: 8 },
     water: { name: 'せいすい',       price: 38 },
     scale: { name: 'りゅうのうろこ', price: 20 },
     wing:  { name: 'キメラのつばさ', price: 70 },
@@ -182,23 +191,31 @@ const dragonLordHuman = {
 // 虹の橋なし)から生成した初期値で、個別に手調整してよい。
 // 4=虹の橋の先(りゅうおう領域)・南部深部・海のみの区画
 // =====================================================================
-// FC版のエンカウントテーブル(ID 0〜D)をそのまま移植したもの。
-// 1段ごとに新顔が1種だけ増え、古株が数段かけて抜けていく緩やかな階段になる。
+// FC版のエンカウントテーブルをそのまま移植したもの。
+// 出典: Ryan8bit "Dragon Warrior - Formula Guide"(GameFAQs) の Monster Sets。
+// 本家は1ゾーンあたり必ず5枠で、同じ敵が2枠に入っていればその分だけ出やすい。
+// 14〜19はダンジョン用のゾーン（地上の区画表には出てこない）。
 const zoneEnemyNames = [
-    ['スライム', 'スライムベス'],
-    ['スライム', 'スライムベス', 'ドラキー'],
-    ['スライム', 'スライムベス', 'ドラキー', 'ゴースト'],
-    ['スライムベス', 'ドラキー', 'ゴースト', 'まほうつかい'],
-    ['ゴースト', 'まほうつかい', 'メイジドラキー', 'おおさそり'],
+    ['スライム', 'スライムベス', 'スライム', 'スライムベス', 'スライム'],
+    ['スライムベス', 'スライム', 'スライムベス', 'ドラキー', 'スライムベス'],
+    ['スライム', 'ゴースト', 'ドラキー', 'ゴースト', 'スライムベス'],
+    ['スライムベス', 'スライムベス', 'ドラキー', 'ゴースト', 'まほうつかい'],
+    ['ゴースト', 'まほうつかい', 'メイジドラキー', 'メイジドラキー', 'おおさそり'],
     ['ゴースト', 'まほうつかい', 'メイジドラキー', 'おおさそり', 'がいこつ'],
     ['メイジドラキー', 'おおさそり', 'がいこつ', 'まどうし', 'リカント'],
-    ['がいこつ', 'まどうし', 'てつさそり', 'リカント'],
-    ['てつさそり', 'しりょう', 'リカントマムル', 'ゴールドマン'],
-    ['しりょう', 'キメラ', 'リカントマムル', 'ゴールドマン'],
+    ['がいこつ', 'まどうし', 'てつさそり', 'リカント', 'リカント'],
+    ['てつさそり', 'しりょう', 'リカントマムル', 'リカントマムル', 'ゴールドマン'],
+    ['しりょう', 'キメラ', 'リカントマムル', 'キメラ', 'ゴールドマン'],
     ['キメラ', 'しのさそり', 'しりょうのきし', 'よろいのきし', 'かげのきし'],
     ['しりょうのきし', 'よろいのきし', 'メイジキメラ', 'かげのきし', 'メタルスライム'],
     ['よろいのきし', 'メイジキメラ', 'かげのきし', 'キラーリカント', 'スターキメラ'],
-    ['キラーリカント', 'ドラゴン', 'スターキメラ', 'だいまどう']
+    ['キラーリカント', 'ドラゴン', 'スターキメラ', 'スターキメラ', 'だいまどう'],
+    ['メトロゴースト', 'ドロル', 'ドラキーマ', 'がいこつ', 'まどうし'],
+    ['ヘルゴースト', 'リカントマムル', 'メーダロード', 'ドロルメイジ', 'しりょうのきし'],
+    ['キラーリカント', 'ドラゴン', 'スターキメラ', 'だいまどう', 'あくまのきし'],
+    ['だいまどう', 'あくまのきし', 'キースドラゴン', 'キースドラゴン', 'ストーンマン'],
+    ['だいまどう', 'ストーンマン', 'しにがみのきし', 'しにがみのきし', 'ダースドラゴン'],
+    ['ゴースト', 'まほうつかい', 'おおさそり', 'メーダ', 'メーダ']
 ];
 const zoneEnemySets = zoneEnemyNames.map(names => names.map(n => enemyByName[n]));
 const ZONE_CELL = 17; // 区画の一辺(タイル)。136÷8=17 で本家と同じ割り
@@ -214,7 +231,8 @@ const encounterZoneGrid = [
     [10,10,11,12,13,13, 9, 8],
     [11,11,12,13,13,12, 9, 9]
 ];
-const ZONE_MAX = zoneEnemyNames.length - 1;
+// 地上の区画表で使うゾーンの上限。14以降はダンジョン専用なので含めない
+const ZONE_MAX = 13;
 
 // 区画の切れ目がちょうどラダトーム城のマスに重なるため、縦に1マスぶん寄せて
 // 城と町が同じ区画(ゾーン0)に収まるようにしている
@@ -228,26 +246,35 @@ function zoneAt(x, y) {
     return z === undefined ? ZONE_MAX : Math.min(z, ZONE_MAX);
 }
 function pickFieldEnemy(x, y) {
-    const set = zoneEnemySets[zoneAt(x, y)];
+    const d = (typeof currentDungeon === 'function') ? currentDungeon() : null;
+    const set = zoneEnemySets[d ? d.zone : zoneAt(x, y)];
     return enemyTable[set[Math.floor(Math.random() * set.length)]];
 }
 
 // =====================================================================
 // エンカウント判定（本家FC版方式: 1歩ごとの固定確率）
-// FC版解析(Ryan8bit Formula Guide)より: 城周辺ゾーンは 草原・橋1/48 森・丘1/32、
-// 通常エリアはその2倍(草原・橋1/24 森・丘1/16)。歩数による変動はSFC版の仕様なので使わない。
+// FC版解析(Ryan8bit Formula Guide)の実数値をそのまま使う。歩数による変動は
+// SFC版の仕様なので使わない。
+//   通常エリア  草原1/24 橋1/24 森1/16 毒沼1/16 丘1/8 砂漠1/8
+//   ゾーン0     草原1/48 橋1/48 森1/32 丘1/32 砂漠1/16（丘だけ半分ではなく1/4）
+//   ダンジョン  床1/16 階段1/24 宝箱1/24
 // =====================================================================
-// 地形タイル → 通常エリアの遭遇率(1歩あたり)。町・城・洞窟マスは0
-const encounterRates = { 27: 1/24, 28: 1/24, 29: 1/16, 33: 1/16, 35: 1/24 };
+const encounterRates      = { 27: 1/24, 28: 1/16, 29: 1/8,  33: 1/8,  34: 1/16, 35: 1/24 };
+const encounterRatesZone0 = { 27: 1/48, 28: 1/32, 29: 1/32, 33: 1/16, 34: 1/16, 35: 1/48 };
+// ダンジョンのタイル別（dungeon.js の D_FLOOR / D_STAIR / D_CHEST に対応）
+const dungeonRates = { '-1': 1/16, '7': 1/24, '14': 1/24 };
+
+// そのマスの1歩あたりの遭遇率
+function encounterRateAt(x, y) {
+    const tile = (typeof mapData !== 'undefined' && mapData[y]) ? mapData[y][x] : undefined;
+    if (typeof inDungeon === 'function' && inDungeon()) return dungeonRates[String(tile)] || 0;
+    return (zoneAt(x, y) === 0 ? encounterRatesZone0 : encounterRates)[tile] || 0;
+}
 
 // 1歩ごとに呼ぶ。trueならエンカウント発生
 function checkEncounter(x, y) {
-    const tile = (typeof mapData !== 'undefined' && mapData[y]) ? mapData[y][x] : undefined;
-    let rate = encounterRates[tile] || 0;
-    if (rate === 0) return false;
-    // 本家の「開始城周辺ゾーンは遭遇率半分」(ゾーン0の区画が対象)
-    if (zoneAt(x, y) === 0) rate /= 2;
-    return Math.random() < rate;
+    const rate = encounterRateAt(x, y);
+    return rate > 0 && Math.random() < rate;
 }
 
 const items = [{name:'なし',description:''},{name:'たいまつ',description:''},{name:'せいすい',description:''},{name:'キメラのつばさ',description:''},{name:'りゅうのうろこ',description:''},{name:'ようせいのふえ',description:''},{name:'せんしのゆびわ',description:''},{name:'ロトのしるし',description:''},{name:'おうじょのあい',description:''},{name:'のろいのベルト',description:''},{name:'ぎんのたてごと',description:''},{name:'しのくびかざり',description:''},{name:'たいようのいし',description:''},{name:'あまぐものつえ',description:''},{name:'にじのしずく',description:''}];
@@ -330,7 +357,10 @@ function updatePlayerItems(){
         { itemName: 'おうじょのあい', flagName: 'roraLove'}, { itemName: 'ぎんのたてごと', flagName: 'silverHerp'},
         { itemName: 'たいようのいし', flagName: 'sunStone', consumedBy: 'rainbowDrop'},
         { itemName: 'あまぐものつえ', flagName: 'rainCloudStuff', consumedBy: 'rainbowDrop'},
-        { itemName: 'にじのしずく', flagName: 'rainbowDrop', consumedBy: 'rainbowBridge'}
+        { itemName: 'にじのしずく', flagName: 'rainbowDrop', consumedBy: 'rainbowBridge'},
+        // 岩山の洞窟の宝。しのくびかざりは呪いを解くと消える（本家どおり）
+        { itemName: 'せんしのゆびわ', flagName: 'warriorRing'},
+        { itemName: 'しのくびかざり', flagName: 'deathNecklace', consumedBy: 'necklaceGone'}
     ];
     for (const item of flagItems) {
         const shouldHave = getGameFlag(item.flagName) && !(item.consumedBy && getGameFlag(item.consumedBy));
@@ -364,8 +394,9 @@ const PASS_FIELDS = [
     { name: 'key',    bits: 4 },
     { name: 'wing',   bits: 3 },
     { name: 'water',  bits: 3 },
+    { name: 'torch',  bits: 3 },
     { name: 'scale',  bits: 1 },
-    { name: 'spare',  bits: 28 }   // 将来の追加ぶん。中身は0
+    { name: 'spare',  bits: 25 }   // 将来の追加ぶん。中身は0
 ];
 const PASS_CHECKSUM_BITS = 8;
 const PASS_PAYLOAD_BITS = PASS_FIELDS.reduce((n, f) => n + f.bits, 0);   // 106
@@ -414,6 +445,7 @@ function calcFlagsToCode() {
         key: Math.min(player.key, 15),
         wing: Math.min(player.wing, 7),
         water: Math.min(player.water, 7),
+        torch: Math.min(player.torch, 7),
         scale: player.scale ? 1 : 0,
         spare: 0
     };
@@ -467,6 +499,7 @@ function calcCodeToFlags() {
     player.shieldIndex = values.shield;
     player.wing = values.wing;
     player.water = values.water;
+    player.torch = values.torch;
     player.scale = values.scale === 1;
     restorePlayerFromExp();
     return true;
