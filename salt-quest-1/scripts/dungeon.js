@@ -142,6 +142,17 @@ function dungeonExit() { return { x: 37, y: 65 }; }
 // 地上のこのマスに入ったらダンジョンへ、という対応表
 const DUNGEON_ENTRANCES = { '37,65': ['iwayama1', '<'] };
 
+// 足元が階段・出入口かどうか（動かさずに調べるだけ）
+function stairsHere() {
+    const x = playerPosition.x, y = playerPosition.y;
+    const d = currentDungeon();
+    if (!d) return !!DUNGEON_ENTRANCES[x + ',' + y];
+    for (const mark in d.marks) {
+        if (d.marks[mark].x === x && d.marks[mark].y === y && d.links[mark]) return true;
+    }
+    return false;
+}
+
 // 階段・出入口に乗ったときの移動。移動したら true
 function useStairs(x, y) {
     const d = currentDungeon();

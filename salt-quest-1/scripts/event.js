@@ -74,8 +74,11 @@ async function useStairsHere() {
 async function interactField() {
     let handled = true;
 
-    if (await openChestHere()) return;
-    if (await useStairsHere()) return;
+    // 足元の判定は必ず同期で済ませること。ここで await をはさむと、判定が次の
+    // マイクロタスクまでずれるあいだにオートの押しっぱなしキーで1マス動いてしまい、
+    // 城や町のイベントがまるごと起きなくなる（メニューが開くだけになる）
+    if (chestHere()) { await openChestHere(); return; }
+    if (stairsHere()) { await useStairsHere(); return; }
 
     if (isVisit(gameFlags.fairyFlute.location.x, gameFlags.fairyFlute.location.y)) {
         if(!getGameFlag('fairyFlute')){
@@ -1637,6 +1640,8 @@ function autoTick(now) {
 
     if (currentState === STATE.MESSAGE) { Input.press(' '); return; }
     if (currentState === STATE.YESNO)   { Input.press('Escape'); return; }
+    // 何も無いマスでAを押すとメニューが開く。閉じる処理が無いと永久に止まる
+    if (currentState === STATE.MENU)    { Input.press('Escape'); return; }
     if (currentState === STATE.CHOICE) {  // 町のメニューに入ってしまったら出る
         const idx = choiceOptions.findIndex(o => o === 'でる' || o === 'やめる');
         if (idx >= 0 && choiceCursor !== idx) { Input.press('ArrowDown'); return; }
