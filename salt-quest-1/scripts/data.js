@@ -52,7 +52,8 @@ const toolGoods = {
     herb:  { name: 'やくそう',       price: 24 },
     water: { name: 'せいすい',       price: 38 },
     scale: { name: 'りゅうのうろこ', price: 20 },
-    wing:  { name: 'キメラのつばさ', price: 70 }
+    wing:  { name: 'キメラのつばさ', price: 70 },
+    key:   { name: 'かぎ',           price: 53 }
 };
 
 const weapons = [
@@ -354,26 +355,31 @@ function updatePlayerStyle(){
 // 本家同様レベルは経験値から復元するので、レベル自体は保存しない
 // =====================================================================
 const PASS_FIELDS = [
-    { name: 'flags',  bits: 14 },
+    { name: 'flags',  bits: 24 },  // いまは14個。ダンジョンの宝箱を足しても桁が伸びないよう広めに取る
     { name: 'exp',    bits: 16 },
     { name: 'gold',   bits: 16 },
-    { name: 'herb',   bits: 4 },
-    { name: 'key',    bits: 3 },
+    { name: 'bank',   bits: 7 },   // 預金は1000G単位で持つ（最大127000G）
     { name: 'weapon', bits: 3 },
     { name: 'armor',  bits: 3 },
     { name: 'shield', bits: 2 },
-    { name: 'bank',   bits: 7 },  // 預金は1000G単位で持つ（最大127000G）
+    { name: 'herb',   bits: 3 },
+    { name: 'key',    bits: 4 },
     { name: 'wing',   bits: 3 },
     { name: 'water',  bits: 3 },
-    { name: 'scale',  bits: 1 }
+    { name: 'scale',  bits: 1 },
+    { name: 'spare',  bits: 21 }   // 将来の追加ぶん。中身は0
 ];
 const BANK_UNIT = 1000;
 const BANK_MAX = 127 * BANK_UNIT;
 const PASS_CHECKSUM_BITS = 8;
-const PASS_PAYLOAD_BITS = PASS_FIELDS.reduce((n, f) => n + f.bits, 0);
-// 6bit(=1文字)単位に収まるよう詰め物を入れる
-const PASS_PAD_BITS = (6 - ((PASS_PAYLOAD_BITS + PASS_CHECKSUM_BITS) % 6)) % 6;
-const PASS_LENGTH = (PASS_PAYLOAD_BITS + PASS_PAD_BITS + PASS_CHECKSUM_BITS) / 6;
+const PASS_PAYLOAD_BITS = PASS_FIELDS.reduce((n, f) => n + f.bits, 0);   // 106
+// 本家と同じ20文字。先頭1文字は「かきまぜ方」の種で、残り19文字(114bit)に中身を入れる
+const PASS_LENGTH = 20;
+const PASS_GROUPS = [5, 7, 5, 3];   // 本家の区切り
+function groupedPass(text) {
+    let i = 0;
+    return PASS_GROUPS.map(n => text.slice(i, i += n)).filter(x => x).join('　');
+}
 
 function getCodeByHiragana(object, value) { return Number(Object.keys(object).find(key => object[key] === value)); }
 function getHiraganaFromList(index) { return passHiraganaList[index] || '？'; }
@@ -405,34 +411,48 @@ function calcFlagsToCode() {
         flags,
         exp: Math.min(player.exp, 65535),
         gold: Math.min(player.gold, 65535),
-        herb: Math.min(player.herb, 15),
-        key: Math.min(player.key, 7),
+        bank: Math.min(Math.floor(player.bank / BANK_UNIT), 127),
         weapon: player.weaponIndex,
         armor: player.armorIndex,
         shield: player.shieldIndex,
-        bank: Math.min(Math.floor(player.bank / BANK_UNIT), 127),
+        herb: Math.min(player.herb, 7),
+        key: Math.min(player.key, 15),
         wing: Math.min(player.wing, 7),
         water: Math.min(player.water, 7),
-        scale: player.scale ? 1 : 0
+        scale: player.scale ? 1 : 0,
+        spare: 0
     };
     const bits = [];
     for (const f of PASS_FIELDS) pushBits(bits, values[f.name], f.bits);
-    pushBits(bits, 0, PASS_PAD_BITS);
-    pushBits(bits, passChecksum(bits), PASS_CHECKSUM_BITS);
+    pushBits(bits, passChecksum(bits), PASS_CHECKSUM_BITS);   // 106 + 8 = 114bit = 19文字
 
-    let text = '';
-    for (let i = 0; i < bits.length; i += 6) text += getHiraganaFromList(readBits(bits, i, 6));
+    // 本家と同じく、同じ状態でも毎回ちがう呪文になるように「種」で かきまぜる。
+    // 1文字目が種で、2文字目以降は「元の値 ＋ 直前の文字 ＋ 種」を64で割った余り
+    const seed = Math.floor(Math.random() * 64);
+    let text = getHiraganaFromList(seed), prev = seed;
+    for (let i = 0; i < bits.length; i += 6) {
+        const c = (readBits(bits, i, 6) + prev + seed) % 64;
+        text += getHiraganaFromList(c);
+        prev = c;
+    }
     pass = text;
 }
 
 // じゅもん文字列 → 状態。成功したらtrue、検査値が合わなければfalse
 function calcCodeToFlags() {
-    if (pass.length !== PASS_LENGTH) return false;
-    const bits = [];
-    for (const ch of pass) {
+    const clean = pass.replace(/[\s　]/g, '');
+    if (clean.length !== PASS_LENGTH) return false;
+    const codes = [];
+    for (const ch of clean) {
         const idx = getCodeByHiragana(passHiraganaList, ch);
         if (isNaN(idx)) return false;
-        pushBits(bits, idx, 6);
+        codes.push(idx);
+    }
+    // かきまぜを戻す
+    const seed = codes[0];
+    const bits = [];
+    for (let i = 1; i < codes.length; i++) {
+        pushBits(bits, ((codes[i] - codes[i - 1] - seed) % 64 + 64) % 64, 6);
     }
     const payloadLength = bits.length - PASS_CHECKSUM_BITS;
     const payload = bits.slice(0, payloadLength);

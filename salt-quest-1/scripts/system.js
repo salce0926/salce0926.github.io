@@ -298,7 +298,10 @@ function drawPoint(){ // ローラ姫ナビゲーション＆デバッグ座標
         let dx = gameFlags.sunStone.location.x - playerPosition.x;
         let dy = gameFlags.sunStone.location.y - playerPosition.y;
         let ns = (dx > 0 ? '東' : '西'), ew = (dy > 0 ? '南' : '北');
-        text = `ローラ「ラダトーム城まで${ns}へ${Math.abs(dx)} ${ew}へ${Math.abs(dy)}ですわ」`;
+        // 本家: 城までの距離に加えて、次のレベルまでの必要経験値も教えてくれる
+        const next = playerStatus.find(p => p.level === player.level + 1);
+        const rest = next ? `つぎのレベルまで あと${Math.max(0, next.requiredExp - player.exp)}　` : '';
+        text = `ローラ「${rest}ラダトーム城まで${ns}へ${Math.abs(dx)} ${ew}へ${Math.abs(dy)}ですわ」`;
     }
     if(debugMode) text = `x: ${playerPosition.x}, y: ${playerPosition.y}`;
     const pt = document.getElementById('point');

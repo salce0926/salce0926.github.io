@@ -39,8 +39,9 @@ async function interactField() {
         await offerTown('マイラの村', townShops.maira);
     } else if (isVisit(112, 52) || isVisit(112, 57)) {
         if(!getGameFlag('roraRescued')){
-            if(!getGameFlag('magicKey')) await showMessage(['洞窟の中に扉があったが', '鍵が無いので開けられなかった...']);
+            if(player.key <= 0) await showMessage(['洞窟の中に扉があったが', 'かぎが 無いので 開けられなかった...']);
             else{
+                player.key--;   // 本家: 扉を開けるたびに1つ消費される
                 setGameFlag('roraRescued'); playerStyle = playerStyleWithRora;
                 await showMessage(['魔法の鍵で扉を開けた！', 'ドラゴンを倒してローラ姫を救出した！']);
             }
@@ -48,8 +49,8 @@ async function interactField() {
         playerPosition.y = isVisit(112,52) ? 57 : 52;
     } else if (isVisit(gameFlags.magicKey.location.x, gameFlags.magicKey.location.y)) {
         if(!getGameFlag('magicKey')){
-            setGameFlag('magicKey'); player.key = 1;
-            await showMessage(['ここはリムルダールの町だ', '店で魔法の鍵を手に入れた！']);
+            setGameFlag('magicKey');
+            await showMessage(['ここはリムルダールの町だ', 'かぎを うっている みせが あるようだ']);
         }else await showMessage(['ここはリムルダールの町だ']);
         await offerTown('リムルダールの町', townShops.rimuldar);
     } else if (isVisit(gameFlags.sunStone.location.x, gameFlags.sunStone.location.y)) {
@@ -72,10 +73,12 @@ async function interactField() {
                 await showMessage(['王様「したくきんを もたせてある', '　　　まずは しろの みぎうえの まちで', '　　　ぶきと よろいを ととのえるのじゃ」']);
             }
             if(!getGameFlag('sunStone')){
-                if(getGameFlag('magicKey')){
+                if(player.key > 0){
+                    player.key--;
                     setGameFlag('sunStone'); addItemToPlayer('たいようのいし');
                     await showMessage(['城の裏で鍵を使い太陽の石を手に入れた！']);
-                } else await showMessage(['王様「こんな時にローラ姫はどこへ...」']);
+                } else await showMessage(['王様「こんな時にローラ姫はどこへ...」',
+                                          '（城の裏に かぎのかかった とびらが ある）']);
             } else {
                 if(playerStyle === playerStyleNormal){
                     await showMessage(['王様「もし敵にやられてしまったら', '　　　ここまで運び込まれるのじゃ」']);
@@ -89,11 +92,12 @@ async function interactField() {
         }
     } else if (isVisit(gameFlags.silverHerp.location.x, gameFlags.silverHerp.location.y)) {
         if(!getGameFlag('silverHerp')){
-            if(getGameFlag('magicKey')){
+            if(player.key > 0){
+                player.key--;
                 setGameFlag('silverHerp'); addItemToPlayer('ぎんのたてごと');
                 await showMessage(['ここはガライの町だ', '吟遊詩人ガライの墓があるらしい', '隠し通路の鍵を開けてダンジョンに挑んだ！']);
                 await showMessage(['ガライの墓で銀の竪琴を手に入れた！']);
-            }else await showMessage(['ここはガライの町だ', '吟遊詩人ガライの墓があるらしい', '隠し通路を見つけたが鍵がかかっている...']);
+            }else await showMessage(['ここはガライの町だ', '吟遊詩人ガライの墓があるらしい', '隠し通路を見つけたが かぎが かかっている...']);
         }else await showMessage(['ここはガライの町だ', '吟遊詩人ガライの墓があるらしい']);
         await offerTown('ガライの町', townShops.garai);
     } else if (isVisit(gameFlags.rainCloudStuff.location.x, gameFlags.rainCloudStuff.location.y)) {
@@ -111,9 +115,17 @@ async function interactField() {
                 await showMessage(['ゴーレムが現れた！', '動きを止めないと勝ち目がない...！', 'しんでしまった...']);
                 playerKilled();
             }else{
-                setGameFlag('golemKilled');
-                await showMessage(['妖精の笛でゴーレムを眠らせた！', 'ゴーレムを倒した！']);
-                await showMessage(['ゴーレムが守っていた町', 'メルキドに 入ることができた！']);
+                // 本家: 笛は眠らせるだけ。そのあと自分で倒す
+                await showMessage(['ゴーレムが たちはだかった！', 'ようせいのふえを ふいた！']);
+                const golem = { ...enemyTable.find(e => e.name === 'ゴーレム'), noFlee: true, asleep: 99 };
+                const result = await startBattle(golem);
+                if (result === 'win') {
+                    setGameFlag('golemKilled');
+                    await showMessage(['ゴーレムを たおした！']);
+                    await showMessage(['ゴーレムが守っていた町', 'メルキドに 入ることができた！']);
+                } else if (result === 'flee') {
+                    await showMessage(['にげだしたが メルキドへは', 'はいれないままだ...']);
+                }
             }
         }
         if (getGameFlag('golemKilled')) await offerTown('メルキドの町', townShops.melkido);
@@ -226,7 +238,10 @@ async function offerRecord() {
     if (!await askYesNo(['王様「そなたの ぼうけんを', '　　　きろくして おくかね？」'])) return;
     calcFlagsToCode();
     await showMessage(['王様「では ふっかつのじゅもんを おしえよう', '　　　よく メモを とるのじゃぞ」']);
-    await showMessage(['ふっかつのじゅもん', `　${pass}`, 'つぎは タイトルがめんで にゅうりょく']);
+    await showMessage(['ふっかつのじゅもん',
+                       `　${pass.slice(0,5)}　${pass.slice(5,12)}`,
+                       `　${pass.slice(12,17)}　${pass.slice(17,20)}`]);
+    await showMessage(['つぎは タイトルがめんの', '「ふっかつのじゅもん」で にゅうりょく']);
 }
 
 // =====================================================================
@@ -235,11 +250,11 @@ async function offerRecord() {
 // =====================================================================
 const townShops = {
     // 品揃え・宿代は本家FC版の店データどおり。たいまつだけはダンジョン未実装のため置いていない
-    radatome:   { inn: 6,   tools: ['herb', 'scale'],          weapons: [1, 2, 3],          armors: [1, 2],       shieldList: [1],    bank: true },
+    radatome:   { inn: 6,   tools: ['herb', 'scale', 'key'],   weapons: [1, 2, 3],          armors: [1, 2],       shieldList: [1],    bank: true },
     garai:      { inn: 25,  tools: ['herb', 'scale'],          weapons: [2, 3, 4],          armors: [2, 3, 4],    shieldList: [2] },
     maira:      { inn: 20,  tools: ['herb', 'scale', 'wing'],  weapons: [3, 4],             armors: [4, 5],       shieldList: [1] },
-    rimuldar:   { inn: 55,  tools: ['herb', 'wing'],           weapons: [3, 4, 5],          armors: [4, 5, 6] },
-    melkido:    { inn: 100, tools: ['herb', 'water', 'scale', 'wing'],
+    rimuldar:   { inn: 55,  tools: ['herb', 'wing', 'key'],    weapons: [3, 4, 5],          armors: [4, 5, 6] },
+    melkido:    { inn: 100, tools: ['herb', 'water', 'scale', 'wing', 'key'],
                   weapons: [1, 2, 3, 4, 5, 6], armors: [2, 3, 5, 6], shieldList: [2, 3], bank: true }
 };
 
@@ -292,12 +307,14 @@ function toolCount(key) {
     if (key === 'herb') return player.herb;
     if (key === 'wing') return player.wing;
     if (key === 'water') return player.water;
+    if (key === 'key') return player.key;
     return player.scale ? 1 : 0;
 }
 function addTool(key) {
     if (key === 'herb') player.herb++;
     else if (key === 'wing') player.wing++;
     else if (key === 'water') player.water++;
+    else if (key === 'key') player.key++;
     else { player.scale = true; recalcPlayerPower(); }
 }
 
@@ -430,6 +447,18 @@ async function useFieldItem(itemName) {
         await showMessage([`${player.name}は せいすいを まいた！`, 'よわい まものが よってこなくなった！']);
     } else if (itemName === 'りゅうのうろこ') {
         await showMessage(['りゅうのうろこを みに つけている', `しゅび力が 2 あがっている`]);
+    } else if (itemName === 'ぎんのたてごと') {
+        // 本家: 奏でるとモンスターを呼び寄せてしまう
+        await showMessage([`${player.name}は ぎんのたてごとを かなでた！`]);
+        if ((encounterRates[mapData[playerPosition.y][playerPosition.x]] || 0) > 0) {
+            await showMessage(['まものが よってきた！']);
+            currentState = STATE.FIELD;
+            startBattle(pickFieldEnemy(playerPosition.x, playerPosition.y));
+            return;
+        }
+        await showMessage(['しかし なにも おこらなかった']);
+    } else if (itemName === 'かぎ') {
+        await showMessage(['とびらの ある ばしょで つかおう']);
     } else {
         await showMessage([`${itemName}は ここでは つかえない！`]);
     }
@@ -628,10 +657,12 @@ function openPasscode(fromTitle) {
 // 入力中のじゅもんを表示に反映（カーソルはdrawPasscodeが実測位置に描く）
 const PASS_LINE_PREFIX = '　';
 function refreshPassText() {
+    // 本家と同じ 5・7・5・3 の区切り。20文字は1行に収まらないので2行に分ける
+    const g = [pass.slice(0,5), pass.slice(5,12), pass.slice(12,17), pass.slice(17,20)];
     textExplainSave = [
-        '←→で もじを えらび ↑↓で かえる',
-        PASS_LINE_PREFIX + pass,
-        'スペース＝けってい　B＝もどる'
+        '←→で もじ ↑↓で かえる　B＝もどる',
+        PASS_LINE_PREFIX + g[0] + '　' + g[1],
+        PASS_LINE_PREFIX + g[2] + '　' + g[3]
     ];
 }
 // 選択中のひらがなをカーソル位置に書き込む
@@ -1196,6 +1227,13 @@ async function autoShop(shopKey) {
             break;
         }
     }
+    // かぎを切らすと扉が開けられず本編が進まないので必ず持っておく
+    if (shop.tools && shop.tools.includes('key')) {
+        while (player.key < 3 && player.gold >= toolGoods.key.price * 2) {
+            player.gold -= toolGoods.key.price;
+            player.key++;
+        }
+    }
     // やくそうも切らさないようにする
     if (shop.tools && shop.tools.includes('herb')) {
         while (player.herb < HERB_MAX && player.gold >= toolGoods.herb.price * 4) {
@@ -1355,6 +1393,26 @@ function autoTick(now) {
                 autoPilot.grindUntil = 0;
             }
             // 買える装備があるなら、鍛えるより先に買う。装備が良くなれば必要レベルも下がる
+            // かぎが無いと開かない扉がある。切れていたら先に買いに行く
+            if (player.key === 0 && player.gold >= toolGoods.key.price && !autoPilot.path) {
+                const keyTowns = INN_SPOTS.filter(t => (townShops[t.shop].tools || []).includes('key'));
+                let near = null;
+                for (const t of keyTowns) {
+                    const path = findPath(playerPosition, t);
+                    if (path && (!near || path.length < near.path.length)) near = { ...t, path };
+                }
+                if (near) {
+                    if (near.path.length === 0) {
+                        autoBusy = true;
+                        Promise.resolve(autoShop(near.shop)).then(() => { autoBusy = false; });
+                        return;
+                    }
+                    autoPilot.path = near.path;
+                    autoPilot.goal = 'かいものへ';
+                    autoPilot.shopKey = near.shop;
+                    return;
+                }
+            }
             const buy = nextGearGoal();
             if (!autoPilot.path && buy && buy.town && player.gold >= buy.price
                 && player.gold > autoPilot.shoppedGold) {
