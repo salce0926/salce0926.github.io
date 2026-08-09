@@ -234,6 +234,28 @@ async function interactField() {
 // =====================================================================
 // 冒険の記録（本家同様、王様がふっかつのじゅもんを教えてくれる）
 // =====================================================================
+// 端末に最後のじゅもんを控えておく（機種変や別端末では控えたメモが要る）
+const PASS_STORE_KEY = 'sq1pass';
+function rememberPass(text) {
+    try { localStorage.setItem(PASS_STORE_KEY, text); } catch (e) {}
+}
+function rememberedPass() {
+    try { return localStorage.getItem(PASS_STORE_KEY) || ''; } catch (e) { return ''; }
+}
+// クリップボードに入れる。使えない端末では下のテキスト欄に出すだけ
+async function copyPass(text) {
+    const grouped = `${text.slice(0,5)} ${text.slice(5,12)} ${text.slice(12,17)} ${text.slice(17,20)}`;
+    const box = document.getElementById('message');
+    if (box) box.textContent = 'ふっかつのじゅもん　' + grouped;
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(grouped);
+            return true;
+        }
+    } catch (e) {}
+    return false;
+}
+
 async function offerRecord() {
     if (!await askYesNo(['王様「そなたの ぼうけんを', '　　　きろくして おくかね？」'])) return;
     calcFlagsToCode();
@@ -241,7 +263,12 @@ async function offerRecord() {
     await showMessage(['ふっかつのじゅもん',
                        `　${pass.slice(0,5)}　${pass.slice(5,12)}`,
                        `　${pass.slice(12,17)}　${pass.slice(17,20)}`]);
-    await showMessage(['つぎは タイトルがめんの', '「ふっかつのじゅもん」で にゅうりょく']);
+    rememberPass(pass);          // この端末で「つづきから」入力できるように控える
+    const copied = await copyPass(pass);
+    await showMessage(['この はしょに ひかえて あります',
+                       copied ? '（コピーしました　メモに はりつけられます）'
+                              : '（したの らんを ながおしで コピーできます）',
+                       'つぎは タイトルの「ふっかつのじゅもん」で']);
 }
 
 // =====================================================================
@@ -459,6 +486,16 @@ async function useFieldItem(itemName) {
         await showMessage(['しかし なにも おこらなかった']);
     } else if (itemName === 'かぎ') {
         await showMessage(['とびらの ある ばしょで つかおう']);
+    } else if (itemName === 'おうじょのあい') {
+        // 本家: 使うと次のレベルまでの必要経験値と、城までの距離を教えてくれる
+        const dx = gameFlags.sunStone.location.x - playerPosition.x;
+        const dy = gameFlags.sunStone.location.y - playerPosition.y;
+        const next = playerStatus.find(p => p.level === player.level + 1);
+        await showMessage(['ローラ「あなたが つぎのレベルに なるまで',
+            next ? `　　　あと ${Math.max(0, next.requiredExp - player.exp)} けいけんちが ひつようですわ」`
+                 : '　　　もう これいじょうは ありませんわ」']);
+        await showMessage(['ローラ「ラダトームの しろまで',
+            `　　　${dx > 0 ? '東' : '西'}へ ${Math.abs(dx)}　${dy > 0 ? '南' : '北'}へ ${Math.abs(dy)} ですわ」`]);
     } else {
         await showMessage([`${itemName}は ここでは つかえない！`]);
     }
@@ -563,6 +600,25 @@ function drawMenu() {
 // フィールド移動とデバッグ操作
 // =====================================================================
 // 移動は時間基準(ms)。フレームレート(60Hz/120Hz)に依存しない
+const POISON_TILE = 34;   // 毒の沼地
+// 本家: 毒の沼地は1歩ごとに2ダメージ。ロトのよろいを着ていると無効。
+// 倒れたときだけメッセージ処理に入る（trueを返したら以降の処理は止める）
+function applyPoison(x, y) {
+    if (mapData[y][x] !== POISON_TILE) return false;
+    if (armors[player.armorIndex] && armors[player.armorIndex].name === 'ロトのよろい') return false;
+    player.hp = Math.max(0, player.hp - 2);
+    if (player.hp > 0) return false;
+    (async () => {
+        await showMessage([`${player.name}は どくの ぬまちで`, 'たおれてしまった...']);
+        const lost = playerKilled();
+        await showMessage(['王様「しっかりするのじゃ！」',
+            lost > 0 ? `ゴールドを ${lost} おとしてしまった...` : '',
+            `のこりの もちきんは ${player.gold}G`]);
+        currentState = STATE.FIELD;
+    })();
+    return true;
+}
+
 // 本家: まほうのよろいは4歩ごと、ロトのよろいは1歩ごとにHPが1回復する
 let walkSteps = 0;
 function healWhileWalking() {
@@ -622,6 +678,7 @@ function updateField() {
                 playerPosition.x = nx;
                 playerPosition.y = ny;
                 if (repelSteps > 0) repelSteps--; // トヘロスは128歩で切れる
+                if (applyPoison(nx, ny)) return;   // 毒沼で倒れたら以降は処理しない
                 healWhileWalking();
                 // ランダムエンカウント（デバッグモード中は発生しない）
                 if (!debugMode && checkEncounter(nx, ny)) {
@@ -647,7 +704,11 @@ let textExplainSave = [];
 let passcodeFromTitle = false;
 function openPasscode(fromTitle) {
     passcodeFromTitle = !!fromTitle;
-    if (fromTitle) pass = passHiraganaList[0].repeat(PASS_LENGTH);
+    // 控えがあれば入力済みにしておく。無ければ「あ」20文字から
+    if (fromTitle) {
+        const saved = rememberedPass();
+        pass = (saved && saved.length === PASS_LENGTH) ? saved : passHiraganaList[0].repeat(PASS_LENGTH);
+    }
     else calcFlagsToCode();
     hiraganaCursorIndex = 0;
     syncWheelToCursor();

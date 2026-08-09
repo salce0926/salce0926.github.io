@@ -292,21 +292,14 @@ function drawWindowPlayerInfo(){
     ];
     drawWindow(displayTileSize / 2, displayTileSize / 2, displayTileSize * 4, displayTileSize * (text.length + 0.5), text);
 }
-function drawPoint(){ // ローラ姫ナビゲーション＆デバッグ座標
-    let text = '';
-    if(getGameFlag('roraLove')) {
-        let dx = gameFlags.sunStone.location.x - playerPosition.x;
-        let dy = gameFlags.sunStone.location.y - playerPosition.y;
-        let ns = (dx > 0 ? '東' : '西'), ew = (dy > 0 ? '南' : '北');
-        // 本家: 城までの距離に加えて、次のレベルまでの必要経験値も教えてくれる
-        const next = playerStatus.find(p => p.level === player.level + 1);
-        const rest = next ? `つぎのレベルまで あと${Math.max(0, next.requiredExp - player.exp)}　` : '';
-        text = `ローラ「${rest}ラダトーム城まで${ns}へ${Math.abs(dx)} ${ew}へ${Math.abs(dy)}ですわ」`;
-    }
-    if(debugMode) text = `x: ${playerPosition.x}, y: ${playerPosition.y}`;
+function drawPoint(){ // デバッグ用の座標表示だけ（ローラのナビは どうぐ から使う）
     const pt = document.getElementById('point');
-    if(pt) { pt.innerText = text; pt.style.display = text ? 'block' : 'none'; }
+    if (!pt) return;
+    const text = debugMode ? `x: ${playerPosition.x}, y: ${playerPosition.y}` : '';
+    pt.innerText = text;
+    pt.style.display = text ? 'block' : 'none';
 }
+
 
 // =====================================================================
 // メッセージシステム
