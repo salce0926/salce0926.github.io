@@ -8,6 +8,8 @@ function isVisit(x, y) { return !inDungeon() && playerPosition.x === x && player
 function playerKilled(){
     const lost = player.gold - Math.floor(player.gold / 2);
     player.gold -= lost;
+    // 本家: 姫を抱えたまま倒れると、姫は洞窟へ戻ってしまう
+    if (getGameFlag('roraRescued') && !getGameFlag('roraLove')) clearGameFlag('roraRescued');
     // 本家同様、王様のもとに運ばれてHPもMPも全快する（眠り・封じも解ける）
     if (inDungeon()) leaveDungeon(51, 51); else { playerPosition.x = 51; playerPosition.y = 51; }
     player.hp = player.maxHp; player.mp = player.maxMp;
@@ -72,6 +74,47 @@ async function useStairsHere() {
     return true;
 }
 
+// 本家の「とびら」コマンド。隣のマスのとびらに かぎ を1つ使う
+async function openLockedDoor() {
+    const door = adjacentLockedDoor();
+    if (!door) return;
+    if (player.key <= 0) {
+        await showMessage(['かぎの かかった とびらだ', 'しかし かぎを もっていない...']);
+    } else {
+        player.key--;                       // 本家: 開けるたびに1つ消える
+        setGameFlag(door.flag);
+        await showMessage(['かぎを つかった！', 'とびらが ひらいた！']);
+    }
+    currentState = STATE.FIELD;
+}
+
+// 洞窟の奥のドラゴン。乗ったら必ず戦う（逃げても居座る）
+async function fightCaveDragon() {
+    await showMessage(['ドラゴンが たちはだかった！']);
+    const dragon = { ...enemyTable[enemyByName['ドラゴン']], noFlee: true };
+    const result = await startBattle(dragon);
+    if (result === 'win') {
+        setGameFlag('dragonKilled');
+        await showMessage(['ドラゴンを たおした！']);
+    } else if (result === 'flee') {
+        await showMessage(['にげだしたが ドラゴンは', 'まだ おくを まもっている...']);
+    }
+    currentState = STATE.FIELD;
+}
+
+// ローラ姫。話しかけると抱きかかえる（本家どおり、城まで運ぶ）
+async function rescueRora() {
+    if (!getGameFlag('roraRescued')) {
+        setGameFlag('roraRescued');
+        playerStyle = playerStyleWithRora; playerIndex = playerStyle;
+        await showMessage(['ローラ姫「おお ゆうしゃさま！」']);
+        await showMessage(['ローラ姫を だきかかえた！', 'ラダトームの しろへ つれて かえろう']);
+    } else {
+        await showMessage(['ローラ姫「はやく しろへ...」']);
+    }
+    currentState = STATE.FIELD;
+}
+
 async function interactField() {
     let handled = true;
 
@@ -79,6 +122,8 @@ async function interactField() {
     // マイクロタスクまでずれるあいだにオートの押しっぱなしキーで1マス動いてしまい、
     // 城や町のイベントがまるごと起きなくなる（メニューが開くだけになる）
     if (chestHere()) { await openChestHere(); return; }
+    if (adjacentLockedDoor()) { await openLockedDoor(); return; }
+    if (dungeonEventHere() === 'rora') { await rescueRora(); return; }
     if (stairsHere()) { await useStairsHere(); return; }
 
     if (isVisit(gameFlags.fairyFlute.location.x, gameFlags.fairyFlute.location.y)) {
@@ -88,16 +133,6 @@ async function interactField() {
             await showMessage(['妖精の笛を手に入れた！']);
         } else await showMessage(['ここはマイラの村だ', '温泉で有名らしい']);
         await offerTown('マイラの村', townShops.maira);
-    } else if (isVisit(112, 52) || isVisit(112, 57)) {
-        if(!getGameFlag('roraRescued')){
-            if(player.key <= 0) await showMessage(['洞窟の中に扉があったが', 'かぎが 無いので 開けられなかった...']);
-            else{
-                player.key--;   // 本家: 扉を開けるたびに1つ消費される
-                setGameFlag('roraRescued'); playerStyle = playerStyleWithRora;
-                await showMessage(['魔法の鍵で扉を開けた！', 'ドラゴンを倒してローラ姫を救出した！']);
-            }
-        } else await showMessage(['倒したドラゴンのことは', '今度片付けよう']);
-        playerPosition.y = isVisit(112,52) ? 57 : 52;
     } else if (isVisit(gameFlags.magicKey.location.x, gameFlags.magicKey.location.y)) {
         if(!getGameFlag('magicKey')){
             setGameFlag('magicKey');
@@ -707,7 +742,7 @@ let lastMoveTime = 0;
 function isMoveAllowed(x, y) {
     if (typeof mapData === 'undefined' || !mapData[y] || mapData[y][x] === undefined) return false;
     if (debugMode) return true;
-    if (inDungeon()) return mapData[y][x] !== D_WALL;
+    if (inDungeon()) return mapData[y][x] !== D_WALL && !isDoorLocked(x, y);
     return [25, 26, 27, 28, 29, 31, 32, 33, 34, 35].includes(mapData[y][x]);
 }
 
@@ -752,6 +787,10 @@ function updateField() {
                 playerPosition.y = ny;
                 if (repelSteps > 0) repelSteps--; // トヘロスは128歩で切れる
                 if (radiantSteps > 0) radiantSteps--; // レミーラは合計200歩で切れる
+                if (inDungeon() && dungeonEventHere() === 'dragon' && !getGameFlag('dragonKilled')) {
+                    fightCaveDragon();          // 本家: このマスに乗ると必ずドラゴンが出る
+                    return;
+                }
                 if (applyPoison(nx, ny)) return;   // 毒沼で倒れたら以降は処理しない
                 healWhileWalking();
                 // ランダムエンカウント（デバッグモード中は発生しない）
@@ -1182,8 +1221,6 @@ function bestHuntingSpot(opt) {
 const QUEST_STEPS = [
     { name: '城で 王様に あう',        x: 51,  y: 51,  done: () => getGameFlag('start') },
     { name: 'リムルダールで まほうのかぎ', x: 110, y: 80,  done: () => getGameFlag('magicKey') },
-    { name: 'ローラひめを たすける',   x: 112, y: 52,  done: () => getGameFlag('roraRescued') },
-    { name: 'ひめを 城へ つれて かえる', x: 51, y: 51,  done: () => getGameFlag('roraLove') },
     { name: '城で たいようのいし',     x: 51,  y: 51,  done: () => getGameFlag('sunStone') },
     { name: 'マイラで ようせいのふえ', x: 112, y: 18,  done: () => getGameFlag('fairyFlute') },
     { name: 'ガライの はかで ぎんのたてごと', x: 10, y: 10, done: () => getGameFlag('silverHerp') },
@@ -1191,6 +1228,9 @@ const QUEST_STEPS = [
     { name: 'メルキドの ゴーレム',     x: 81,  y: 108, done: () => getGameFlag('golemKilled') },
     { name: 'ロトのしるし',            x: 91,  y: 121, done: () => getGameFlag('rotoEmblem') },
     { name: 'ドムドーラで ロトのよろい', x: 33, y: 97,  done: () => getGameFlag('rotoArmor') },
+    // 本家でも「ドラゴンが強いので救助は後回しでよい」。装備が整ってから向かう
+    { name: 'ローラひめを たすける',   x: 112, y: 52,  tour: 'rora', done: () => getGameFlag('roraRescued') },
+    { name: 'ひめを 城へ つれて かえる', x: 51, y: 51,  done: () => getGameFlag('roraLove') },
     { name: 'にじのしずく',            x: 116, y: 117, done: () => getGameFlag('rainbowDrop') },
     { name: 'にじの はしを かける',    x: 73,  y: 57,  done: () => getGameFlag('rainbowBridge') },
     { name: 'りゅうおうを たおす',     x: 56,  y: 56,  done: () => getGameFlag('lightBall') }
@@ -1278,7 +1318,8 @@ function resetAutoState() {
 function startTour(exitOnly) {
     resetAutoState();
     autoPilot.questMode = false; autoPilot.goldGoal = 0; autoPilot.targetLevel = 30;
-    autoPilot.tour = { plan: [], at: 0, deaths: 0, retreat: !!exitOnly, path: null, pathAt: -1 };
+    autoPilot.tour = { plan: [], at: 0, deaths: 0, retreat: !!exitOnly, path: null, pathAt: -1,
+                       kind: 'explore', entranceKey: '37,65', exitKey: '37,65', targets: [] };
     rebuildTour(exitOnly);
 }
 
@@ -1488,7 +1529,10 @@ function autoStatusLine() {
         return `せんとう：${typeof enemy !== 'undefined' && enemy ? enemy.name : ''}`;
     if (p.tour) {
         const t = p.tour, leg = t.plan[t.at];
+        const name = inDungeon() ? currentDungeon().name : 'どうくつ';
         const floor = inDungeon() ? currentDungeon().floorName : 'ちじょう';
+        if (t.kind === 'traverse') return `${name}を とおりぬける`;
+        if (t.kind === 'rora')     return `ローラひめを たすけに いく（${floor}）`;
         if (t.retreat) return `どうくつ ${floor}：ひきあげ中`;
         if (!leg) return 'どうくつ：たんさく おわり';
         const left = t.plan.filter(l => l.act === 'chest').length
@@ -1517,14 +1561,61 @@ function autoStatusLine() {
 const TOUR_MAX_DEATHS = 3;
 function rebuildTour(exitOnly) {
     const t = autoPilot.tour;
-    t.plan = planDungeonTour({
-        fromMap: currentMapId,
-        x: playerPosition.x, y: playerPosition.y,
-        exitOnly: exitOnly || t.retreat
-    });
+    if (exitOnly) t.retreat = true;
+    // 作り直してばかりで進まないときは、諦めて止める（無限ループの歯止め）
+    t.rebuilds = (t.rebuilds || 0) + 1;
+    if (t.rebuilds > 20) { autoStop('どうくつで みちに まよいました'); return; }
+    if (t.kind === 'explore') {
+        t.plan = planDungeonTour({ fromMap: currentMapId, x: playerPosition.x, y: playerPosition.y,
+                                   exitOnly: t.retreat });
+    } else if (inDungeon()) {
+        t.plan = planFromHere(t.retreat ? [] : t.targets, t.exitKey);
+    } else {
+        t.plan = planErrand(t.entranceKey, t.retreat ? [] : t.targets, t.exitKey);
+    }
     t.at = 0;
     t.path = null; t.pathAt = -1;
     autoPilot.lastLine = '';
+}
+
+// 地上の経路の途中で沼地の洞窟をくぐる。抜けたら元の経路に戻す
+function startTraverse(fromX, fromY, to) {
+    const entranceKey = fromX + ',' + fromY, exitKey = to.x + ',' + to.y;
+    const plan = planTraverse(entranceKey, exitKey);
+    if (!plan) return false;
+    autoPilot.tour = { plan, at: 0, deaths: 0, retreat: false, path: null, pathAt: -1,
+                       kind: 'traverse', entranceKey, exitKey, targets: [],
+                       resume: { path: autoPilot.path, goal: autoPilot.goal } };
+    autoPilot.path = null; autoPilot.goal = null;
+    autoPilot.lastLine = '';
+    return true;
+}
+
+// ローラ姫を助けに行く。ドラゴンのマスを通り、かぎの扉を開けて、北口から戻る
+// 洞窟の奥のドラゴンに勝てる見込みが立つレベル。本家でも救助は後回しでよい相手
+function levelForCaveDragon() {
+    const dragon = enemyTable[enemyByName['ドラゴン']];
+    for (let lv = player.level; lv <= 30; lv++) {
+        let lose = 0; const N = 60;
+        for (let i = 0; i < N; i++) if (simulateBattle(statsAtLevel(lv), dragon).r === 'lose') lose++;
+        if (lose / N <= 0.15) return lv;
+    }
+    return 30;
+}
+
+const RORA_TARGETS = [
+    { map: 'numachi', x: 5, y: 21, act: 'door' },   // 扉の下に立って かぎ を使う
+    { map: 'numachi', x: 5, y: 18, act: 'rora' }
+];
+function startRoraErrand() {
+    const north = '112,52';
+    const plan = inDungeon() ? planFromHere(RORA_TARGETS, north) : planErrand(north, RORA_TARGETS, north);
+    if (!plan) return false;
+    autoPilot.tour = { plan, at: 0, deaths: 0, retreat: false, path: null, pathAt: -1,
+                       kind: 'rora', entranceKey: north, exitKey: north, targets: RORA_TARGETS };
+    autoPilot.path = null; autoPilot.goal = null;
+    autoPilot.lastLine = '';
+    return true;
 }
 
 function autoTourStep() {
@@ -1535,12 +1626,38 @@ function autoTourStep() {
         const canHeal = (player.spells.includes('ホイミ') && player.mp >= 4) || player.herb > 0;
         if (!canHeal) { t.retreat = true; rebuildTour(true); return; }
     }
-    if (t.deaths >= TOUR_MAX_DEATHS) { autoStop(`どうくつは むりでした（ぜんめつ${t.deaths}回）`); return; }
+    if (t.deaths >= TOUR_MAX_DEATHS) {
+        // 本編の途中（通り抜け・お使い）なら止めずに、鍛え直してから出直す
+        if (t.kind !== 'explore') {
+            autoPilot.tour = null;
+            autoPilot.path = null; autoPilot.goal = null;
+            autoPilot.grindUntil = Math.min(30, player.level + 3);
+            autoPilot.lastLine = '';
+            return;
+        }
+        autoStop(`どうくつは むりでした（ぜんめつ${t.deaths}回）`); return;
+    }
 
     const leg = t.plan[t.at];
     if (!leg) {
+        if (inDungeon()) { rebuildTour(); return; }   // まだ中にいる＝計画が尽きただけ
+        t.rebuilds = 0;                                // 外に出られたので数え直す
+        // 通り抜け・お使いは本編の続きがあるので止めない
+        if (t.kind === 'traverse') {
+            const r = t.resume;
+            autoPilot.tour = null;
+            autoPilot.path = r && r.path ? findPath(playerPosition, r.path[r.path.length - 1]) : null;
+            autoPilot.goal = autoPilot.path ? r.goal : null;
+            autoPilot.lastLine = '';
+            return;
+        }
+        if (t.kind === 'rora') { autoPilot.tour = null; autoPilot.lastLine = ''; return; }
         autoStop(t.retreat ? 'どうくつから ひきあげました' : 'どうくつを たんさくしました');
         return;
+    }
+    // かぎが無いと扉の先へ行けない。無限に往復しないよう先に諦める
+    if (t.kind === 'rora' && leg.act === 'rora' && isDoorLocked(5, 20) && player.key <= 0) {
+        autoStop('かぎが たりません'); return;
     }
     if (leg.map !== currentMapId) { rebuildTour(); return; }   // 全滅などで想定とずれた
 
@@ -1683,6 +1800,15 @@ function autoTick(now) {
                 // 下の狩り処理にそのまま流す
             } else if (playerPosition.x === q.x && playerPosition.y === q.y) {
                 autoPilot.grindUntil = 0;
+                if (q.tour === 'rora') {                 // 洞窟の奥まで行く
+                    const need = levelForCaveDragon();
+                    if (need > player.level) {           // ドラゴンに勝てないうちは鍛えてから
+                        autoPilot.grindUntil = need;
+                        autoPilot.path = null; autoPilot.goal = null;
+                        return;
+                    }
+                    if (startRoraErrand()) return;
+                }
                 autoBusy = true;
                 Promise.resolve(interactField()).then(() => {
                     autoBusy = false;
@@ -1788,6 +1914,13 @@ function autoTick(now) {
         return;
     }
 
+    // 何かの拍子にダンジョンの中で計画を見失ったら、まず外へ出る（地上用の判定は中では使えない）
+    if (!autoPilot.tour && inDungeon()) {
+        const key = dungeonExit().x + ',' + dungeonExit().y;
+        autoPilot.tour = { plan: [], at: 0, deaths: 0, retreat: true, path: null, pathAt: -1,
+                           kind: 'traverse', entranceKey: key, exitKey: key, targets: [], resume: null };
+        rebuildTour(true);
+    }
     // ダンジョン探索モードはここで完結させる（地上用の狩り場・宿の判定は使わない）
     if (autoPilot.tour) { autoTourStep(); return; }
 
@@ -1811,11 +1944,10 @@ function autoTick(now) {
         const k = stepKeyToward(playerPosition, target);
         if (!k) {
             const w = warpFrom(playerPosition.x, playerPosition.y);
-            if (w && w.x === target.x && w.y === target.y) {   // 洞窟をくぐる
+            if (w && w.x === target.x && w.y === target.y) {   // 沼地の洞窟をくぐる
                 for (const other of ARROW_KEYS) Input.release(other);
                 autoPilot.dir = null;
-                Input.press(' ');
-                return;
+                if (startTraverse(playerPosition.x, playerPosition.y, w)) return;
             }
             autoPilot.path = findPath(playerPosition, target);  // 道から外れたので引き直す
             return;

@@ -20,7 +20,10 @@ var gameFlags = {
     warriorRing:    { bit: 14, flag: false, location: { x: 0, y: 0 } },
     deathNecklace:  { bit: 15, flag: false, location: { x: 0, y: 0 } },
     cursed:         { bit: 16, flag: false, location: { x: 0, y: 0 } },
-    necklaceGone:   { bit: 17, flag: false, location: { x: 0, y: 0 } }   // 解呪で消えた
+    necklaceGone:   { bit: 17, flag: false, location: { x: 0, y: 0 } },  // 解呪で消えた
+    // 沼地の洞窟
+    numachiDoor:    { bit: 18, flag: false, location: { x: 0, y: 0 } },  // かぎの扉を開けた
+    dragonKilled:   { bit: 19, flag: false, location: { x: 0, y: 0 } }
 };
 
 function setGameFlag(flagName) { gameFlags[flagName].flag = true; }
