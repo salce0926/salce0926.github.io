@@ -191,3 +191,121 @@ function chestHere() {
     if (!id) return null;
     return openedChests.has(currentMapId + ':' + id) ? null : id;
 }
+
+// =====================================================================
+// オート用: ダンジョンの経路探索と巡回計画
+// =====================================================================
+// 同じ階の中だけを歩く経路。地上とちがって端はつながっていない
+function dungeonWalk(mapId, from, to) {
+    const g = DUNGEONS[mapId].grid, H = g.length, W = g[0].length;
+    if (from.x === to.x && from.y === to.y) return [];
+    const prev = new Map([[from.x + ',' + from.y, null]]);
+    const q = [[from.x, from.y]];
+    while (q.length) {
+        const [x, y] = q.shift();
+        if (x === to.x && y === to.y) break;
+        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || ny >= H || nx >= W || g[ny][nx] === D_WALL) continue;
+            const k = nx + ',' + ny;
+            if (prev.has(k)) continue;
+            prev.set(k, [x + ',' + y, { x: nx, y: ny }]);
+            q.push([nx, ny]);
+        }
+    }
+    const goal = to.x + ',' + to.y;
+    if (!prev.has(goal)) return null;
+    const out = []; let cur = goal;
+    while (prev.get(cur)) { out.unshift(prev.get(cur)[1]); cur = prev.get(cur)[0]; }
+    return out;
+}
+
+// 階段でつながった別の階もひとつづきのグラフとして探索する。
+// 返り値は「このマップのこのマスまで歩いて、着いたらAを押す」の並び
+function dungeonRoute(fromMap, from, toMap, to) {
+    const key = (m, x, y) => m + ':' + x + ',' + y;
+    const startK = key(fromMap, from.x, from.y), goalK = key(toMap, to.x, to.y);
+    if (startK === goalK) return { legs: [], cost: 0 };
+    const prev = new Map([[startK, null]]);
+    const dist = new Map([[startK, 0]]);
+    const q = [[fromMap, from.x, from.y]];
+    while (q.length) {
+        const [m, x, y] = q.shift();
+        if (key(m, x, y) === goalK) break;
+        const d = DUNGEONS[m], g = d.grid, H = g.length, W = g[0].length;
+        const here = key(m, x, y);
+        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || ny >= H || nx >= W || g[ny][nx] === D_WALL) continue;
+            const k = key(m, nx, ny);
+            if (prev.has(k)) continue;
+            prev.set(k, [here, { kind: 'walk' }]);
+            dist.set(k, dist.get(here) + 1);
+            q.push([m, nx, ny]);
+        }
+        for (const mark in d.marks) {
+            const p = d.marks[mark];
+            if (p.x !== x || p.y !== y) continue;
+            const link = d.links[mark];
+            if (!link || link[0] === 'world') continue;       // 地上への出口はここでは使わない
+            const t = DUNGEONS[link[0]].marks[link[1]];
+            const k = key(link[0], t.x, t.y);
+            if (prev.has(k)) continue;
+            prev.set(k, [here, { kind: 'stairs', map: m, x, y }]);
+            dist.set(k, dist.get(here) + 1);
+            q.push([link[0], t.x, t.y]);
+        }
+    }
+    if (!prev.has(goalK)) return null;
+    const steps = []; let cur = goalK;
+    while (prev.get(cur)) { steps.unshift(prev.get(cur)[1]); cur = prev.get(cur)[0]; }
+    const legs = [];
+    for (const s of steps) if (s.kind === 'stairs') legs.push({ map: s.map, x: s.x, y: s.y, act: 'stairs' });
+    legs.push({ map: toMap, x: to.x, y: to.y, act: null });
+    return { legs, cost: dist.get(goalK) };
+}
+
+// 入口から入って、行ける宝箱を近い順に全部あけて、出口から出るまでの計画。
+// from を渡すとその場所から作り直す（全滅したあとや、途中でオートを入れたとき用）
+function planDungeonTour(opt) {
+    opt = opt || {};
+    const entranceKey = Object.keys(DUNGEON_ENTRANCES)[0];      // 今は岩山だけ
+    const ent = DUNGEON_ENTRANCES[entranceKey];
+    const [ex, ey] = entranceKey.split(',').map(Number);
+    const startMap = ent[0], startPos = DUNGEONS[startMap].marks[ent[1]];
+    const plan = [];
+    let cur;
+    if (opt.fromMap && opt.fromMap !== 'world') {
+        cur = { map: opt.fromMap, x: opt.x, y: opt.y };
+    } else {
+        plan.push({ map: 'world', x: ex, y: ey, act: 'enter' });
+        cur = { map: startMap, x: startPos.x, y: startPos.y };
+    }
+    if (!opt.exitOnly) {
+        const left = [];
+        for (const id in DUNGEONS) for (const k in DUNGEONS[id].chestAt) {
+            if (openedChests.has(id + ':' + DUNGEONS[id].chestAt[k])) continue;
+            const [x, y] = k.split(',').map(Number);
+            left.push({ map: id, x, y });
+        }
+        while (left.length) {
+            let best = null, bestRoute = null;
+            for (const c of left) {
+                const r = dungeonRoute(cur.map, cur, c.map, c);
+                if (r && (!bestRoute || r.cost < bestRoute.cost)) { best = c; bestRoute = r; }
+            }
+            if (!best) break;                                  // 行けない宝箱は諦める
+            bestRoute.legs[bestRoute.legs.length - 1].act = 'chest';
+            plan.push(...bestRoute.legs);
+            cur = best;
+            left.splice(left.indexOf(best), 1);
+        }
+    }
+    const back = dungeonRoute(cur.map, cur, startMap, startPos);
+    if (back) {
+        // 出入口の上に立っていても必ず「出る」区間を1つ置く
+        if (!back.legs.length) plan.push({ map: startMap, x: startPos.x, y: startPos.y, act: 'exit' });
+        else { plan.push(...back.legs); plan[plan.length - 1].act = 'exit'; }
+    }
+    return plan;
+}

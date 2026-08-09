@@ -16,6 +16,7 @@ function playerKilled(){
     if (typeof autoPilot !== 'undefined' && autoPilot.on) {
         autoPilot.deaths++;
         autoPilot.recentDeaths = (autoPilot.recentDeaths || 0) + 1;
+        if (autoPilot.tour) autoPilot.tour.deaths++;
         autoPilot.path = null; autoPilot.goal = null;   // 城へ運ばれたので経路は捨てる
         // 本編モードは目的地を見失わないよう、次のフレームで引き直させる
         if (!autoPilot.questMode && autoPilot.spot) {
@@ -955,13 +956,15 @@ const autoPilot = {
     recentBattles: 0, recentDeaths: 0, recentExp: 0, relocated: 0,   // 割に合わない場所で粘らないための記録
     startedAt: 0,
     spot: null,   // 開始した場所。宿や全滅のあとはここへ戻して同じゾーンで狩り続ける
-    home: null, dir: null, dirUntil: 0, lastPos: null, stuck: 0
+    home: null, dir: null, dirUntil: 0, lastPos: null, stuck: 0,
+    tour: null    // ダンジョン探索モード { plan, at, deaths, retreat }
 };
 
 function autoStop(reason) {
     if (!autoPilot.on) return;
     autoPilot.on = false;
     autoPilot.dir = null;
+    autoPilot.tour = null;
     autoBusy = false;          // 途中で止めると立ちっぱなしになり、再開しても動けなくなる
     MOVE_INTERVAL = MOVE_INTERVAL_NORMAL;
     for (const k of ARROW_KEYS) Input.release(k);
@@ -1255,11 +1258,42 @@ function levelForPath(path) {
     return 30;
 }
 
+// 共通の初期化。モードごとの設定を入れる前に呼ぶ
+function resetAutoState() {
+    Object.assign(autoPilot, { on: true, battles: 0, rests: 0, deaths: 0,
+        battlesAtRest: -1, startedAt: performance.now(),
+        path: null, goal: null, inn: null, tour: null,
+        recentBattles: 0, recentDeaths: 0, recentExp: player.exp, relocated: 0,
+        questFails: 0, questName: '', grindUntil: 0, shoppedGold: 0, shopKey: null,
+        spot: { ...playerPosition }, home: { ...playerPosition },
+        dir: null, dirUntil: 0, lastPos: { ...playerPosition }, stuck: 0 });
+    autoBusy = false;
+    debugMode = false;            // デバッグモード中はエンカウントしないので必ず切る
+    MOVE_INTERVAL = MOVE_INTERVAL_AUTO;
+    currentState = STATE.FIELD;
+    autoPilot.lastLine = '';
+}
+
+// ダンジョン探索モードを開始する
+function startTour(exitOnly) {
+    resetAutoState();
+    autoPilot.questMode = false; autoPilot.goldGoal = 0; autoPilot.targetLevel = 30;
+    autoPilot.tour = { plan: [], at: 0, deaths: 0, retreat: !!exitOnly, path: null, pathAt: -1 };
+    rebuildTour(exitOnly);
+}
+
 async function autoStart() {
     if (autoPilot.on) { autoStop('じぶんで とめた'); return; }
     if (currentState !== STATE.FIELD) return;
-    // 経路探索は地上のマップ前提なので、ダンジョンの中では動かさない
-    if (inDungeon()) { await showMessage(['オート：どうくつの なかでは つかえません']); currentState = STATE.FIELD; return; }
+    // ダンジョンの中は専用モード（地上用の狩り場・宿の判定が使えないため）
+    if (inDungeon()) {
+        const d = currentDungeon();
+        const j = await chooseFromList([`オート　Lv${player.level}　${d.name} ${d.floorName}`],
+            ['たからばこを あつめて でる', 'そとへ でる', 'やめる']);
+        if (j === undefined || j === 2) { currentState = STATE.FIELD; return; }
+        startTour(j === 1);
+        return;
+    }
     const rec = recommendedLevel(playerPosition.x, playerPosition.y);
     const gear = nextGearGoal();
     const spot = bestHuntingSpot();
@@ -1270,13 +1304,15 @@ async function autoStart() {
         rec > player.level ? `ここの てきに あわせる（Lv${rec}）` : 'ここの てきには もう まけない',
         gear ? `${gear.name}が かえるまで` : 'つぎの そうびは もう ない',
         spot && spot.zone !== here ? `よい かりばへ いく（z${here}→z${spot.zone}）` : 'ここが いまは さいてきの かりば',
+        'いわやまの どうくつを たんさく',
         'やめる'
     ];
     const i = await chooseFromList([
         `オート　Lv${player.level}　${player.gold}G　z${here}`,
         quest ? `つぎ：${quest.name}` : 'ぼうけんは おわっています',
         gear ? `つぎの そうび：${gear.name} ${gear.price}G` : ''], opts);
-    if (i === 4 || i === undefined) { currentState = STATE.FIELD; return; }
+    if (i === 5 || i === undefined) { currentState = STATE.FIELD; return; }
+    if (i === 4) { startTour(false); return; }
 
     autoPilot.goldGoal = 0;
     autoPilot.questMode = false;
@@ -1305,19 +1341,13 @@ async function autoStart() {
     if (!autoPilot.goldGoal && !autoPilot.questMode && autoPilot.targetLevel <= player.level) {
         currentState = STATE.FIELD; return;
     }
-    Object.assign(autoPilot, { on: true, battles: 0, rests: 0, deaths: 0,
-                               battlesAtRest: -1, startedAt: performance.now(),
-                               path: null, goal: null, inn: null,
-                               recentBattles: 0, recentDeaths: 0, recentExp: player.exp, relocated: 0,
-                               questFails: 0, questName: '', grindUntil: 0, shoppedGold: 0, shopKey: null,
-                               spot: { ...playerPosition }, home: { ...playerPosition },
-                               dir: null, dirUntil: 0,
-                               lastPos: { ...playerPosition }, stuck: 0 });
+    const keepQuest = autoPilot.questMode, keepGold = autoPilot.goldGoal,
+          keepName = autoPilot.goldGoalName, keepTown = autoPilot.goldGoalTown,
+          keepTarget = autoPilot.targetLevel;
+    resetAutoState();
+    Object.assign(autoPilot, { questMode: keepQuest, goldGoal: keepGold,
+        goldGoalName: keepName, goldGoalTown: keepTown, targetLevel: keepTarget });
     if (autoPilot.noSpotYet) { autoPilot.spot = null; autoPilot.noSpotYet = false; }
-    autoBusy = false;
-    debugMode = false;            // デバッグモード中はエンカウントしないので必ず切る
-    MOVE_INTERVAL = MOVE_INTERVAL_AUTO;
-    currentState = STATE.FIELD;
     if (moveTo) {   // 選ばれた狩り場まで歩いて移動してから始める
         autoPilot.spot = { x: moveTo.x, y: moveTo.y };
         autoPilot.home = { x: moveTo.x, y: moveTo.y };
@@ -1456,6 +1486,17 @@ function autoStatusLine() {
     const left = p.path ? `あと${p.path.length}ほ` : '';
     if (currentState === STATE.BATTLE || (typeof battleResolver !== 'undefined' && battleResolver !== null))
         return `せんとう：${typeof enemy !== 'undefined' && enemy ? enemy.name : ''}`;
+    if (p.tour) {
+        const t = p.tour, leg = t.plan[t.at];
+        const floor = inDungeon() ? currentDungeon().floorName : 'ちじょう';
+        if (t.retreat) return `どうくつ ${floor}：ひきあげ中`;
+        if (!leg) return 'どうくつ：たんさく おわり';
+        const left = t.plan.filter(l => l.act === 'chest').length
+                   - t.plan.slice(0, t.at).filter(l => l.act === 'chest').length;
+        if (leg.act === 'enter') return 'どうくつへ むかっています';
+        if (leg.act === 'exit')  return `どうくつ ${floor}：そとへ もどる`;
+        return `どうくつ ${floor}：たからばこ のこり${left}`;
+    }
     if (p.goal === 'やどやへ')     return `やどやへ いく（${left}）`;
     if (p.goal === 'かいものへ')   return `${p.goldGoalName || 'そうび'}を かいに いく（${left}）`;
     if (p.goal === 'みせへ')       return `${p.goldGoalName}を かいに いく（${left}）`;
@@ -1466,6 +1507,67 @@ function autoStatusLine() {
         return `かりをする：Lv${player.level}→${p.grindUntil}（z${zoneAt(playerPosition.x, playerPosition.y)}）`;
     if (p.questMode) return `かりをする（z${zoneAt(playerPosition.x, playerPosition.y)}）／つぎ：${p.questName}`;
     return `かりをする：Lv${player.level}→${p.targetLevel}（z${zoneAt(playerPosition.x, playerPosition.y)}）`;
+}
+
+// =====================================================================
+// オートのダンジョン探索
+// 計画は「このマップのこのマスまで歩いて、着いたらAを押す」の並び。
+// 全滅したり手動で動かされて計画からずれたら、その場から作り直す
+// =====================================================================
+const TOUR_MAX_DEATHS = 3;
+function rebuildTour(exitOnly) {
+    const t = autoPilot.tour;
+    t.plan = planDungeonTour({
+        fromMap: currentMapId,
+        x: playerPosition.x, y: playerPosition.y,
+        exitOnly: exitOnly || t.retreat
+    });
+    t.at = 0;
+    t.path = null; t.pathAt = -1;
+    autoPilot.lastLine = '';
+}
+
+function autoTourStep() {
+    const t = autoPilot.tour;
+
+    // 回復手段が尽きて削られたら、宝箱は諦めて出口へ向かう
+    if (!t.retreat && inDungeon() && player.hp < player.maxHp * 0.35) {
+        const canHeal = (player.spells.includes('ホイミ') && player.mp >= 4) || player.herb > 0;
+        if (!canHeal) { t.retreat = true; rebuildTour(true); return; }
+    }
+    if (t.deaths >= TOUR_MAX_DEATHS) { autoStop(`どうくつは むりでした（ぜんめつ${t.deaths}回）`); return; }
+
+    const leg = t.plan[t.at];
+    if (!leg) {
+        autoStop(t.retreat ? 'どうくつから ひきあげました' : 'どうくつを たんさくしました');
+        return;
+    }
+    if (leg.map !== currentMapId) { rebuildTour(); return; }   // 全滅などで想定とずれた
+
+    if (playerPosition.x !== leg.x || playerPosition.y !== leg.y) {
+        // 経路は区間ごとに1回だけ引く（毎フレーム引くと地上のBFSが重い）
+        if (t.pathAt !== t.at || !t.path) {
+            t.path = inDungeon() ? dungeonWalk(currentMapId, playerPosition, leg)
+                                 : findPath(playerPosition, leg);
+            t.pathAt = t.at;
+            if (!t.path || !t.path.length) { rebuildTour(); return; }
+        }
+        if (t.path[0] && playerPosition.x === t.path[0].x && playerPosition.y === t.path[0].y) t.path.shift();
+        if (!t.path.length) { t.path = null; return; }
+        const k = stepKeyToward(playerPosition, t.path[0]);
+        if (!k) { t.path = null; t.pathAt = -1; return; }   // 道から外れた。次のフレームで引き直す
+        for (const other of ARROW_KEYS) if (other !== k) Input.release(other);
+        autoPilot.dir = k;
+        Input.press(k);
+        return;
+    }
+    // 着いた。階段・宝箱・出入口ならしらべる
+    for (const other of ARROW_KEYS) Input.release(other);
+    autoPilot.dir = null;
+    t.path = null; t.pathAt = -1;
+    if (!leg.act) { t.at++; return; }
+    autoBusy = true;
+    Promise.resolve(interactField()).then(() => { autoBusy = false; t.at++; autoPilot.lastLine = ''; });
 }
 
 let autoBusy = false;
@@ -1490,7 +1592,7 @@ function autoTick(now) {
         autoPilot.dir = null;
     }
 
-    if (currentState === STATE.FIELD) {
+    if (currentState === STATE.FIELD && !autoPilot.tour) {
         // 強すぎる場所に置かれると、逃げてばかりで経験値が入らず、たまに全滅して
         // 所持金だけ半分になる——という運ゲーになる。死亡率だけ見ても逃げて生き延びる
         // ぶん低く出るので、「実際に稼げている経験値」で判断する
@@ -1678,6 +1780,16 @@ function autoTick(now) {
         Promise.resolve(castFieldSpell(healSpell)).then(() => { autoBusy = false; });
         return;
     }
+    // ダンジョンでは呪文が尽きてもやくそうで粘る（外に宿は無い）
+    if (autoPilot.tour && player.hp < player.maxHp * 0.5 && player.herb > 0
+        && !(healSpell && player.mp >= healCost)) {
+        autoBusy = true;
+        Promise.resolve(useFieldItem('やくそう')).then(() => { autoBusy = false; });
+        return;
+    }
+
+    // ダンジョン探索モードはここで完結させる（地上用の狩り場・宿の判定は使わない）
+    if (autoPilot.tour) { autoTourStep(); return; }
 
     // 狩り場から離れたまま放置されないようにする。全滅して城へ送られたり、
     // 町へ寄ったあと戻れないと、弱いゾーンで延々と戦い続けることになる
