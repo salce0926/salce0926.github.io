@@ -106,7 +106,11 @@ function mapWraps() { return currentMapId === 'world'; }   // 地上だけ端が
 let torchLit = false;
 let radiantSteps = 0;          // レミーラの残り歩数（本家は合計200歩）
 const RADIANT_STEPS = 200;
+const AUTO_LIGHT = 8;          // オート中の見え方（画面いっぱい。開発用の便宜）
 function lightRadius() {
+    // オート中は真っ暗だと何をしているか分からないので、明かり無しでも見えるようにする。
+    // 手で遊ぶときは本家どおり真っ暗
+    if (typeof autoPilot !== 'undefined' && autoPilot.on) return AUTO_LIGHT;
     let r = torchLit ? 1 : 0;
     // 本家: 半径3が80歩 → 半径2が60歩 → 半径1が60歩
     if (radiantSteps > 120) r = Math.max(r, 3);
