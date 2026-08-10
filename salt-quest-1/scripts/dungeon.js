@@ -11,10 +11,12 @@
 // ダンジョンで使うタイル番号（tileset.png の通し番号）。
 // 本家FC版のダンジョン画面と絵柄を1ドット単位で照合して決めた
 // （pidlio.com の実画面マップと tileset.png を突き合わせ）:
-//   床＝茶色いレンガ／壁＝灰色の石ブロック／階段・宝箱・とびらはレンガ縁の版
+//   床＝茶色いレンガ／壁＝灰色の石ブロック／階段・宝箱・とびらはレンガ縁の版。
+//   階段は上りと下りで絵がちがう（本家の各階のマップで確認）
 const D_FLOOR = 3;    // 床（茶色いレンガ）
 const D_WALL  = 1;    // 壁（灰色の石ブロック）
-const D_STAIR = 6;    // 階段
+const D_STAIR_DOWN = 6;   // 下り階段（段が左から右へ下がる絵）
+const D_STAIR_UP   = 7;   // 上り階段（段が左から右へ上がる絵）
 const D_CHEST = 4;    // 宝箱
 const D_DOOR  = 5;    // かぎのかかった とびら
 
@@ -24,6 +26,7 @@ const DUNGEONS = {
     iwayama1: {
         name: 'いわやまの どうくつ',
         floorName: 'ちか1かい',
+        depth: 1,
         zone: 19,
         rows: [
             'a...####......',
@@ -47,6 +50,7 @@ const DUNGEONS = {
     iwayama2: {
         name: 'いわやまの どうくつ',
         floorName: 'ちか2かい',
+        depth: 2,
         zone: 14,
         rows: [
             'a.#...........',
@@ -72,6 +76,7 @@ const DUNGEONS = {
     numachi: {
         name: 'ぬまちの どうくつ',
         floorName: 'ちか1かい',
+        depth: 1,
         zone: 19,
         rows: [
             '<.....', '.##.##', '.#..#.', '.##...', '....#.',
@@ -115,7 +120,13 @@ function buildDungeon(d, id) {
             else if (ch >= '1' && ch <= '9') { line.push(D_CHEST); d.chestAt[at] = ch; }
             else if (ch === '+') { line.push(D_DOOR); d.doorAt[at] = DUNGEON_DOORS[id]; }
             else if (DUNGEON_EVENTS[ch]) { line.push(D_FLOOR); d.eventAt[at] = DUNGEON_EVENTS[ch]; }
-            else { line.push(D_STAIR); d.marks[ch] = { x, y }; }
+            else {
+                // 本家は上りと下りで絵がちがう。行き先が今より浅ければ上り
+                const link = d.links[ch];
+                const toDepth = (!link || link[0] === 'world') ? 0 : (DUNGEONS[link[0]].depth || 0);
+                line.push(toDepth > (d.depth || 0) ? D_STAIR_DOWN : D_STAIR_UP);
+                d.marks[ch] = { x, y };
+            }
         });
         d.grid.push(line);
     });

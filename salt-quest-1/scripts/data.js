@@ -268,7 +268,7 @@ const encounterRatesZone0 = { 27: 1/48, 28: 1/32, 29: 1/32, 33: 1/16, 34: 1/16, 
 // ダンジョンのタイル別（dungeon.js の D_FLOOR / D_STAIR / D_CHEST に対応）
 // キーは dungeon.js のタイル番号（床3／階段6／宝箱4／とびら5）。
 // 開けたあとの とびら は床と同じ扱い
-const dungeonRates = { '3': 1/16, '5': 1/16, '6': 1/24, '4': 1/24 };
+const dungeonRates = { '3': 1/16, '5': 1/16, '6': 1/24, '7': 1/24, '4': 1/24 };
 
 // そのマスの1歩あたりの遭遇率
 function encounterRateAt(x, y) {
