@@ -337,8 +337,10 @@ function dungeonRoute(fromMap, from, toMap, to) {
 // from を渡すとその場所から作り直す（全滅したあとや、途中でオートを入れたとき用）
 function planDungeonTour(opt) {
     opt = opt || {};
-    const entranceKey = Object.keys(DUNGEON_ENTRANCES)[0];      // 今は岩山だけ
+    // 入口は「探索したいダンジョン」の出入口。中から始めるときは入ってきた口を使う
+    const entranceKey = opt.entranceKey || '37,65';
     const ent = DUNGEON_ENTRANCES[entranceKey];
+    if (!ent) return [];
     const [ex, ey] = entranceKey.split(',').map(Number);
     const startMap = ent[0], startPos = DUNGEONS[startMap].marks[ent[1]];
     const plan = [];

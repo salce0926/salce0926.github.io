@@ -1318,8 +1318,10 @@ function resetAutoState() {
 function startTour(exitOnly) {
     resetAutoState();
     autoPilot.questMode = false; autoPilot.goldGoal = 0; autoPilot.targetLevel = 30;
+    // ダンジョンの中から始めるときは、入ってきた出入口を使う
+    const key = inDungeon() ? (dungeonExit().x + ',' + dungeonExit().y) : '37,65';
     autoPilot.tour = { plan: [], at: 0, deaths: 0, retreat: !!exitOnly, path: null, pathAt: -1,
-                       kind: 'explore', entranceKey: '37,65', exitKey: '37,65', targets: [] };
+                       kind: 'explore', entranceKey: key, exitKey: key, targets: [] };
     rebuildTour(exitOnly);
 }
 
@@ -1498,7 +1500,10 @@ function expectedHit(attack, defense) {
 
 function autoBattleChoice() {
     const can = (name, cost) => player.spells.includes(name) && player.mp >= cost && !player.sealed;
-    const low = player.hp <= player.maxHp * 0.45;
+    // 本編のボスからは逃げない。逃げると先へ進めないうえ、
+    // 逃げられない相手だと「にげられない」でターンを捨てるだけになる
+    const boss = !!(enemy.boss || enemy.noFlee);
+    const low = player.hp <= player.maxHp * (boss ? 0.6 : 0.45);
     if (low && can('ベホイミ', 10)) return { cmd: 1, spell: 'ベホイミ' };
     if (low && can('ホイミ', 4))    return { cmd: 1, spell: 'ホイミ' };
     if (low && player.herb > 0) return { cmd: 2 };
@@ -1514,9 +1519,9 @@ function autoBattleChoice() {
         && enemy.hp / phys > 4 && player.hp < player.maxHp * 0.8) return { cmd: 1, spell: 'ラリホー' };
 
     // 殴っても呪文も通らない相手からは逃げる
-    if (phys <= 0) return { cmd: 3 };
+    if (phys <= 0 && !boss) return { cmd: 3 };
     // 回復手段が尽きて削られたら粘らずに逃げる（全滅すると所持金が半分になる）
-    if (player.hp <= player.maxHp * 0.3) return { cmd: 3 };
+    if (player.hp <= player.maxHp * 0.3 && !boss) return { cmd: 3 };
     return { cmd: 0 };
 }
 
@@ -1567,7 +1572,7 @@ function rebuildTour(exitOnly) {
     if (t.rebuilds > 20) { autoStop('どうくつで みちに まよいました'); return; }
     if (t.kind === 'explore') {
         t.plan = planDungeonTour({ fromMap: currentMapId, x: playerPosition.x, y: playerPosition.y,
-                                   exitOnly: t.retreat });
+                                   entranceKey: t.entranceKey, exitOnly: t.retreat });
     } else if (inDungeon()) {
         t.plan = planFromHere(t.retreat ? [] : t.targets, t.exitKey);
     } else {

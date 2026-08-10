@@ -184,6 +184,7 @@ const dragonLordHuman = {
     acts: { support: { spell: 'mahotone', p: 1/4 }, attack: { spell: 'begirama', p: 3/4 } },
     sprite: { x: 6, y: 601, w: 22, h: 38 }, hit: { x: 35, y: 601, w: 27, h: 38 },
     resist: { rariho: 15, mahoton: 15, gira: 15 },
+    boss: true,
     nextForm: dragonLordDragon,
     nextFormMessage: ['りゅうおうは しょうたいを あらわした！', 'おそろしい りゅうの すがただ！']
 };
@@ -265,7 +266,8 @@ function pickFieldEnemy(x, y) {
 const encounterRates      = { 27: 1/24, 28: 1/16, 29: 1/8,  33: 1/8,  34: 1/16, 35: 1/24 };
 const encounterRatesZone0 = { 27: 1/48, 28: 1/32, 29: 1/32, 33: 1/16, 34: 1/16, 35: 1/48 };
 // ダンジョンのタイル別（dungeon.js の D_FLOOR / D_STAIR / D_CHEST に対応）
-const dungeonRates = { '-1': 1/16, '7': 1/24, '14': 1/24 };
+// 開けたあとの とびら(4) は床と同じ扱い
+const dungeonRates = { '-1': 1/16, '4': 1/16, '7': 1/24, '14': 1/24 };
 
 // そのマスの1歩あたりの遭遇率
 function encounterRateAt(x, y) {
