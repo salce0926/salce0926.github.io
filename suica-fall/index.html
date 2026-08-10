@@ -1,22 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>スイカフォール</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2b1b10">
+  <title>Suica Fall</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="gameContainer">
-    <canvas id="gameCanvas" width="400" height="600"></canvas>
-    <!-- ボタン類の設定 -->
-    <button id="reloadButton" onclick="resetGame()">Play</button>
-    <div id="rules">
-      <p><strong>遊び方:</strong> 果物を落としてスイカを収穫しよう！</p>
-      <p><strong>ポイント:</strong> 同じ種類の果物を合体させると進化！</p>
-      <p><strong>注意:</strong> 果物が画面上部に到達するとゲームオーバー。</p>
+  <div id="app">
+    <h1 id="title">SUICA FALL</h1>
+
+    <div id="hud">
+      <div class="panel">
+        <span class="label">SCORE</span>
+        <span id="score" class="value">0</span>
+      </div>
+      <div class="panel">
+        <span class="label">BEST</span>
+        <span id="best" class="value">0</span>
+      </div>
+      <div class="panel next-panel">
+        <span class="label">NEXT</span>
+        <canvas id="nextCanvas" width="64" height="64"></canvas>
+      </div>
     </div>
-    <a href="../index.html">Return to main page</a>
+
+    <div id="stage">
+      <canvas id="gameCanvas"></canvas>
+      <div id="combo"></div>
+      <div id="overlay" class="hidden">
+        <div class="overlay-inner">
+          <p id="overlayTitle">GAME OVER</p>
+          <p id="overlayScore"></p>
+          <p id="overlayNote"></p>
+          <button id="retryButton">もう一度</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="controls">
+      <button id="soundButton" type="button">♪ ON</button>
+      <button id="resetButton" type="button">リセット</button>
+    </div>
+
+    <div id="chain" aria-label="進化の順番"></div>
+
+    <div id="rules">
+      <p><strong>操作:</strong> 左右に動かしてクリック／タップで落とす（←→ と スペースでも可）</p>
+      <p><strong>ルール:</strong> 同じ果物どうしがぶつかると合体して次の果物に進化。</p>
+      <p><strong>得点:</strong> 大きい果物ほど高得点。続けて合体するとコンボ倍率。</p>
+      <p><strong>スイカ:</strong> スイカどうしは合体すると消えて 66 点。</p>
+      <p><strong>負け:</strong> 果物が点線より上に居座るとゲームオーバー。</p>
+    </div>
+
+    <a class="back" href="../index.html">Return to main page</a>
   </div>
   <script src="script.js"></script>
 </body>

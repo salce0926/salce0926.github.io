@@ -1,47 +1,244 @@
 @font-face {
-    font-family: 'cinecaption'; /* 任意のフォント名 */
-    src: url('../fonts/cinecaption226.ttf') format('truetype'); /* フォントのパスと形式 */
-    /* 追加の書式やスタイルを指定することもできます */
+  font-family: 'cinecaption';
+  src: url('../fonts/cinecaption226.ttf') format('truetype');
+  font-display: swap;
 }
+
+* { box-sizing: border-box; }
 
 body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    margin: 0;
-    background-color: #f8f8f8;
-    font-family: 'cinecaption','Arial', sans-serif;
-    text-align: center;
+  margin: 0;
+  min-height: 100vh;
+  padding: 16px 12px 32px;
+  background: radial-gradient(circle at 50% 0%, #4a2f1c 0%, #2b1b10 60%, #1d120a 100%);
+  color: #f7ead6;
+  font-family: 'cinecaption', 'Hiragino Kaku Gothic ProN', 'Arial', sans-serif;
+  text-align: center;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
 }
 
-#gameContainer {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+#app {
+  width: min(420px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
 
-canvas {
-    background-color: #FFF5C2;
-    display: block;
-    margin: 0 auto;
+#title {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: 0.12em;
+  color: #ffd98a;
+  text-shadow: 0 2px 0 #7a4a12, 0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
-#reloadButton {
-    width: 120px;
-    height: 40px;
-    font-size: 16px;
-    margin-top: 20px;
-    cursor: pointer;
+/* ---------- HUD ---------- */
+#hud {
+  display: flex;
+  gap: 8px;
+  width: 100%;
 }
 
+.panel {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 216, 150, 0.22);
+  border-radius: 10px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 62px;
+}
+
+.panel .label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: #d7b98a;
+}
+
+.panel .value {
+  font-size: 24px;
+  line-height: 1.15;
+  color: #fff3d8;
+  font-variant-numeric: tabular-nums;
+}
+
+.next-panel { flex: 0 0 86px; }
+#nextCanvas { width: 64px; height: 64px; margin-top: -4px; }
+
+/* ---------- ステージ ---------- */
+#stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 400 / 580;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), inset 0 0 0 2px rgba(255, 216, 150, 0.18);
+}
+
+#gameCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: pointer;
+}
+
+#combo {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  font-size: 18px;
+  color: #ff5f6d;
+  text-shadow: 0 2px 0 #fff, 0 0 12px rgba(255, 120, 120, 0.7);
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+#combo.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---------- オーバーレイ ---------- */
+#overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 12, 6, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+
+#overlay.hidden { display: none; }
+
+.overlay-inner {
+  background: rgba(45, 28, 16, 0.95);
+  border: 2px solid rgba(255, 216, 150, 0.35);
+  border-radius: 14px;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+#overlayTitle {
+  margin: 0;
+  font-size: 26px;
+  color: #ff9d6b;
+  letter-spacing: 0.1em;
+}
+
+#overlayScore {
+  margin: 0;
+  font-size: 22px;
+  color: #fff3d8;
+}
+
+#overlayNote {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #d7b98a;
+}
+
+/* ---------- ボタン ---------- */
+button {
+  font-family: inherit;
+  font-size: 14px;
+  color: #2b1b10;
+  background: linear-gradient(#ffd98a, #f0b452);
+  border: none;
+  border-radius: 999px;
+  padding: 9px 22px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #9a6a1d;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+button:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #9a6a1d;
+}
+
+button.off {
+  background: linear-gradient(#8a7a68, #6b5c4c);
+  color: #e4dbcd;
+  box-shadow: 0 3px 0 #3f342a;
+}
+
+#controls {
+  display: flex;
+  gap: 10px;
+}
+
+/* ---------- 進化チャート ---------- */
+#chain {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 2px;
+  width: 100%;
+  padding: 8px 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.chain-item {
+  width: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  opacity: 0.28;
+  filter: grayscale(1);
+  transition: opacity 0.25s ease, filter 0.25s ease;
+}
+
+.chain-item.unlocked {
+  opacity: 1;
+  filter: none;
+}
+
+.chain-item span {
+  font-size: 9px;
+  color: #d7b98a;
+  line-height: 1.1;
+}
+
+/* ---------- 説明 ---------- */
 #rules {
-    text-align: center;
-    font-size: 14px;
-    margin-top: 20px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #d9c6a8;
+  text-align: left;
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
 }
 
-#rules p {
-    margin: 5px 0;
+#rules p { margin: 2px 0; }
+#rules strong { color: #ffd98a; }
+
+.back {
+  font-size: 12px;
+  color: #c8a97a;
+  text-decoration: none;
+  border-bottom: 1px dotted #8a6c45;
+}
+
+.back:hover { color: #ffd98a; }
+
+@media (max-width: 380px) {
+  #title { font-size: 22px; }
+  .chain-item { width: 46px; }
 }
