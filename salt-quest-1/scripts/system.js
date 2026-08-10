@@ -243,7 +243,7 @@ function drawWindowBattleEnemy() {
     drawEnemy();
 }
 function drawMap(){
-    // ダンジョンは床が真っ黒で、明かりの届く範囲(正方形)だけが見える
+    // ダンジョンは明かりの届く範囲(正方形)だけが見え、外は真っ黒
     const dark = (typeof inDungeon === 'function') && inDungeon();
     const wrap = (typeof mapWraps !== 'function') || mapWraps();
     const light = dark ? lightRadius() : Infinity;
@@ -262,7 +262,9 @@ function drawMap(){
             if (typeof mapData === 'undefined' || !mapData[worldY] || mapData[worldY][worldX] === undefined) continue;
             var tileIndex = mapData[worldY][worldX];
             if(tileIndex >= 350) tileIndex -= 12*25;
-            if(tileIndex >= 0) drawTile(x, y, tileIndex);   // 負の番号は「絵のない床」
+            // 本家どおり、開けたとびらは絵が消えてただの床になる
+            if(dark && tileIndex === D_DOOR && !isDoorLocked(worldX, worldY)) tileIndex = D_FLOOR;
+            drawTile(x, y, tileIndex);
             if(x === screenWidth/2 && y === screenHeight/2) drawCharacter(x, y, playerIndex);
         }
     }
