@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0e0f16">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>イッシュン</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{
+    width:100%;height:100%;overflow:hidden;background:#0e0f16;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+    overscroll-behavior:none;touch-action:none;
+  }
+  body{display:flex;align-items:center;justify-content:center}
+  canvas{display:block;touch-action:none;image-rendering:auto}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(function(){
+'use strict';
+
+/* ============================================================
+   基盤：キャンバス / 入力 / 音 / 描画ヘルパ
+   ============================================================ */
+
+const W = 360, H = 640;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif';
+
+// 遊技フィールド
+const FX0 = 20, FX1 = 340, FY0 = 104, FY1 = 568;
+const FW = FX1 - FX0, FH = FY1 - FY0;
+
+// 色
+const C = {
+  bg:'#0e0f16', panel:'#191b26', line:'#2c2f40',
+  ink:'#f2f3f8', dim:'#7a7f96',
+  y:'#ffd23f', p:'#ff4d7d', c:'#37e0cf', v:'#8b6bff', g:'#5ce07a', o:'#ff8a3d'
+};
+
+let scale = 1, rect = null;
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  scale = Math.min(window.innerWidth / W, window.innerHeight / H);
+  cv.style.width  = (W * scale) + 'px';
+  cv.style.height = (H * scale) + 'px';
+  cv.width  = Math.round(W * scale * dpr);
+  cv.height = Math.round(H * scale * dpr);
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+  rect = null;
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+resize();
+
+/* ---------- 音 ---------- */
+let AC = null, muted = (localStorage.getItem('isshun.mute') === '1');
+function ac(){
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ AC = null; } }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(f, d, type, vol, delay){
+  if (muted) return;
+  const a = ac(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'square'; o.frequency.value = f;
+  o.connect(g); g.connect(a.destination);
+  const t = a.currentTime + (delay || 0);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(vol == null ? 0.05 : vol, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  o.start(t); o.stop(t + d + 0.03);
+}
+const SFX = {
+  hit  : () => tone(760, 0.07, 'square', 0.05),
+  pick : () => tone(520, 0.05, 'triangle', 0.05),
+  clear: () => { tone(660,0.09,'square',0.055,0); tone(880,0.09,'square',0.055,0.08); tone(1180,0.16,'square',0.05,0.16); },
+  fail : () => { tone(200,0.20,'sawtooth',0.05,0); tone(140,0.26,'sawtooth',0.05,0.08); },
+  tick : () => tone(1500, 0.03, 'square', 0.028),
+  level: () => { tone(520,0.08,'triangle',0.06,0); tone(700,0.08,'triangle',0.06,0.09); tone(980,0.2,'triangle',0.06,0.18); },
+  over : () => { tone(420,0.18,'sawtooth',0.05,0); tone(310,0.2,'sawtooth',0.05,0.16); tone(200,0.5,'sawtooth',0.05,0.34); }
+};
+function buzz(ms){ if (navigator.vibrate) { try { navigator.vibrate(ms); } catch(e){} } }
+
+/* ---------- 描画ヘルパ ---------- */
+function rr(x, y, w, h, r){
+  const m = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+m, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, m);
+  ctx.arcTo(x+w, y+h, x,   y+h, m);
+  ctx.arcTo(x,   y+h, x,   y,   m);
+  ctx.arcTo(x,   y,   x+w, y,   m);
+  ctx.closePath();
+}
+function fillRR(x,y,w,h,r,col){ rr(x,y,w,h,r); ctx.fillStyle = col; ctx.fill(); }
+function strokeRR(x,y,w,h,r,col,lw){ rr(x,y,w,h,r); ctx.strokeStyle = col; ctx.lineWidth = lw||2; ctx.stroke(); }
+function circle(x,y,r,col){ ctx.beginPath(); ctx.arc(x,y,r,0,6.2832); ctx.fillStyle = col; ctx.fill(); }
+function ring(x,y,r,col,lw){ ctx.beginPath(); ctx.arc(x,y,r,0,6.2832); ctx.strokeStyle = col; ctx.lineWidth = lw||3; ctx.stroke(); }
+function text(s,x,y,size,col,align,weight){
+  ctx.font = (weight||'bold') + ' ' + size + 'px ' + FONT;
+  ctx.fillStyle = col; ctx.textAlign = align || 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(s, x, y);
+}
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function ri(a,b){ return Math.floor(rnd(a,b+1)); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function clamp(v,a,b){ return v<a?a:v>b?b:v; }
+function dist(ax,ay,bx,by){ const dx=ax-bx, dy=ay-by; return Math.sqrt(dx*dx+dy*dy); }
+
+/* ---------- パーティクル / 画面ゆれ ---------- */
+const parts = [];
+function burst(x, y, col, n){
+  n = n || 10;
+  for (let i=0;i<n;i++){
+    const a = rnd(0, 6.2832), sp = rnd(60, 260);
+    parts.push({ x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:rnd(0.3,0.6), max:0.6, col, r:rnd(2,5) });
+  }
+}
+let shake = 0;
+function updateParts(dt){
+  for (let i=parts.length-1;i>=0;i--){
+    const p = parts[i];
+    p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 500*dt; p.life -= dt;
+    if (p.life <= 0) parts.splice(i,1);
+  }
+  if (shake > 0) shake = Math.max(0, shake - dt*3.2);
+}
+function drawParts(){
+  for (const p of parts){
+    ctx.globalAlpha = clamp(p.life/p.max, 0, 1);
+    circle(p.x, p.y, p.r, p.col);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- 玉あそび（ジャグリング）共通 ---------- */
+const BALL_COLS = [C.y, C.c, C.p, C.v, C.o, C.g];
+function mkBall(i, y){
+  return { x: rnd(FX0+70, FX1-70), y: y == null ? FY0+90 : y,
+           vx: rnd(-70,70), vy: 0, r: 26, col: BALL_COLS[i % BALL_COLS.length] };
+}
+// 高さ h まで上がる初速（重力が変わっても跳ね方の感覚を揃える）
+function bounceV(grav, h){ return -Math.sqrt(2*grav*h); }
+function ballStep(list, dt, grav, floor){
+  let dropped = null;
+  for (const b of list){
+    b.vy += grav*dt; b.x += b.vx*dt; b.y += b.vy*dt;
+    if (b.x < FX0+b.r){ b.x = FX0+b.r; b.vx = Math.abs(b.vx); }
+    if (b.x > FX1-b.r){ b.x = FX1-b.r; b.vx = -Math.abs(b.vx); }
+    if (b.y < FY0+b.r){ b.y = FY0+b.r; b.vy = Math.abs(b.vy)*0.5; }
+    if (b.y + b.r > floor && !dropped) dropped = b;
+  }
+  // 玉どうしが重ならないように軽く押し返す
+  for (let i=0;i<list.length;i++) for (let j=i+1;j<list.length;j++){
+    const a = list[i], b = list[j];
+    const dx = b.x-a.x, dy = b.y-a.y, d = Math.sqrt(dx*dx+dy*dy) || 0.01;
+    const ov = a.r + b.r - d;
+    if (ov > 0){
+      const nx = dx/d, ny = dy/d;
+      a.x -= nx*ov/2; a.y -= ny*ov/2; b.x += nx*ov/2; b.y += ny*ov/2;
+      const k = 90;
+      a.vx -= nx*k; b.vx += nx*k;
+    }
+  }
+  return dropped;
+}
+function ballHit(list, p, grav, h){
+  let best = null, bd = 1e9;
+  for (const b of list){
+    const d = dist(p.x, p.y, b.x, b.y);
+    if (d < b.r + 36 && d < bd){ bd = d; best = b; }
+  }
+  if (!best) return false;
+  best.vy = bounceV(grav, h);
+  best.vx = clamp(best.vx + (best.x - p.x)*2.8, -250, 250);
+  burst(best.x, best.y + best.r, best.col, 8); SFX.hit();
+  return true;
+}
+function drawBall(b){
+  circle(b.x, b.y, b.r, b.col);
+  ctx.globalAlpha = 0.35; circle(b.x-8, b.y-9, 7, '#fff'); ctx.globalAlpha = 1;
+  ring(b.x, b.y, b.r + 8, 'rgba(255,255,255,0.10)', 2);
+}
+
+/* ---------- 入力 ---------- */
+const pointers = new Map();
+function toLocal(e){
+  if (!rect) rect = cv.getBoundingClientRect();
+  return { x:(e.clientX - rect.left)/rect.width*W, y:(e.clientY - rect.top)/rect.height*H };
+}
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault(); ac();
+  if (!rect) rect = cv.getBoundingClientRect();
+  const p = toLocal(e);
+  pointers.set(e.pointerId, { x0:p.x, y0:p.y, x:p.x, y:p.y, t:performance.now(), moved:0 });
+  onDown(p);
+}, {passive:false});
+cv.addEventListener('pointermove', e => {
+  e.preventDefault();
+  const d = pointers.get(e.pointerId); if (!d) return;
+  const p = toLocal(e);
+  d.moved = Math.max(d.moved, dist(p.x,p.y,d.x0,d.y0));
+  d.x = p.x; d.y = p.y;
+  onMove(p);
+}, {passive:false});
+function endPointer(e){
+  e.preventDefault();
+  const d = pointers.get(e.pointerId); if (!d) return;
+  pointers.delete(e.pointerId);
+  const p = toLocal(e);
+  const held = (performance.now() - d.t)/1000;
+  const dx = p.x - d.x0, dy = p.y - d.y0, dd = Math.sqrt(dx*dx+dy*dy);
+  onUp(p, held);
+  if (dd >= 34 && held < 0.6){
+    const dir = Math.abs(dx) > Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'down':'up');
+    onSwipe(dir, p);
+  } else if (d.moved < 22 && held < 0.45){
+    onTap(p);
+  }
+}
+cv.addEventListener('pointerup', endPointer, {passive:false});
+cv.addEventListener('pointercancel', endPointer, {passive:false});
+cv.addEventListener('contextmenu', e => e.preventDefault());
+// PC用フォールバック
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const m = {ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};
+  if (m[e.key]) { e.preventDefault(); onSwipe(m[e.key], {x:W/2,y:H/2}); }
+  else if (e.key === ' ') { e.preventDefault(); onDown({x:W/2,y:H/2}); onUp({x:W/2,y:H/2},0.05); onTap({x:W/2,y:H/2}); }
+});
+
+/* ============================================================
+   ミニゲーム定義
+   共通API: g.s(状態) g.lv(1-3) g.win() g.lose() g.t(残り) g.limit
+   ============================================================ */
+
+const GAMES = [];
+
+/* 1. わる：出ている玉を全部タップ */
+GAMES.push({
+  key:'wari', word:'わる', ctrl:'タップ', time:4.2,
+  init(g){
+    const n = 2 + g.lv;
+    const b = [];
+    for (let i=0;i<n;i++){
+      const r = rnd(24, 32);
+      b.push({
+        x: rnd(FX0+r+6, FX1-r-6), y: rnd(FY0+r+6, FY1-r-6),
+        vx: rnd(-1,1)*(50+30*g.lv), vy: rnd(-1,1)*(50+30*g.lv),
+        r, col: pick([C.y,C.p,C.c,C.v,C.o]), alive:true, pop:0
+      });
+    }
+    g.s = { b };
+  },
+  update(dt,g){
+    for (const o of g.s.b){
+      if (!o.alive){ o.pop += dt; continue; }
+      o.x += o.vx*dt; o.y += o.vy*dt;
+      if (o.x < FX0+o.r){ o.x = FX0+o.r; o.vx *= -1; }
+      if (o.x > FX1-o.r){ o.x = FX1-o.r; o.vx *= -1; }
+      if (o.y < FY0+o.r){ o.y = FY0+o.r; o.vy *= -1; }
+      if (o.y > FY1-o.r){ o.y = FY1-o.r; o.vy *= -1; }
+    }
+  },
+  tap(p,g){
+    for (const o of g.s.b){
+      if (o.alive && dist(p.x,p.y,o.x,o.y) < o.r + 12){
+        o.alive = false; burst(o.x,o.y,o.col,12); SFX.hit();
+        if (g.s.b.every(z => !z.alive)) g.win();
+        return;
+      }
+    }
+  },
+  draw(g){
+    for (const o of g.s.b){
+      if (!o.alive){
+        const k = clamp(o.pop/0.25,0,1);
+        ctx.globalAlpha = 1-k; ring(o.x,o.y,o.r+k*16,o.col,3); ctx.globalAlpha = 1;
+        continue;
+      }
+      circle(o.x,o.y,o.r,o.col);
+      ctx.globalAlpha = 0.35; circle(o.x-o.r*0.3,o.y-o.r*0.3,o.r*0.28,'#fff'); ctx.globalAlpha = 1;
+    }
+  }
+});
+
+/* 2. ためる：長押しでゲージを溜め、帯の中で離す */
+GAMES.push({
+  key:'tame', word:'ためる', ctrl:'ながおし', time:4.2,
+  init(g){
+    g.s = { v:0, held:false, target: rnd(0.45,0.82), band: 0.15 - 0.028*g.lv, rate: 0.40 + 0.06*g.lv, done:false, miss:0 };
+  },
+  update(dt,g){
+    const s = g.s;
+    if (s.miss > 0) s.miss -= dt;
+    if (s.held && !s.done){
+      s.v += s.rate*dt;
+      if (s.v > 1.06){ s.done = true; g.lose(); }
+    }
+  },
+  down(p,g){ if (!g.s.done) g.s.held = true; },
+  up(p,d,g){
+    const s = g.s; if (!s.held || s.done) return;
+    s.held = false;
+    // 勢いで一瞬押しただけのときは無効。やり直させる
+    if (s.v < 0.15){ s.v = 0; s.miss = 0.7; tone(300,0.06,'triangle',0.04); return; }
+    s.done = true;
+    if (Math.abs(s.v - s.target) < s.band/2){ burst(180, FY1-40-FH*0.7*s.v, C.g, 16); g.win(); }
+    else g.lose();
+  },
+  draw(g){
+    const s = g.s;
+    const bw = 96, bh = FH-110, bx = 180-bw/2, by = FY0+70;
+    fillRR(bx,by,bw,bh,14,'#20222f');
+    // 目標帯
+    const ty = by + bh*(1 - clamp(s.target + s.band/2,0,1));
+    const th = bh*s.band;
+    fillRR(bx, ty, bw, th, 6, 'rgba(92,224,122,0.28)');
+    strokeRR(bx, ty, bw, th, 6, C.g, 2);
+    // 溜め
+    const vh = bh*clamp(s.v,0,1);
+    fillRR(bx+8, by+bh-vh, bw-16, vh, 8, s.v>1?C.p:C.y);
+    text('ここで はなす', 180, ty - 18, 15, C.g);
+    if (s.miss > 0){
+      ctx.globalAlpha = clamp(s.miss/0.7, 0, 1);
+      text('はやい！ もういちど', 180, by + bh + 26, 17, C.o);
+      ctx.globalAlpha = 1;
+    }
+  }
+});
+
+/* 3. はらう：出た向きにスワイプ */
+GAMES.push({
+  key:'harau', word:'はらう', ctrl:'スワイプ', time:3.6,
+  init(g){
+    const dirs = ['left','right','up','down'];
+    const n = g.lv >= 3 ? 3 : (g.lv >= 2 ? 2 : 1);
+    const q = []; for (let i=0;i<n;i++) q.push(pick(dirs));
+    g.s = { q, i:0, shake:0 };
+  },
+  update(dt,g){ if (g.s.shake>0) g.s.shake -= dt*4; },
+  swipe(dir,g){
+    const s = g.s;
+    if (dir === s.q[s.i]){
+      s.i++; SFX.pick(); burst(180, 300, C.c, 10);
+      if (s.i >= s.q.length) g.win();
+    } else { g.lose(); }
+  },
+  draw(g){
+    const s = g.s;
+    const n = s.q.length, gap = 96, x0 = 180 - (n-1)*gap/2;
+    for (let i=0;i<n;i++){
+      const x = x0 + i*gap, y = FY0+FH/2;
+      const done = i < s.i, cur = i === s.i;
+      ctx.globalAlpha = done ? 0.22 : 1;
+      const col = done ? C.dim : (cur ? C.c : C.dim);
+      fillRR(x-38,y-38,76,76,18, cur ? 'rgba(55,224,207,0.14)' : '#1b1d29');
+      strokeRR(x-38,y-38,76,76,18, col, cur?3:2);
+      drawArrow(x, y, s.q[i], col, cur?1:0.8);
+      ctx.globalAlpha = 1;
+    }
+    text('この むきに はらう', 180, FY0+FH/2+96, 16, C.dim);
+  }
+});
+function drawArrow(x,y,dir,col,sc){
+  const a = {right:0, down:Math.PI/2, left:Math.PI, up:-Math.PI/2}[dir];
+  ctx.save(); ctx.translate(x,y); ctx.rotate(a); ctx.scale(sc,sc);
+  ctx.beginPath();
+  ctx.moveTo(-18,-9); ctx.lineTo(4,-9); ctx.lineTo(4,-19); ctx.lineTo(24,0);
+  ctx.lineTo(4,19); ctx.lineTo(4,9); ctx.lineTo(-18,9); ctx.closePath();
+  ctx.fillStyle = col; ctx.fill();
+  ctx.restore();
+}
+
+/* 4. よける：左右スワイプで列を移り、落下物を避けきる */
+GAMES.push({
+  key:'yoke', word:'よける', ctrl:'スワイプ', time:5.0, timeoutWin:true,
+  init(g){
+    g.s = { lane:1, lx:180, blocks:[], sp: 240 + 50*g.lv, cd: 0.15, gap: 0.56 - 0.05*g.lv, free:1, wasDouble:false };
+  },
+  update(dt,g){
+    const s = g.s;
+    const LANE = [88,180,272];
+    s.lx += (LANE[s.lane]-s.lx)*Math.min(1, dt*18);
+    s.cd -= dt;
+    if (s.cd <= 0){
+      s.cd = s.gap;
+      // 1〜2列だけ落とす。2列のときは、直前の空き列から1つ以内の列を必ず空ける
+      const dbl = g.lv >= 2 && !s.wasDouble && Math.random() < 0.34;
+      s.wasDouble = dbl;
+      if (dbl){
+        const cand = [0,1,2].filter(l => Math.abs(l - s.free) <= 1);
+        s.free = pick(cand);
+        for (const l of [0,1,2]) if (l !== s.free) s.blocks.push({ lane:l, y:FY0-30 });
+      } else {
+        const l = ri(0,2);
+        s.free = (l === s.free) ? ((l+1)%3) : s.free;
+        s.blocks.push({ lane:l, y:FY0-30 });
+      }
+    }
+    const py = FY1-56;
+    for (let i=s.blocks.length-1;i>=0;i--){
+      const b = s.blocks[i];
+      b.y += s.sp*dt;
+      if (b.y > FY1+40){ s.blocks.splice(i,1); continue; }
+      if (Math.abs(b.y - py) < 34 && Math.abs(LANE[b.lane] - s.lx) < 44){
+        burst(s.lx, py, C.p, 16); g.lose(); return;
+      }
+    }
+  },
+  swipe(dir,g){
+    if (dir === 'left')  g.s.lane = Math.max(0, g.s.lane-1);
+    if (dir === 'right') g.s.lane = Math.min(2, g.s.lane+1);
+    if (dir==='left'||dir==='right') SFX.pick();
+  },
+  draw(g){
+    const s = g.s, LANE=[88,180,272];
+    ctx.globalAlpha = 0.25;
+    for (const x of LANE) fillRR(x-42, FY0, 84, FH, 12, '#181a26');
+    ctx.globalAlpha = 1;
+    for (const b of s.blocks) fillRR(LANE[b.lane]-28, b.y-28, 56, 56, 12, C.p);
+    // 自機
+    const py = FY1-56;
+    ctx.save(); ctx.translate(s.lx, py);
+    ctx.beginPath(); ctx.moveTo(0,-24); ctx.lineTo(22,20); ctx.lineTo(-22,20); ctx.closePath();
+    ctx.fillStyle = C.c; ctx.fill();
+    ctx.restore();
+  }
+});
+
+/* 5. ちがう：1つだけ違うものをタップ */
+GAMES.push({
+  key:'chigau', word:'ちがう', ctrl:'タップ', time:4.2,
+  init(g){
+    const cols = 3, rows = g.lv >= 2 ? 3 : 2;
+    const n = cols*rows;
+    const base = pick([C.y,C.p,C.c,C.v,C.o,C.g]);
+    const shift = 0.34 - 0.09*g.lv;
+    g.s = { cols, rows, n, base, odd: ri(0,n-1), oddCol: mixColor(base, shift), cells:[] };
+    const cw = FW/cols, ch = (FH-40)/rows;
+    for (let i=0;i<n;i++){
+      const cx = FX0 + (i%cols)*cw + cw/2;
+      const cy = FY0 + 20 + Math.floor(i/cols)*ch + ch/2;
+      g.s.cells.push({ x:cx, y:cy, s:Math.min(cw,ch)*0.66 });
+    }
+  },
+  update(){},
+  tap(p,g){
+    const s = g.s;
+    for (let i=0;i<s.n;i++){
+      const c = s.cells[i];
+      if (Math.abs(p.x-c.x) < c.s/2+8 && Math.abs(p.y-c.y) < c.s/2+8){
+        if (i === s.odd){ burst(c.x,c.y,s.oddCol,16); g.win(); }
+        else g.lose();
+        return;
+      }
+    }
+  },
+  draw(g){
+    const s = g.s;
+    for (let i=0;i<s.n;i++){
+      const c = s.cells[i];
+      fillRR(c.x-c.s/2, c.y-c.s/2, c.s, c.s, 16, i===s.odd ? s.oddCol : s.base);
+    }
+    text('1つだけ ちがう', 180, FY1-6, 15, C.dim);
+  }
+});
+function mixColor(hex, k){
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  const f = v => clamp(Math.round(v + (255-v)*(-k*0.9) + k*40), 0, 255);
+  const h = v => v.toString(16).padStart(2,'0');
+  return '#' + h(f(r)) + h(f(g)) + h(f(b));
+}
+
+/* 6. かぞえる：一瞬出た数だけタップ */
+GAMES.push({
+  key:'kazoe', word:'かぞえる', ctrl:'タップ', time:5.2,
+  init(g){
+    const n = 2 + g.lv + ri(0,2);
+    const pts = [];
+    for (let i=0;i<n;i++){
+      let x,y,ok,tries=0;
+      do { x = rnd(FX0+40,FX1-40); y = rnd(FY0+60,FY1-90); ok = pts.every(p => dist(p.x,p.y,x,y) > 62); tries++; }
+      while(!ok && tries<40);
+      pts.push({x,y});
+    }
+    g.s = { n, pts, show: 1.0 - 0.14*g.lv, cnt:0, idle:0, done:false };
+  },
+  update(dt,g){
+    const s = g.s;
+    if (s.show > 0){ s.show -= dt; return; }
+    if (s.cnt === s.n && !s.done){ s.idle += dt; if (s.idle > 0.36){ s.done = true; g.win(); } }
+  },
+  tap(p,g){
+    const s = g.s; if (s.show > 0) return;
+    s.cnt++; s.idle = 0; SFX.pick();
+    if (s.cnt > s.n) g.lose();
+  },
+  draw(g){
+    const s = g.s;
+    if (s.show > 0){
+      for (const p of s.pts) circle(p.x,p.y,20,C.y);
+      text('いくつ？', 180, FY1-24, 18, C.dim);
+    } else {
+      text('その かずだけ タップ', 180, FY0+52, 17, C.dim);
+      const gap = 44, x0 = 180 - (Math.max(s.cnt,1)-1)*gap/2;
+      for (let i=0;i<s.cnt;i++) circle(x0+i*gap, FY0+FH/2, 16, C.c);
+      if (s.cnt === 0) ring(180, FY0+FH/2, 16, '#2c2f40', 3);
+    }
+  }
+});
+
+/* 7. なぞる：番号順に指でつなぐ */
+GAMES.push({
+  key:'nazo', word:'つなぐ', ctrl:'なぞる', time:5.2,
+  init(g){
+    const n = 3 + g.lv;
+    const pts = [];
+    for (let i=0;i<n;i++){
+      let x,y,ok,tries=0;
+      do { x = rnd(FX0+46,FX1-46); y = rnd(FY0+60,FY1-46); ok = pts.every(p=>dist(p.x,p.y,x,y)>96); tries++; }
+      while(!ok && tries<60);
+      pts.push({x,y});
+    }
+    g.s = { pts, i:0, cur:null };
+  },
+  update(){},
+  down(p,g){ g.s.cur = p; this.check(p,g); },
+  move(p,g){ if (g.s.cur){ g.s.cur = p; this.check(p,g); } },
+  up(p,d,g){ g.s.cur = null; },
+  check(p,g){
+    const s = g.s;
+    if (s.i >= s.pts.length) return;
+    const t = s.pts[s.i];
+    if (dist(p.x,p.y,t.x,t.y) < 34){
+      s.i++; SFX.pick(); burst(t.x,t.y,C.v,8);
+      if (s.i >= s.pts.length) g.win();
+    }
+  },
+  draw(g){
+    const s = g.s;
+    ctx.strokeStyle = C.v; ctx.lineWidth = 5; ctx.lineCap='round'; ctx.lineJoin='round';
+    if (s.i > 1){
+      ctx.beginPath(); ctx.moveTo(s.pts[0].x, s.pts[0].y);
+      for (let i=1;i<s.i;i++) ctx.lineTo(s.pts[i].x, s.pts[i].y);
+      ctx.stroke();
+    }
+    if (s.i > 0 && s.i < s.pts.length && s.cur){
+      ctx.globalAlpha = 0.5; ctx.beginPath();
+      ctx.moveTo(s.pts[s.i-1].x, s.pts[s.i-1].y); ctx.lineTo(s.cur.x, s.cur.y); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    for (let i=0;i<s.pts.length;i++){
+      const p = s.pts[i], done = i < s.i, cur = i === s.i;
+      circle(p.x,p.y, cur?28:24, done ? '#2a2d3d' : (cur ? C.v : '#1e2130'));
+      if (cur) ring(p.x,p.y, 34, C.v, 2);
+      if (!done) ring(p.x,p.y, cur?28:24, cur?'#fff':C.dim, 2);
+      text(String(i+1), p.x, p.y+1, 20, done ? C.dim : C.ink);
+    }
+    text('じゅんばんに なぞる', 180, FY0+28, 15, C.dim);
+  }
+});
+
+/* 8. とめる：動く印を帯の中でタップして止める */
+GAMES.push({
+  key:'tome', word:'とめる', ctrl:'タップ', time:4.6,
+  init(g){
+    const rows = g.lv >= 2 ? 3 : 2;
+    const r = [];
+    for (let i=0;i<rows;i++){
+      r.push({
+        y: FY0 + 90 + i*((FH-140)/(rows-1||1)),
+        x: rnd(FX0+30,FX1-30), dir: Math.random()<0.5?-1:1,
+        sp: 210 + 55*g.lv + i*22,
+        tz: rnd(FX0+70, FX1-70), tw: 84 - 16*g.lv,
+        stopped:false, ok:false
+      });
+    }
+    g.s = { r, i:0 };
+  },
+  update(dt,g){
+    for (const o of g.s.r){
+      if (o.stopped) continue;
+      o.x += o.sp*o.dir*dt;
+      if (o.x < FX0+14){ o.x = FX0+14; o.dir = 1; }
+      if (o.x > FX1-14){ o.x = FX1-14; o.dir = -1; }
+    }
+  },
+  tap(p,g){
+    const s = g.s;
+    if (s.i >= s.r.length) return;
+    const o = s.r[s.i]; o.stopped = true;
+    o.ok = Math.abs(o.x - o.tz) < o.tw/2;
+    s.i++;
+    if (!o.ok){ burst(o.x,o.y,C.p,14); g.lose(); return; }
+    burst(o.x,o.y,C.g,12); SFX.hit();
+    if (s.i >= s.r.length) g.win();
+  },
+  draw(g){
+    for (let i=0;i<g.s.r.length;i++){
+      const o = g.s.r[i], cur = i === g.s.i;
+      fillRR(FX0, o.y-14, FW, 28, 14, '#1b1d29');
+      fillRR(o.tz-o.tw/2, o.y-14, o.tw, 28, 14, cur?'rgba(92,224,122,0.30)':'rgba(92,224,122,0.12)');
+      const col = o.stopped ? (o.ok?C.g:C.p) : (cur?C.y:'#3a3e52');
+      fillRR(o.x-7, o.y-22, 14, 44, 6, col);
+    }
+    text('みどりの ところで とめる', 180, FY0+40, 15, C.dim);
+  }
+});
+
+/* 9. れんだ：連打でバーを最後まで */
+GAMES.push({
+  key:'renda', word:'れんだ', ctrl:'れんだ', time:4.6, minTime:3.2,
+  init(g){ const need = 8 + 2*g.lv; g.s = { v:0, step:1/need, decay:0.10 + 0.01*g.lv, k:0 }; },
+  update(dt,g){
+    const s = g.s;
+    s.v = Math.max(0, s.v - s.decay*dt);
+    if (s.k > 0) s.k -= dt*6;
+    if (s.v >= 1) g.win();
+  },
+  down(p,g){
+    const s = g.s; s.v += s.step; s.k = 1; SFX.hit();
+    burst(FX0+FW*clamp(s.v,0,1), FY0+FH/2, C.o, 5);
+  },
+  draw(g){
+    const s = g.s;
+    const y = FY0+FH/2, h = 54;
+    fillRR(FX0, y-h/2, FW, h, 18, '#1b1d29');
+    fillRR(FX0+5, y-h/2+5, (FW-10)*clamp(s.v,0,1), h-10, 14, C.o);
+    strokeRR(FX0, y-h/2, FW, h, 18, C.line, 2);
+    const sc = 1 + Math.max(0,s.k)*0.16;
+    ctx.save(); ctx.translate(180, y-96); ctx.scale(sc,sc);
+    text('れんだ！', 0, 0, 34, C.o);
+    ctx.restore();
+    text('みぎはしまで', 180, y+74, 15, C.dim);
+  }
+});
+
+/* 10. おとさない：落ちる玉をタップで打ち上げ続ける */
+GAMES.push({
+  key:'otosanai', word:'おとさない', ctrl:'タップ', time:5.4, timeoutWin:true,
+  init(g){
+    const n = g.lv >= 3 ? 2 : 1;
+    const b = [];
+    for (let i=0;i<n;i++){ const o = mkBall(i, FY0+120); o.x = 180 + (i? 70 : 0); b.push(o); }
+    g.s = { b, grav: 900 + 90*g.lv, floor: FY1-14 };
+  },
+  update(dt,g){
+    const s = g.s;
+    const dropped = ballStep(s.b, dt, s.grav, s.floor);
+    if (dropped){ burst(dropped.x, s.floor, C.p, 16); g.lose(); }
+  },
+  down(p,g){ ballHit(g.s.b, p, g.s.grav, 170); },
+  draw(g){
+    const s = g.s;
+    fillRR(FX0, s.floor, FW, 12, 6, '#2a2d3d');
+    for (const o of s.b) drawBall(o);
+    text('ゆかに つけない', 180, FY0+26, 15, C.dim);
+  }
+});
+
+/* 11. けす：光っているマスだけタップ */
+GAMES.push({
+  key:'kesu', word:'けす', ctrl:'タップ', time:4.4,
+  init(g){
+    const cols = 3, rows = 3;
+    const n = cols*rows;
+    const lit = new Array(n).fill(false);
+    let k = 2 + g.lv;
+    while (k > 0){ const i = ri(0,n-1); if (!lit[i]){ lit[i] = true; k--; } }
+    const cells = [];
+    const cw = FW/cols, ch = (FH-50)/rows;
+    for (let i=0;i<n;i++)
+      cells.push({ x: FX0 + (i%cols)*cw + cw/2, y: FY0+26 + Math.floor(i/cols)*ch + ch/2, s: Math.min(cw,ch)*0.76 });
+    g.s = { cells, lit, n };
+  },
+  update(){},
+  tap(p,g){
+    const s = g.s;
+    for (let i=0;i<s.n;i++){
+      const c = s.cells[i];
+      if (Math.abs(p.x-c.x) < c.s/2 && Math.abs(p.y-c.y) < c.s/2){
+        if (!s.lit[i]){ g.lose(); return; }
+        s.lit[i] = false; burst(c.x,c.y,C.y,12); SFX.hit();
+        if (s.lit.every(v=>!v)) g.win();
+        return;
+      }
+    }
+  },
+  draw(g){
+    const s = g.s;
+    for (let i=0;i<s.n;i++){
+      const c = s.cells[i];
+      if (s.lit[i]){ fillRR(c.x-c.s/2,c.y-c.s/2,c.s,c.s,14,C.y); }
+      else { fillRR(c.x-c.s/2,c.y-c.s/2,c.s,c.s,14,'#1b1d29'); strokeRR(c.x-c.s/2,c.y-c.s/2,c.s,c.s,14,'#262a3a',2); }
+    }
+    text('ひかってるのだけ', 180, FY1-4, 15, C.dim);
+  }
+});
+
+/* ------------------------------------------------------------
+   ボーナス面：ジャグリング耐久（10クリアごと）
+   失敗してもライフは減らない。完走でライフ回復
+   ------------------------------------------------------------ */
+const BONUS = {
+  key:'bonus', word:'おとすな', ctrl:'タップ', time:15, fixedTime:true, timeoutWin:true, bonus:true,
+  init(g){
+    const n = 2 + Math.min(2, g.bonusN);
+    const b = [];
+    for (let i=0;i<n;i++){ const o = mkBall(i, FY0+90+i*26); o.x = 90 + i*80; b.push(o); }
+    g.s = { b, grav: 940, floor: FY1-14, el:0, next:5, max:5 };
+  },
+  update(dt,g){
+    const s = g.s;
+    s.el += dt;
+    s.grav = 940 + Math.min(360, s.el*22);
+    if (s.el >= s.next && s.b.length < s.max){
+      s.b.push(mkBall(s.b.length, FY0+70));
+      s.next += 5; SFX.level();
+    }
+    const dropped = ballStep(s.b, dt, s.grav, s.floor);
+    if (dropped){ burst(dropped.x, s.floor, C.p, 18); g.lose(); }
+  },
+  down(p,g){ ballHit(g.s.b, p, g.s.grav, 175); },
+  draw(g){
+    const s = g.s;
+    fillRR(FX0, s.floor, FW, 12, 6, '#2a2d3d');
+    for (const o of s.b) drawBall(o);
+    text('ボーナス　ぜんぶ うかせたまま', 180, FY0+26, 15, C.y);
+    text(s.b.length + ' こ', 180, FY1+8, 14, C.dim);
+  }
+};
+
+/* ============================================================
+   ゲーム進行
+   ============================================================ */
+
+const S = { TITLE:'title', INTRO:'intro', PLAY:'play', RESULT:'result', LEVEL:'level', OVER:'over', JUGGLE:'juggle' };
+const G = {
+  state: S.TITLE, mode:'odai', t: 0, limit: 1,
+  score: 0, lives: 4, speed: 1, lv: 1,
+  mg: null, s: {}, ended: false, result: null,
+  hist: [], flash: 0, banner: '', tickedAt: 99,
+  bonusN: 0, bonusAt: -1, bonusMsg: '',
+  j: null, jt: 0, jnext: 0
+};
+let best  = parseInt(localStorage.getItem('isshun.best')  || '0', 10);
+let bestJ = parseInt(localStorage.getItem('isshun.bestj') || '0', 10);
+
+G.win = function(){
+  if (G.ended) return;
+  G.ended = true; G.result = 'win'; G.score++;
+  G.bonusMsg = '';
+  if (G.mg.bonus){
+    if (G.lives < 4){ G.lives++; G.bonusMsg = 'ライフ かいふく！'; }
+    else { G.score += 2; G.bonusMsg = 'スコア ＋2'; }
+  }
+  SFX.clear(); buzz(18);
+  G.state = S.RESULT; G.t = G.mg.bonus ? 1.2 : 0.72; G.flash = 1;
+  if (G.score > best){ best = G.score; localStorage.setItem('isshun.best', String(best)); }
+};
+G.lose = function(){
+  if (G.ended) return;
+  G.ended = true; G.result = 'lose'; G.bonusMsg = '';
+  if (G.mg.bonus){ G.bonusMsg = 'ボーナスは ライフが へらない'; }
+  else G.lives--;
+  SFX.fail(); buzz([30,40,60]); shake = 1;
+  G.state = S.RESULT; G.t = G.mg.bonus ? 1.1 : 0.85;
+};
+
+function startGame(){
+  G.mode = 'odai';
+  G.score = 0; G.lives = 4; G.speed = 1; G.lv = 1; G.hist = [];
+  G.bonusN = 0; G.bonusAt = -1; G.bonusMsg = '';
+  parts.length = 0;
+  nextRound();
+}
+function nextRound(){
+  G.lv = clamp(1 + Math.floor(G.score / 7), 1, 3);
+  G.speed = Math.min(2.1, 1 + G.score * 0.035);
+  G.bonusMsg = '';
+
+  let mg;
+  if (G.score > 0 && G.score % 10 === 0 && G.bonusAt !== G.score){
+    // 10クリアごとにボーナス面
+    G.bonusAt = G.score; mg = BONUS;
+  } else {
+    let guard = 0; // 直近2種は避ける
+    do { mg = pick(GAMES); guard++; } while (G.hist.indexOf(mg.key) >= 0 && guard < 30);
+    G.hist.push(mg.key); if (G.hist.length > 2) G.hist.shift();
+  }
+
+  G.mg = mg; G.s = {}; G.ended = false; G.result = null;
+  G.limit = mg.fixedTime ? mg.time : Math.max(mg.minTime || 0, mg.time / G.speed);
+  mg.init(G);
+  if (mg.bonus) G.bonusN++;
+  G.state = S.INTRO;
+  G.t = mg.bonus ? 1.3 : Math.max(0.5, 0.9 / G.speed);
+  G.tickedAt = 99;
+  tone(880, 0.05, 'triangle', 0.04);
+}
+function afterResult(){
+  if (G.lives <= 0){
+    G.state = S.OVER; G.t = 0; SFX.over(); return;
+  }
+  if (G.result === 'win' && !G.mg.bonus && G.score > 0 && G.score % 7 === 0){
+    G.state = S.LEVEL; G.t = 1.1; G.banner = 'はやくなる'; SFX.level(); return;
+  }
+  nextRound();
+}
+
+/* ---------- ジャグリング（単独モード・エンドレス） ---------- */
+function startJuggle(){
+  G.mode = 'juggle'; G.state = S.JUGGLE;
+  G.jt = 0; G.jnext = 8; G.j = [mkBall(0)];
+  G.jgrav = 850; parts.length = 0;
+  tone(880, 0.05, 'triangle', 0.04);
+}
+function updateJuggle(dt){
+  G.jt += dt;
+  G.jgrav = 850 + Math.min(700, G.jt*11);
+  if (G.jt >= G.jnext && G.j.length < 6){
+    G.j.push(mkBall(G.j.length, FY0+70)); G.jnext += 8; SFX.level();
+  }
+  const dropped = ballStep(G.j, dt, G.jgrav, FY1-14);
+  if (dropped){
+    burst(dropped.x, FY1-14, C.p, 20); SFX.fail(); buzz([30,40,60]); shake = 1;
+    G.score = Math.floor(G.jt);
+    if (G.score > bestJ){ bestJ = G.score; localStorage.setItem('isshun.bestj', String(bestJ)); }
+    G.state = S.OVER; G.t = 0;
+    setTimeout(()=>SFX.over(), 220);
+  }
+}
+function drawJuggle(){
+  fillRR(FX0, FY1-14, FW, 12, 6, '#2a2d3d');
+  for (const b of G.j) drawBall(b);
+  text(G.jt.toFixed(1), 180, 40, 40, C.ink);
+  text('びょう', 180, 68, 12, C.dim);
+  text(G.j.length + ' こ', 40, 40, 18, C.y, 'left');
+  text('さいこう ' + bestJ, 340, 40, 14, C.dim, 'right');
+  text('たたいて うかせつづける', 180, FY1+16, 14, C.dim);
+}
+
+/* ---------- 入力ルーティング ---------- */
+function onDown(p){
+  if (G.state === S.JUGGLE){ ballHit(G.j, p, G.jgrav, 185); return; }
+  if (G.state === S.PLAY && !G.ended && G.mg.down) G.mg.down(p, G);
+}
+function onMove(p){
+  if (G.state === S.PLAY && !G.ended && G.mg.move) G.mg.move(p, G);
+}
+function onUp(p, held){
+  if (G.state === S.PLAY && !G.ended && G.mg.up) G.mg.up(p, held, G);
+}
+// タイトルのボタン領域
+const BTN_A = { x:180, y:334, w:250, h:66 };   // おだい
+const BTN_B = { x:180, y:456, w:250, h:66 };   // ジャグリング
+const BTN_M = { x:312, y:596, w:52, h:44 };    // 音
+function inBtn(p, b){ return Math.abs(p.x-b.x) < b.w/2 && Math.abs(p.y-b.y) < b.h/2; }
+
+function onTap(p){
+  if (G.state === S.TITLE){
+    if (inBtn(p, BTN_M)){ muted = !muted; localStorage.setItem('isshun.mute', muted?'1':'0'); return; }
+    if (inBtn(p, BTN_B)){ startJuggle(); return; }
+    startGame(); return;
+  }
+  if (G.state === S.OVER){
+    if (G.t <= 0.7) return;
+    if (p.y > 566){ G.state = S.TITLE; return; }        // タイトルへ
+    if (G.mode === 'juggle') startJuggle(); else startGame();
+    return;
+  }
+  if (G.state === S.PLAY && !G.ended && G.mg.tap) G.mg.tap(p, G);
+}
+function onSwipe(dir, p){
+  if (G.state === S.PLAY && !G.ended && G.mg.swipe) G.mg.swipe(dir, G);
+}
+
+/* ---------- 更新 ---------- */
+function update(dt){
+  updateParts(dt);
+  if (G.flash > 0) G.flash = Math.max(0, G.flash - dt*3);
+
+  if (G.state === S.INTRO){
+    G.t -= dt;
+    if (G.t <= 0){ G.state = S.PLAY; G.t = G.limit; }
+  } else if (G.state === S.PLAY){
+    G.t -= dt;
+    if (G.mg.update) G.mg.update(dt, G);
+    if (!G.ended){
+      const left = Math.ceil(G.t);
+      if (G.t <= 3 && left !== G.tickedAt && left >= 1){ G.tickedAt = left; SFX.tick(); }
+      if (G.t <= 0){ if (G.mg.timeoutWin) G.win(); else G.lose(); }
+    }
+  } else if (G.state === S.RESULT){
+    G.t -= dt;
+    if (G.mg && G.mg.update && G.result === 'win' && G.mg.timeoutWin) { /* 静止 */ }
+    if (G.t <= 0) afterResult();
+  } else if (G.state === S.LEVEL){
+    G.t -= dt;
+    if (G.t <= 0) nextRound();
+  } else if (G.state === S.JUGGLE){
+    updateJuggle(dt);
+  } else if (G.state === S.OVER){
+    G.t += dt;
+  }
+}
+
+/* ---------- 描画 ---------- */
+function drawBG(){
+  ctx.fillStyle = C.bg; ctx.fillRect(0,0,W,H);
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = '#151724'; ctx.lineWidth = 1;
+  for (let y = 0; y < H; y += 32){ ctx.beginPath(); ctx.moveTo(0,y+.5); ctx.lineTo(W,y+.5); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+function drawHUD(){
+  // ハート
+  for (let i=0;i<4;i++){
+    const x = 22 + i*22, y = 34;
+    const on = i < G.lives;
+    circle(x, y, 8, on ? C.p : '#242736');
+  }
+  text(String(G.score), 338, 34, 26, C.ink, 'right');
+  text('LV' + G.lv, 338, 58, 12, C.dim, 'right');
+
+  // 制限時間バー
+  const bx = 20, by = 74, bw = 320, bh = 10;
+  fillRR(bx, by, bw, bh, 5, '#1b1d29');
+  if (G.state === S.PLAY || G.state === S.RESULT){
+    const k = G.state === S.PLAY ? clamp(G.t/G.limit, 0, 1) : (G.result==='win'?0.0:0);
+    const col = k < 0.25 ? C.p : (k < 0.55 ? C.o : C.c);
+    if (k > 0) fillRR(bx, by, bw*k, bh, 5, col);
+  }
+  // お題（小）
+  if (G.mg && (G.state === S.PLAY || G.state === S.RESULT)){
+    text(G.mg.word, 180, 34, 22, C.ink);
+    text(G.mg.ctrl, 180, 58, 12, C.dim);
+  }
+}
+function drawIntro(){
+  const full = G.mg.bonus ? 1.3 : Math.max(0.5, 0.9/G.speed);
+  const k = 1 - clamp(G.t / full, 0, 1);
+  const sc = 0.7 + Math.min(1, k*2.4)*0.35;
+  if (G.mg.bonus){
+    const a = 0.5 + Math.sin(performance.now()/120)*0.5;
+    ctx.globalAlpha = 0.5 + a*0.5;
+    text('ボーナス', 180, FY0 + FH/2 - 92, 26, C.y);
+    ctx.globalAlpha = 1;
+  }
+  ctx.save();
+  ctx.translate(180, FY0 + FH/2 - 20);
+  ctx.scale(sc, sc);
+  text(G.mg.word, 0, 0, 56, G.mg.bonus ? C.y : C.ink);
+  ctx.restore();
+  fillRR(180-62, FY0+FH/2+42, 124, 34, 17, '#1b1d29');
+  text(G.mg.ctrl, 180, FY0+FH/2+59, 16, C.c);
+  if (G.mg.bonus) text('ミスしても ライフは へらない', 180, FY0+FH/2+108, 14, C.dim);
+}
+function drawResult(){
+  if (G.result === 'win'){
+    ctx.globalAlpha = 0.85;
+    ring(180, FY0+FH/2, 62, C.g, 9);
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.strokeStyle = C.p; ctx.lineWidth = 9; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(180-44, FY0+FH/2-44); ctx.lineTo(180+44, FY0+FH/2+44);
+    ctx.moveTo(180+44, FY0+FH/2-44); ctx.lineTo(180-44, FY0+FH/2+44);
+    ctx.stroke();
+  }
+  if (G.bonusMsg){
+    fillRR(180-116, FY0+FH/2+82, 232, 40, 20, '#1b1d29');
+    text(G.bonusMsg, 180, FY0+FH/2+103, 16, G.result === 'win' ? C.y : C.dim);
+  }
+}
+function drawTitle(){
+  ctx.save();
+  ctx.translate(180, 176);
+  text('イッシュン', 0, 0, 54, C.ink);
+  ctx.restore();
+  text('ひまつぶし ふたつ', 180, 224, 15, C.dim);
+
+  const t = performance.now()/1000;
+  const pulse = 1 + Math.sin(t*3)*0.035;
+
+  ctx.save(); ctx.translate(BTN_A.x, BTN_A.y); ctx.scale(pulse,pulse);
+  fillRR(-BTN_A.w/2, -BTN_A.h/2, BTN_A.w, BTN_A.h, 33, C.y);
+  text('おだいを さばく', 0, 1, 22, '#141520');
+  ctx.restore();
+  text('5びょうの おだいが つぎつぎ来る　さいこう ' + best, 180, BTN_A.y + 50, 12, C.dim);
+
+  fillRR(BTN_B.x-BTN_B.w/2, BTN_B.y-BTN_B.h/2, BTN_B.w, BTN_B.h, 33, '#1b1d29');
+  strokeRR(BTN_B.x-BTN_B.w/2, BTN_B.y-BTN_B.h/2, BTN_B.w, BTN_B.h, 33, C.c, 2);
+  text('ジャグリング', BTN_B.x, BTN_B.y+1, 22, C.c);
+  text('たたいて うかせつづける　さいこう ' + bestJ + 'びょう', 180, BTN_B.y + 50, 12, C.dim);
+
+  text('タップ / ながおし / スワイプ / なぞる', 180, 566, 12, C.dim);
+  // 音トグル
+  fillRR(BTN_M.x-BTN_M.w/2, BTN_M.y-BTN_M.h/2, BTN_M.w, BTN_M.h, 14, '#1b1d29');
+  text(muted ? '🔇' : '🔊', BTN_M.x, BTN_M.y, 18, C.ink);
+}
+function drawOver(){
+  const jug = G.mode === 'juggle';
+  const bb  = jug ? bestJ : best;
+  ctx.fillStyle = 'rgba(14,15,22,0.86)'; ctx.fillRect(0,0,W,H);
+  text('おわり', 180, 210, 40, C.p);
+  text(jug ? 'うかせていた じかん' : 'クリアした かず', 180, 292, 15, C.dim);
+  text(String(G.score) + (jug ? ' びょう' : ''), 180, 340, jug ? 52 : 68, C.ink);
+  text('さいこう記録  ' + bb + (jug ? 'びょう' : ''), 180, 400, 16, G.score >= bb ? C.y : C.dim);
+  if (G.score >= bb && G.score > 0) text('じこベスト！', 180, 432, 18, C.y);
+  if (G.t > 0.7){
+    const a = 0.6 + Math.sin(performance.now()/300)*0.4;
+    ctx.globalAlpha = a;
+    text('タップで もういちど', 180, 500, 20, C.ink);
+    ctx.globalAlpha = 1;
+    text('したを タップで タイトルへ', 180, 588, 13, C.dim);
+  }
+}
+
+function render(){
+  ctx.save();
+  if (shake > 0){
+    ctx.translate(rnd(-1,1)*shake*7, rnd(-1,1)*shake*7);
+  }
+  drawBG();
+
+  if (G.state === S.TITLE){
+    drawTitle();
+  } else if (G.state === S.JUGGLE){
+    drawJuggle();
+    drawParts();
+  } else {
+    if (G.state !== S.OVER) drawHUD();
+    if (G.state === S.INTRO){
+      drawIntro();
+    } else if (G.state === S.PLAY || G.state === S.RESULT || G.state === S.LEVEL){
+      if (G.mg && G.mg.draw) G.mg.draw(G);
+      if (G.state === S.RESULT) drawResult();
+      if (G.state === S.LEVEL){
+        ctx.fillStyle = 'rgba(14,15,22,0.8)'; ctx.fillRect(0,0,W,H);
+        const k = clamp((1.1 - G.t)/0.2, 0, 1);
+        ctx.save(); ctx.translate(180, FY0+FH/2); ctx.scale(0.8+k*0.2, 0.8+k*0.2);
+        text(G.banner, 0, 0, 44, C.y);
+        ctx.restore();
+        text('LV ' + clamp(1 + Math.floor(G.score/7), 1, 3), 180, FY0+FH/2+56, 20, C.c);
+      }
+    }
+    drawParts();
+    if (G.state === S.OVER) drawOver();
+  }
+  ctx.restore();
+
+  if (G.flash > 0){
+    ctx.globalAlpha = G.flash*0.16;
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ---------- ループ ---------- */
+window.__isshun = { G, GAMES, BONUS, S, startGame, startJuggle, nextRound }; // 動作確認用
+let last = performance.now();
+function loop(now){
+  const dt = Math.min(0.05, (now - last)/1000);
+  last = now;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
