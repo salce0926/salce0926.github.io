@@ -88,6 +88,13 @@ let seq = 0;
 const BEST_KEY = 'suicaFall.best';
 const SOUND_KEY = 'suicaFall.sound';
 
+// 自動プレイのデモ。URL に ?demo が付いているときだけ動く隠し機能で、
+// 普通に開いた人からは見えない。simulating は先読み計算中を示すフラグで、
+// この間は音・DOM更新・デモ自身の再入を止める。
+let demoOn = /(^|[?&])demo(=|&|$)/.test(location.search);
+let simulating = false;
+let demoWait = 0;
+
 /* =========================================================
    セットアップ
    ========================================================= */
@@ -183,6 +190,7 @@ canvas.addEventListener('pointermove', (e) => {
 });
 
 canvas.addEventListener('pointerdown', (e) => {
+  stopDemo();
   if (gameover) return;
   updateAim(pointerX(e));
 });
@@ -197,6 +205,7 @@ canvas.addEventListener('pointercancel', () => { /* 何もしない */ });
 
 // キーボード操作
 window.addEventListener('keydown', (e) => {
+  stopDemo();
   if (gameover) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetGame(); }
     return;
@@ -456,6 +465,7 @@ function resolveMerges(queue) {
    更新
    ========================================================= */
 function update(dt) {
+  if (!simulating) updateDemo(dt);
   if (cooldown > 0) cooldown = Math.max(0, cooldown - dt);
 
   if (comboTimer > 0) {
@@ -960,6 +970,7 @@ function drawFace(g, r) {
 
 /* ---------------- NEXT と 進化チャート ---------------- */
 function drawNext() {
+  if (simulating) return;
   nextCtx.clearRect(0, 0, 64, 64);
   const F = FRUITS[nextType];
   const r = Math.min(24, 10 + F.r * 0.22);
@@ -1063,6 +1074,7 @@ function tone(freq, dur, type, vol, slideTo, at) {
 
 // 短時間に同じ音が殺到したら間引く
 function throttled(name) {
+  if (simulating) return false; // 先読み計算中は鳴らさない
   const now = performance.now();
   if (now - (lastPlayed[name] || -Infinity) < MIN_INTERVAL) return false;
   lastPlayed[name] = now;
@@ -1082,11 +1094,106 @@ function playMerge(type) {
 }
 
 function playGameOver() {
-  if (!soundOn) return;
+  if (!soundOn || simulating) return;
   tone(320, 0.6, 'sawtooth', 0.07, 70);
 }
 
 document.addEventListener('pointerdown', () => ensureAudio(), { once: true });
+
+/* =========================================================
+   デモ（自動プレイ）
+   ?demo 付きで開いたときだけ動く。落とす位置の候補をひとつずつ
+   実際に落として先読みし、一番良かった位置を選ぶ。
+   ========================================================= */
+function snapshot() {
+  return {
+    fruits: fruits.map((f) => ({ ...f })),
+    particles: particles.map((p) => ({ ...p })),
+    popups: popups.map((p) => ({ ...p })),
+    score, combo, comboTimer, shownCombo, gameover, dangerLevel,
+    current: { ...current }, nextType, unlocked, seq, cooldown, aimX,
+  };
+}
+
+function restoreState(s) {
+  fruits = s.fruits.map((f) => ({ ...f }));
+  particles = s.particles.map((p) => ({ ...p }));
+  popups = s.popups.map((p) => ({ ...p }));
+  score = s.score; combo = s.combo; comboTimer = s.comboTimer;
+  shownCombo = s.shownCombo; gameover = s.gameover; dangerLevel = s.dangerLevel;
+  current = { ...s.current }; nextType = s.nextType;
+  unlocked = s.unlocked; seq = s.seq; cooldown = s.cooldown; aimX = s.aimX;
+}
+
+// その位置に落とした結果の良し悪しを数値にする
+function evaluateDrop(x, snap) {
+  const before = score;
+  aimX = x;
+  cooldown = 0;
+  drop();
+  for (let i = 0; i < 70; i++) update(STEP);
+
+  const gained = score - before;
+  const died = gameover;
+  const topY = fruits.length ? Math.min(...fruits.map((f) => f.y - f.r)) : FLOOR;
+
+  // 同じ果物どうしが近いほど、次に合体させやすい
+  let affinity = 0;
+  for (let i = 0; i < fruits.length; i++) {
+    for (let j = i + 1; j < fruits.length; j++) {
+      const a = fruits[i];
+      const b = fruits[j];
+      if (a.type !== b.type) continue;
+      const gap = Math.max(0, Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r);
+      affinity += 60 / (12 + gap);
+    }
+  }
+
+  restoreState(snap);
+  return died ? -Infinity : gained * 25 + topY * 4 + affinity * 3;
+}
+
+function demoStep() {
+  const snap = snapshot();
+  simulating = true;
+  let bestX = W / 2;
+  let bestValue = -Infinity;
+  for (let x = LEFT + 12; x <= RIGHT - 12; x += 16) {
+    const v = evaluateDrop(x, snap);
+    if (v > bestValue) { bestValue = v; bestX = x; }
+  }
+  simulating = false;
+  restoreState(snap);
+
+  // 画面表示を実際の状態に戻してから落とす
+  scoreEl.textContent = score;
+  drawNext();
+  refreshChain();
+
+  aimX = clampAim(bestX, current.r);
+  cooldown = 0;
+  drop();
+}
+
+function updateDemo(dt) {
+  if (!demoOn || simulating) return;
+  demoWait -= dt;
+  if (demoWait > 0) return;
+
+  if (gameover) {
+    resetGame();
+    demoWait = 0.8;
+    return;
+  }
+  demoStep();
+  demoWait = 0.45;
+}
+
+// 人が触ったらデモは黙って終わる
+function stopDemo() {
+  if (!demoOn) return;
+  demoOn = false;
+}
 
 /* =========================================================
    メインループ
