@@ -46,6 +46,9 @@ const SPAWN_GRACE = 40;     // 落下直後の判定猶予(フレーム)
 const COMBO_WINDOW = 0.45;  // 連鎖とみなす間隔(秒)
 const COMBO_MAX_MULT = 4;   // コンボ倍率の上限
 const MERGE_SLOP = 2;       // 接触しているとみなす余裕(px)。これが無いと横並びで静止した同種が合体しない
+const BOUNCE_MIN = 1.2;     // これ以下の当たりでは跳ね返らせない（静止中の微振動を防ぐ）
+const SLEEP_MOVE = 0.2;     // 1フレームの移動がこれ未満なら「動いていない」
+const SLEEP_FRAMES = 30;    // それが続いたら眠らせる
 
 /* ---------------- DOM ---------------- */
 const canvas = document.getElementById('gameCanvas');
@@ -139,7 +142,10 @@ function makeFruit(type, x, y) {
     type, x, y, r,
     vx: 0, vy: 0,
     px: x,
+    py: y,
     contact: false,
+    sleeping: false,
+    still: 0,
     angle: (Math.random() - 0.5) * 0.3, // ほぼ正面向き。傾きは転がった結果だけで付く
     angVel: 0,
     mass: r * r,
@@ -208,6 +214,7 @@ function drop() {
   if (gameover || cooldown > 0 || !current) return;
   const f = makeFruit(current.type, clampAim(aimX, current.r), SPAWN_Y);
   f.vy = 1.5;
+  wakeAll(); // 落ちてくる果物を受け止められるように山を起こす
   fruits.push(f);
   playDrop();
 
@@ -223,10 +230,20 @@ function drop() {
    ========================================================= */
 function integrate() {
   for (const f of fruits) {
+    f.px = f.x; // このステップで実際に動いた量を測るため
+    f.py = f.y;
+
+    // 眠っている果物は重力も受けず動かさない。積み上がった山が
+    // いつまでもその場で震え続けるのを止めるため
+    if (f.sleeping) {
+      f.contact = true;
+      f.age++;
+      continue;
+    }
+
     f.vy += GRAVITY;
     f.vx *= AIR;
     f.vy *= AIR;
-    f.px = f.x; // このステップで実際に動いた量を測るため
     f.x += f.vx;
     f.y += f.vy;
     f.contact = false;
@@ -246,21 +263,22 @@ function solveWalls(applyImpulse) {
       f.x = LEFT + f.r;
       f.contact = true;
       if (applyImpulse && f.vx < 0) {
-        f.vx *= -REST;
+        // 弱く当たったときは跳ね返さず止める（壁際での微振動を防ぐ）
+        f.vx = -f.vx > BOUNCE_MIN ? f.vx * -REST : 0;
         f.vy *= GROUND_FRICTION;
       }
     } else if (f.x + f.r > RIGHT) {
       f.x = RIGHT - f.r;
       f.contact = true;
       if (applyImpulse && f.vx > 0) {
-        f.vx *= -REST;
+        f.vx = f.vx > BOUNCE_MIN ? f.vx * -REST : 0;
         f.vy *= GROUND_FRICTION;
       }
     }
     if (f.y + f.r > FLOOR) {
       f.y = FLOOR - f.r;
       f.contact = true;
-      if (applyImpulse && f.vy > 0) f.vy *= -REST;
+      if (applyImpulse && f.vy > 0) f.vy = f.vy > BOUNCE_MIN ? f.vy * -REST : 0;
       if (applyImpulse) f.vx *= GROUND_FRICTION;
     }
     // 天井は無し。上に飛び出しても戻れるように速度だけ抑える
@@ -321,7 +339,10 @@ function solvePairs(applyImpulse, mergeQueue) {
       if (vn >= 0) continue;
 
       const invSum = 1 / a.mass + 1 / b.mass;
-      const jn = -(1 + REST) * vn / invSum;
+      // 弱い当たりでは反発させない。静止した山で跳ね返りが
+      // 溜まって永久に震え続けるのを防ぐ
+      const bounce = -vn > BOUNCE_MIN ? REST : 0;
+      const jn = -(1 + bounce) * vn / invSum;
       a.vx -= jn * nx / a.mass;
       a.vy -= jn * ny / a.mass;
       b.vx += jn * nx / b.mass;
@@ -343,6 +364,34 @@ function solvePairs(applyImpulse, mergeQueue) {
 // 接触している果物の回転は「実際に転がった距離」から決める。
 // 角速度を独立に積分すると、山の中で押し合う微小な力で
 // その場で永久に回り続けてしまうため。
+// 動きが十分に小さい状態が続いた果物を眠らせる。
+// 位置補正と重力のせめぎ合いで残る微振動はこれで完全に止まる。
+function updateSleep() {
+  for (const f of fruits) {
+    if (f.sleeping) continue;
+    const moved = Math.hypot(f.x - f.px, f.y - f.py);
+    if (f.contact && moved < SLEEP_MOVE) {
+      if (++f.still >= SLEEP_FRAMES) {
+        f.sleeping = true;
+        f.vx = 0;
+        f.vy = 0;
+        f.angVel = 0;
+      }
+    } else {
+      f.still = 0;
+    }
+  }
+}
+
+// 落下・合体で山が動くときは全部起こす。支えが消えて
+// 空中で固まったままになる事故を防ぐ
+function wakeAll() {
+  for (const f of fruits) {
+    f.sleeping = false;
+    f.still = 0;
+  }
+}
+
 function applyRolling() {
   for (const f of fruits) {
     if (f.contact) {
@@ -398,6 +447,7 @@ function resolveMerges(queue) {
   if (queue.length) {
     fruits = fruits.filter((f) => !f.dead);
     scoreEl.textContent = score;
+    wakeAll(); // 合体で支えが消えるので山全体を起こす
     if (loudest >= 0) playMerge(loudest);
   }
 }
@@ -422,6 +472,7 @@ function update(dt) {
       solveWalls(first);
     }
     applyRolling();
+    updateSleep();
     resolveMerges(mergeQueue);
 
     checkGameOver(dt);
