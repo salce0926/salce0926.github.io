@@ -695,17 +695,17 @@ GAMES.push({
 
 /* 8. とめる：動く印を帯の中でタップして止める */
 GAMES.push({
-  key:'tome', word:'とめる', ctrl:'タップ', time:5.0, minTime:2.9,
+  key:'tome', word:'とめる', ctrl:'タップ', time:5.4, minTime:3.2,
   init(g){
-    const rows = g.lv >= 3 ? 3 : 2;
+    const rows = g.lv >= 2 ? 2 : 1;                // 3本は時間内に間に合わない
     const r = [];
     for (let i=0;i<rows;i++){
       r.push({
-        y: FY0 + 90 + i*((FH-140)/(rows-1||1)),
+        y: FY0 + 130 + i*((FH-220)/(rows-1||1)),
         x: rnd(FX0+30,FX1-30), dir: Math.random()<0.5?-1:1,
-        // 針が速いほど帯が回ってくるのが早い＝待ち時間が短い
-        sp: 420 + 70*g.lv + i*30,
-        tz: rnd(FX0+80, FX1-80), tw: 112 - 14*g.lv,
+        // 帯を通過する時間（tw/sp）が、反応時間0.4秒を確実に上回るようにする
+        sp: 200 + 18*g.lv + i*14,
+        tz: rnd(FX0+95, FX1-95), tw: 155 - 6*g.lv,
         stopped:false, ok:false
       });
     }
@@ -769,32 +769,8 @@ GAMES.push({
   }
 });
 
-/* 10. おとさない：落ちる玉をタップで打ち上げ続ける */
-GAMES.push({
-  key:'otosanai', word:'おとさない', ctrl:'なぞる', time:5.4, timeoutWin:true,
-  init(g){
-    const grav = 560 + 60*g.lv, h = 290;
-    g.s = { b: [], q: queueFor(g.lv, grav, h), pad: mkPad(), grav, h, el: 0 };
-    drainQueue(g.s);
-  },
-  update(dt,g){
-    const s = g.s;
-    s.el += dt; drainQueue(s);
-    padStep(s.pad, dt);
-    const dropped = ballStep(s.b, dt, s.grav, PAD_FLOOR, s.pad, s.h);
-    if (dropped){ burst(dropped.x, PAD_FLOOR, C.p, 16); g.lose(); }
-  },
-  down(p,g){ g.s.pad.tx = p.x; },
-  move(p,g){ g.s.pad.tx = p.x; },
-  draw(g){
-    const s = g.s;
-    drawFloor();
-    drawPad(s.pad);
-    drawPending(s.q, s.el, s.h);
-    for (const o of s.b) drawBall(o);
-    text('ゆびで うけざらを うごかす', 180, FY0+26, 15, C.dim);
-  }
-});
+/* 「おとさない」は、内容がボーナス面（おとすな）とまるかぶりなので
+   お題の巡回からは外した。受け皿をさばくのはボーナス面とジャグリングが担当する */
 
 /* 11. けす：光っているマスだけタップ */
 GAMES.push({
