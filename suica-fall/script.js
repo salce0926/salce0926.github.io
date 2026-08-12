@@ -455,7 +455,7 @@ function resolveMerges(queue) {
 
   if (queue.length) {
     fruits = fruits.filter((f) => !f.dead);
-    scoreEl.textContent = score;
+    if (!simulating) scoreEl.textContent = score;
     wakeAll(); // 合体で支えが消えるので山全体を起こす
     if (loudest >= 0) playMerge(loudest);
   }
@@ -489,7 +489,7 @@ function update(dt) {
   }
 
   // 表示の同期はこのステップの合体結果を反映してから
-  if (combo !== shownCombo) {
+  if (!simulating && combo !== shownCombo) {
     shownCombo = combo;
     comboEl.textContent = combo >= 2 ? 'コンボ ×' + combo : '';
     comboEl.classList.toggle('show', combo >= 2);
@@ -516,6 +516,12 @@ function checkGameOver(dt) {
 function endGame() {
   gameover = true;
   dangerLevel = 1;
+
+  // 先読み計算の中で「もし負けたら」を試しているだけのときは、
+  // 表示やベスト記録に触らない。触ると GAME OVER の画面が出たまま
+  // 本編が裏で進んでしまう
+  if (simulating) return;
+
   playGameOver();
   const isBest = saveBest();
   overlayTitle.textContent = 'GAME OVER';
