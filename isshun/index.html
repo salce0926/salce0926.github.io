@@ -332,9 +332,9 @@ function endPointer(e){
   const held = (performance.now() - d.t)/1000;
   const dx = p.x - d.x0, dy = p.y - d.y0, dd = Math.sqrt(dx*dx+dy*dy);
   onUp(p, held);
-  if (dd >= 34 && held < 0.6){
+  if (dd >= 34 && held < 0.9){
     const dir = Math.abs(dx) > Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'down':'up');
-    onSwipe(dir, p);
+    onSwipe(dir, { x: d.x0, y: d.y0 });            // 終点ではなく指を置いた場所で判定する
   } else if (d.moved < 22 && held < 0.45){
     onTap(p);
   }
@@ -1468,7 +1468,10 @@ function onTap(p){
 }
 function onSwipe(dir, p){
   if (G.state === S.ONEOP){
-    const st = opAt(p); if (st && OP_TYPES[st.key].swipe) OP_TYPES[st.key].swipe(dir, st);
+    // 帯をまたぐスワイプでも取りこぼさない。スワイプを使う持ち場は常に1つだけ
+    let st = opAt(p);
+    if (!st || !OP_TYPES[st.key].swipe) st = G.w.sts.find(s => OP_TYPES[s.key].swipe);
+    if (st) OP_TYPES[st.key].swipe(dir, st);
     return;
   }
   if (G.state === S.PLAY && !G.ended && G.mg.swipe) G.mg.swipe(dir, G);
