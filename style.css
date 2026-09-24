@@ -200,12 +200,15 @@ nav .languageToggle:hover::after {
     transition: transform 0.3s ease-in-out;
 }
 
-.game-container .content:hover {
-    transform: scale(1.05);
-}
+/* タッチ端末ではタップ後に拡大したまま残るので、ホバーできる端末だけ拡大する */
+@media (hover: hover) {
+    .game-container .content:hover {
+        transform: scale(1.05);
+    }
 
-.page-container .content:hover {
-    transform: scale(1.03);
+    .page-container .content:hover {
+        transform: scale(1.03);
+    }
 }
 
 .content a {
