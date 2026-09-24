@@ -29,6 +29,9 @@ h1 {
     padding: 10px;
     border-radius: 10px;
     margin-top: 20px;
+    touch-action: none; /* スワイプ中に画面がスクロールしないようにする */
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .tile {
@@ -152,4 +155,17 @@ h1 {
 
 #undo-button:hover {
     background-color: #a58c72;
+}
+/* スマホ幅では盤面を画面に収める */
+@media (max-width: 480px) {
+    #game-board {
+        grid-template-columns: repeat(4, calc((100vw - 82px) / 4));
+        grid-template-rows: repeat(4, calc((100vw - 82px) / 4));
+    }
+
+    .tile {
+        width: calc((100vw - 82px) / 4);
+        height: calc((100vw - 82px) / 4);
+        font-size: 1.5em;
+    }
 }
