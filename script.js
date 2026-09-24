@@ -20,15 +20,18 @@ function toggleLanguage() {
     languageToggleLink[1].textContent = isEnglish ? '日本語' : 'English';
 }
 
-document.querySelectorAll('nav a').forEach(anchor => {
+document.querySelectorAll('nav a, .menu a').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
         if (!this.classList.contains('languageToggle')) {
             e.preventDefault();
+            // スマホ用メニューはリンクを押したら閉じる
+            document.getElementById('menu-btn').checked = false;
             const targetId = this.getAttribute('href').substring(1);
             const targetElement = document.getElementById(targetId);
 
             if (targetElement) {
-                const headerHeight = document.querySelector('header').offsetHeight;
+                // 表示中のヘッダー（PC用かスマホ用）の高さを使う。非表示側は0になる
+                const headerHeight = Math.max(...Array.from(document.querySelectorAll('header'), h => h.offsetHeight));
                 window.scrollTo({
                     top: targetElement.offsetTop - headerHeight,
                     behavior: 'smooth'
