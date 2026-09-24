@@ -1,0 +1,58 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null",
+
+        // ルームの新規作成のみルートへの書き込みを許可（createOnlineRoom で一括 set する用）
+        // 既存ルームの上書き・削除は不可。作成者は自分の uid を creatorUid に入れる必要がある
+        ".write": "auth != null && !data.exists() && $roomId.matches(/^[A-Z0-9]{6}$/) && newData.child('creatorUid').val() === auth.uid && newData.child('status').val() === 'waiting'",
+
+        // 作成時に決まり、以後変更不可
+        "creatorUid": {
+          ".validate": "newData.val() === auth.uid"
+        },
+        "creatorRole": {
+          ".validate": "newData.val() === 'zombie' || newData.val() === 'sheriff'"
+        },
+
+        // 入室者の uid。待機中のルームに先着1名だけ、自分の uid を登録できる
+        "joinerUid": {
+          ".write": "auth != null && !data.exists() && newData.val() === auth.uid && data.parent().child('status').val() === 'waiting'"
+        },
+
+        // 以下の対局データは、そのルームの参加者（作成者 or 入室者）のみ更新可
+        // 入室時は joinerUid と status を同じ update で書くため newData 側で参加者判定する
+        "status": {
+          ".write": "auth != null && (newData.parent().child('creatorUid').val() === auth.uid || newData.parent().child('joinerUid').val() === auth.uid)",
+          ".validate": "newData.val() === 'waiting' || newData.val() === 'playing' || newData.val() === 'finished' || newData.val() === 'cancelled'"
+        },
+        "board": {
+          ".write": "auth != null && (newData.parent().child('creatorUid').val() === auth.uid || newData.parent().child('joinerUid').val() === auth.uid)",
+          ".validate": "newData.isString() && newData.val().matches(/^[.ZDS]{77}$/)"
+        },
+        "turn": {
+          ".write": "auth != null && (newData.parent().child('creatorUid').val() === auth.uid || newData.parent().child('joinerUid').val() === auth.uid)",
+          ".validate": "newData.val() === 'zombie' || newData.val() === 'sheriff'"
+        },
+        "turnCount": {
+          ".write": "auth != null && (newData.parent().child('creatorUid').val() === auth.uid || newData.parent().child('joinerUid').val() === auth.uid)",
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "lastMove": {
+          ".write": "auth != null && (newData.parent().child('creatorUid').val() === auth.uid || newData.parent().child('joinerUid').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['src', 'dst'])"
+        },
+        "winner": {
+          ".write": "auth != null && (newData.parent().child('creatorUid').val() === auth.uid || newData.parent().child('joinerUid').val() === auth.uid)",
+          ".validate": "newData.val() === 'zombie' || newData.val() === 'sheriff'"
+        },
+
+        // 上記以外のキーは書き込み不可
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

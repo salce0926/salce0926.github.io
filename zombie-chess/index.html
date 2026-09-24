@@ -181,6 +181,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
 <script>
 // ===== 定数 =====
 const ROWS = 7, COLS = 11, TOWN_ROW = 6;
@@ -210,6 +211,16 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const fbAuth = firebase.auth();
+let myUid = null;
+
+// DB アクセス前に匿名認証を済ませる（セキュリティルールで auth != null を必須にしているため）
+async function ensureAuth() {
+  if (myUid) return myUid;
+  const cred = await fbAuth.signInAnonymously();
+  myUid = cred.user.uid;
+  return myUid;
+}
 
 // ===== ゲームロジック =====
 function createBoard() {
@@ -978,6 +989,7 @@ function setOnlineRole(role) {
 async function createOnlineRoom() {
   const id = generateRoomId();
   try {
+    const uid = await ensureAuth();
     await db.ref(`rooms/${id}`).set({
       board: boardToStr(createBoard()),
       turn: ZOMBIE_TURN,
@@ -985,7 +997,8 @@ async function createOnlineRoom() {
       lastMove: null,
       status: 'waiting',
       winner: null,
-      creatorRole: onlineSelectedRole
+      creatorRole: onlineSelectedRole,
+      creatorUid: uid
     });
     roomId = id;
     myRole = onlineSelectedRole;
@@ -1005,6 +1018,7 @@ async function joinOnlineRoom() {
   const code = (document.getElementById('join-code').value || '').trim().toUpperCase();
   if (code.length < 4) { showOnlineMsg('ルームコードを入力してください', true); return; }
   try {
+    const uid = await ensureAuth();
     const snap = await db.ref(`rooms/${code}`).get();
     if (!snap.exists()) { showOnlineMsg('部屋が見つかりません', true); return; }
     const data = snap.val();
@@ -1015,7 +1029,14 @@ async function joinOnlineRoom() {
     showOnlineMsg(`${myRole === 'zombie' ? '🧟 ゾンビ' : '🤠 保安官'}担当で入室しています...`);
 
     listenRoom(code);
-    await db.ref(`rooms/${code}/status`).set('playing');
+    try {
+      // 入室者の uid を登録（ルールで先着1名のみ許可）し、同時に対戦開始にする
+      await db.ref(`rooms/${code}`).update({ joinerUid: uid, status: 'playing' });
+    } catch (e) {
+      db.ref(`rooms/${code}`).off();
+      roomId = null; myRole = null;
+      showOnlineMsg('この部屋はすでに満員か終了しています', true);
+    }
   } catch (e) {
     showOnlineMsg('エラー: ' + e.message, true);
   }
