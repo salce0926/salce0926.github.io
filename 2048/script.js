@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let width = 4;
     let score = 0;
     let previousState = [];
+    let previousScore = 0;
 
     function updateScore(points) {
         score += points;
@@ -17,14 +18,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // 前の状態を保存
     function saveState() {
         previousState = tiles.map(tile => tile.textContent);
+        previousScore = score;
     }
 
-    // 状態を復元
+    // 状態を復元（盤面とスコアを1手前に戻す）
     function undoMove() {
         if (previousState.length) {
             for (let i = 0; i < tiles.length; i++) {
                 tiles[i].textContent = previousState[i];
             }
+            score = previousScore;
+            scoreDisplay.textContent = `Score: ${score}`;
             updateTileColors(); // タイルの色を更新
         }
     }
@@ -198,44 +202,86 @@ document.addEventListener('DOMContentLoaded', () => {
         checkForGameOver();
     }
     
-    // キー入力に応じて移動
-    function control(e) {
-        if (e.keyCode === 39) {
-            saveState(); // 移動前の状態を保存
+    // 指定方向に移動・合体する（キー操作とスワイプ操作で共通）
+    function move(direction) {
+        // 盤面が動かなかった場合は1手前の状態を残しておく
+        const lastState = previousState;
+        const lastScore = previousScore;
+        saveState(); // 移動前の状態を保存
+        if (direction === 'right') {
             moveRight();
             combineRow('right');
             moveRight();
-            if (previousState.join() !== tiles.map(tile => tile.textContent).join()) {
-                generateRandomTile();
-            }
-        } else if (e.keyCode === 37) {
-            saveState(); // 移動前の状態を保存
+        } else if (direction === 'left') {
             moveLeft();
             combineRow('left');
             moveLeft();
-            if (previousState.join() !== tiles.map(tile => tile.textContent).join()) {
-                generateRandomTile();
-            }
-        } else if (e.keyCode === 38) {
-            saveState(); // 移動前の状態を保存
+        } else if (direction === 'up') {
             moveUp();
             combineColumn('up');
             moveUp();
-            if (previousState.join() !== tiles.map(tile => tile.textContent).join()) {
-                generateRandomTile();
-            }
-        } else if (e.keyCode === 40) {
-            saveState(); // 移動前の状態を保存
+        } else if (direction === 'down') {
             moveDown();
             combineColumn('down');
             moveDown();
-            if (previousState.join() !== tiles.map(tile => tile.textContent).join()) {
-                generateRandomTile();
-            }
+        }
+        if (previousState.join() !== tiles.map(tile => tile.textContent).join()) {
+            generateRandomTile();
+        } else {
+            previousState = lastState;
+            previousScore = lastScore;
         }
         updateTileColors(); // タイルの色を更新
     }
+
+    const keyDirections = {
+        ArrowRight: 'right',
+        ArrowLeft: 'left',
+        ArrowUp: 'up',
+        ArrowDown: 'down'
+    };
+
+    // キー入力に応じて移動
+    function control(e) {
+        const direction = keyDirections[e.key];
+        if (!direction) return;
+        e.preventDefault(); // 矢印キーでページがスクロールしないようにする
+        move(direction);
+    }
     document.addEventListener('keydown', control);
+
+    // スワイプ入力に応じて移動
+    const minSwipeDistance = 30;
+    let touchStartX = null;
+    let touchStartY = null;
+
+    gridDisplay.addEventListener('touchstart', e => {
+        if (e.touches.length !== 1) {
+            touchStartX = null;
+            return;
+        }
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    // スワイプ中に画面がスクロールしないようにする
+    gridDisplay.addEventListener('touchmove', e => {
+        e.preventDefault();
+    }, { passive: false });
+
+    gridDisplay.addEventListener('touchend', e => {
+        if (touchStartX === null) return;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        touchStartX = null;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < minSwipeDistance) return;
+        if (Math.abs(dx) > Math.abs(dy)) {
+            move(dx > 0 ? 'right' : 'left');
+        } else {
+            move(dy > 0 ? 'down' : 'up');
+        }
+    });
+
 
     function checkForGameOver() {
         // 空のタイルが存在する場合はゲームオーバーではない
