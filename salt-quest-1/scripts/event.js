@@ -37,6 +37,11 @@ async function openChestHere() {
     if (!id) return false;
     openedChests.add(currentMapId + ':' + id);
     const got = CHEST_TABLE[id]();
+    if (got.read) {                      // 石板など、読むだけで手には入らないもの
+        for (const lines of got.read) await showMessage(lines);
+        currentState = STATE.FIELD;
+        return true;
+    }
     if (got.gold) {
         player.gold = Math.min(65535, player.gold + got.gold);
         await showMessage(['たからばこを あけた！', `${got.gold} ゴールドを てにいれた！`]);
@@ -1315,11 +1320,11 @@ function resetAutoState() {
 }
 
 // ダンジョン探索モードを開始する
-function startTour(exitOnly) {
+function startTour(exitOnly, entranceKey) {
     resetAutoState();
     autoPilot.questMode = false; autoPilot.goldGoal = 0; autoPilot.targetLevel = 30;
     // ダンジョンの中から始めるときは、入ってきた出入口を使う
-    const key = inDungeon() ? (dungeonExit().x + ',' + dungeonExit().y) : '37,65';
+    const key = inDungeon() ? (dungeonExit().x + ',' + dungeonExit().y) : (entranceKey || '37,65');
     autoPilot.tour = { plan: [], at: 0, deaths: 0, retreat: !!exitOnly, path: null, pathAt: -1,
                        kind: 'explore', entranceKey: key, exitKey: key, targets: [] };
     rebuildTour(exitOnly);
@@ -1347,6 +1352,7 @@ async function autoStart() {
         rec > player.level ? `ここの てきに あわせる（Lv${rec}）` : 'ここの てきには もう まけない',
         gear ? `${gear.name}が かえるまで` : 'つぎの そうびは もう ない',
         spot && spot.zone !== here ? `よい かりばへ いく（z${here}→z${spot.zone}）` : 'ここが いまは さいてきの かりば',
+        'ロトの どうくつを たんさく',
         'いわやまの どうくつを たんさく',
         'やめる'
     ];
@@ -1354,8 +1360,9 @@ async function autoStart() {
         `オート　Lv${player.level}　${player.gold}G　z${here}`,
         quest ? `つぎ：${quest.name}` : 'ぼうけんは おわっています',
         gear ? `つぎの そうび：${gear.name} ${gear.price}G` : ''], opts);
-    if (i === 5 || i === undefined) { currentState = STATE.FIELD; return; }
-    if (i === 4) { startTour(false); return; }
+    if (i === 6 || i === undefined) { currentState = STATE.FIELD; return; }
+    if (i === 4) { startTour(false, '36,20'); return; }
+    if (i === 5) { startTour(false, '37,65'); return; }
 
     autoPilot.goldGoal = 0;
     autoPilot.questMode = false;

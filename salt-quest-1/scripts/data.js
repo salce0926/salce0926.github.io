@@ -273,7 +273,11 @@ const dungeonRates = { '3': 1/16, '5': 1/16, '6': 1/24, '7': 1/24, '4': 1/24 };
 // そのマスの1歩あたりの遭遇率
 function encounterRateAt(x, y) {
     const tile = (typeof mapData !== 'undefined' && mapData[y]) ? mapData[y][x] : undefined;
-    if (typeof inDungeon === 'function' && inDungeon()) return dungeonRates[String(tile)] || 0;
+    if (typeof inDungeon === 'function' && inDungeon()) {
+        // 本家のロトの洞窟のように、敵が一切出ないダンジョンがある
+        if (currentDungeon().noEncounter) return 0;
+        return dungeonRates[String(tile)] || 0;
+    }
     return (zoneAt(x, y) === 0 ? encounterRatesZone0 : encounterRates)[tile] || 0;
 }
 
