@@ -247,7 +247,9 @@ function drawMap(){
     const dark = (typeof inCave === 'function') && inCave();
     const wrap = (typeof mapWraps !== 'function') || mapWraps();
     const light = dark ? lightRadius() : Infinity;
-    if (dark) { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    // 地上以外はマップの外にはみ出るので、毎回いちど黒で塗る。
+    // これをしないと町の端で前のフレームの地上マップが残って見える
+    if (!wrap) { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
     for (var y = 0; y <= screenHeight; y++) {
         for (var x = 0; x <= screenWidth; x++) {
             if (Math.max(Math.abs(x - screenWidth/2), Math.abs(y - screenHeight/2)) > light) continue;
