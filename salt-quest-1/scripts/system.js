@@ -247,8 +247,9 @@ function drawMap(){
     const dark = (typeof inCave === 'function') && inCave();
     const wrap = (typeof mapWraps !== 'function') || mapWraps();
     const light = dark ? lightRadius() : Infinity;
-    // 地上以外はマップの外にはみ出るので、毎回いちど黒で塗る。
-    // これをしないと町の端で前のフレームの地上マップが残って見える
+    // 地上以外はマップの外にはみ出る。前のフレームの絵が残らないよう毎回いちど塗りつぶす。
+    // 本家(FC実機)は町・城のマップ外を草原タイルで埋めているので、町は草・洞窟は黒
+    const outside = dark ? -1 : T_GRASS;
     if (!wrap) { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
     for (var y = 0; y <= screenHeight; y++) {
         for (var x = 0; x <= screenWidth; x++) {
@@ -261,7 +262,10 @@ function drawMap(){
                 worldY = playerPosition.y - screenHeight/2 + y;
                 worldX = playerPosition.x - screenWidth/2 + x;
             }
-            if (typeof mapData === 'undefined' || !mapData[worldY] || mapData[worldY][worldX] === undefined) continue;
+            if (typeof mapData === 'undefined' || !mapData[worldY] || mapData[worldY][worldX] === undefined) {
+                if (!wrap && outside >= 0) drawTile(x, y, outside);
+                continue;
+            }
             var tileIndex = mapData[worldY][worldX];
             if(tileIndex >= 350) tileIndex -= 12*25;
             // 本家どおり、開けたとびらは絵が消えてただの床になる
