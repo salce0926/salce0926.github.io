@@ -79,6 +79,27 @@ async function useStairsHere() {
     return true;
 }
 
+// 町の人に話しかける。店の人なら その店をひらく
+async function talkToNpc(npc) {
+    const shop = townShops.radatome;
+    if (npc.shop === 'weapons')      { await showMessage([`ぶきや「いらっしゃい！」`]); await shopWeapons(shop); }
+    else if (npc.shop === 'tools')   { await showMessage([`どうぐや「いらっしゃい！」`]); await shopTools(shop.tools.filter(t => t !== 'water'), shop); }
+    else if (npc.shop === 'water')   { await showMessage([`せいすいや「せいすいは いかが？」`]); await shopTools(['water'], shop); }
+    else if (npc.shop === 'inn')     { await stayInn(shop.inn); }
+    else if (npc.cure) {
+        if (getGameFlag('cursed')) {
+            await showMessage(['ろうじん「おお なんという のろいじゃ！」']);
+            await showMessage(['ろうじん「わしが といてしんぜよう」']);
+            clearGameFlag('cursed');
+            if (getGameFlag('deathNecklace')) setGameFlag('necklaceGone');
+            updatePlayerItems();
+            await showMessage(['のろいが とけた！', 'のろいの しなは きえてしまった...']);
+        } else await showMessage(['ろうじん「のろわれた ものが おれば', '　　　　　いつでも つれてきなさい」']);
+    }
+    else await showMessage(npc.lines || ['・・・']);
+    currentState = STATE.FIELD;
+}
+
 // 本家の「とびら」コマンド。隣のマスのとびらに かぎ を1つ使う
 async function openLockedDoor() {
     const door = adjacentLockedDoor();
@@ -127,6 +148,7 @@ async function interactField() {
     // マイクロタスクまでずれるあいだにオートの押しっぱなしキーで1マス動いてしまい、
     // 城や町のイベントがまるごと起きなくなる（メニューが開くだけになる）
     if (chestHere()) { await openChestHere(); return; }
+    if (adjacentNpc()) { await talkToNpc(adjacentNpc()); return; }
     if (adjacentLockedDoor()) { await openLockedDoor(); return; }
     if (dungeonEventHere() === 'rora') { await rescueRora(); return; }
     if (stairsHere()) { await useStairsHere(); return; }
@@ -311,17 +333,6 @@ async function interactField() {
             }
             // 敗北時は playerKilled で城に運ばれている
         }
-    } else if (isVisit(56, 49)) {
-        await showMessage(['ここは ラダトームの町だ', 'みせと やどやが ならんでいる']);
-        // 本家: 町の東の家で、ただで呪いを解いてくれる（呪いの品は消えてなくなる）
-        if (getGameFlag('cursed')) {
-            await showMessage(['ひがしの いえの ろうじん', '「おお なんという のろいじゃ！」']);
-            await showMessage(['ろうじん「わしが といてしんぜよう」']);
-            clearGameFlag('cursed');
-            if (getGameFlag('deathNecklace')) setGameFlag('necklaceGone');
-            await showMessage(['のろいが とけた！', 'のろいの しなは きえてしまった...']);
-        }
-        await offerTown('ラダトームの町', townShops.radatome);
     } else {
         handled = false;
     }
@@ -518,8 +529,8 @@ async function castFieldSpell(spellName) {
         await showMessage([`${player.name}は ${spellName}を となえた！`, `HPが ${heal} かいふくした！`]);
     } else if (spellName === 'ルーラ') {
         player.mp -= mpCost;
-        // 本家: ダンジョンの中では効かない
-        if (inDungeon()) await showMessage([`${player.name}は ルーラを となえた！`, 'しかし なにも おこらなかった！']);
+        // 本家: 洞窟の中では効かない（町は地上あつかい）
+        if (inCave()) await showMessage([`${player.name}は ルーラを となえた！`, 'しかし なにも おこらなかった！']);
         else {
             playerPosition.x = 51; playerPosition.y = 51;
             await showMessage([`${player.name}は ルーラを となえた！`, 'ラダトームの城に もどった！']);
@@ -527,12 +538,12 @@ async function castFieldSpell(spellName) {
     } else if (spellName === 'レミーラ') {
         player.mp -= mpCost;
         await showMessage([`${player.name}は レミーラを となえた！`]);
-        if (inDungeon()) { radiantSteps = RADIANT_STEPS; await showMessage(['あたりが あかるく なった！']); }
+        if (inCave()) { radiantSteps = RADIANT_STEPS; await showMessage(['あたりが あかるく なった！']); }
         else await showMessage(['しかし なにも おこらなかった！']);
     } else if (spellName === 'リレミト') {
         player.mp -= mpCost;
         await showMessage([`${player.name}は リレミトを となえた！`]);
-        if (inDungeon()) { leaveDungeon(); await showMessage(['どうくつの そとに もどった！']); }
+        if (inCave()) { leaveDungeon(); await showMessage(['どうくつの そとに もどった！']); }
         else await showMessage(['しかし なにも おこらなかった！']);
     } else if (spellName === 'トヘロス') {
         player.mp -= mpCost;
@@ -555,7 +566,7 @@ async function useFieldItem(itemName) {
         // 本家: ダンジョンの中では効かない（つばさは消える）
         player.wing--;
         await showMessage([`${player.name}は キメラのつばさを つかった！`]);
-        if (inDungeon()) await showMessage(['しかし なにも おこらなかった！']);
+        if (inCave()) await showMessage(['しかし なにも おこらなかった！']);
         else {
             playerPosition.x = 51; playerPosition.y = 51;
             await showMessage(['ラダトームの城に もどった！']);
@@ -564,7 +575,7 @@ async function useFieldItem(itemName) {
         // 本家: 一度つければダンジョンを出るまで消えない。周囲1マスを照らす
         player.torch--;
         await showMessage([`${player.name}は たいまつに ひを つけた！`]);
-        if (inDungeon()) { torchLit = true; await showMessage(['あたりが あかるく なった！']); }
+        if (inCave()) { torchLit = true; await showMessage(['あたりが あかるく なった！']); }
         else await showMessage(['しかし ここは あかるい']);
     } else if (itemName === 'せんしのゆびわ') {
         // 本家: 特に効果はない
@@ -747,6 +758,7 @@ let lastMoveTime = 0;
 function isMoveAllowed(x, y) {
     if (typeof mapData === 'undefined' || !mapData[y] || mapData[y][x] === undefined) return false;
     if (debugMode) return true;
+    if (inTown()) return dungeonPassable(currentMapId, x, y) || !!townEdgeExit(x, y);
     if (inDungeon()) return mapData[y][x] !== D_WALL && !isDoorLocked(x, y);
     return [25, 26, 27, 28, 29, 31, 32, 33, 34, 35].includes(mapData[y][x]);
 }
@@ -792,6 +804,8 @@ function updateField() {
                 playerPosition.y = ny;
                 if (repelSteps > 0) repelSteps--; // トヘロスは128歩で切れる
                 if (radiantSteps > 0) radiantSteps--; // レミーラは合計200歩で切れる
+                const out = townEdgeExit(nx, ny);
+                if (out) { leaveDungeon(out.x, out.y); return; }   // 町の外へ
                 if (inDungeon() && dungeonEventHere() === 'dragon' && !getGameFlag('dragonKilled')) {
                     fightCaveDragon();          // 本家: このマスに乗ると必ずドラゴンが出る
                     return;
@@ -1333,6 +1347,7 @@ function startTour(exitOnly, entranceKey) {
 async function autoStart() {
     if (autoPilot.on) { autoStop('じぶんで とめた'); return; }
     if (currentState !== STATE.FIELD) return;
+    if (inTown()) { await showMessage(['オート：まちの そとで つかってください']); currentState = STATE.FIELD; return; }
     // ダンジョンの中は専用モード（地上用の狩り場・宿の判定が使えないため）
     if (inDungeon()) {
         const d = currentDungeon();

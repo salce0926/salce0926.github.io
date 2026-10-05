@@ -20,6 +20,19 @@ const D_STAIR_UP   = 7;   // 上り階段（段が左から右へ上がる絵）
 const D_CHEST = 4;    // 宝箱
 const D_DOOR  = 5;    // かぎのかかった とびら
 
+// 町で使うタイル番号（本家の町の実画面と絵柄を照合して決めた）
+const T_GRASS = 27, T_STONE = 1, T_BRICK = 3, T_TREE = 28, T_WATER = 50,
+      T_SAND = 33, T_SIGN_SHOP = 9, T_SIGN_INN = 10, T_BRIDGE = 35,
+      T_COUNTER = 2;      // みせの カウンター（本家の町に宝箱は無い）
+// 町の記号 → タイル。ダンジョンとは別の対応表を使う
+const TOWN_TILES = {
+    '.': T_GRASS, '#': T_STONE, 'B': T_BRICK, 'T': T_TREE, '~': T_WATER,
+    's': T_SAND, 'C': T_COUNTER, 'D': D_DOOR, 'W': T_SIGN_SHOP, 'I': T_SIGN_INN,
+    '?': T_BRIDGE
+};
+// 町で通れないもの。木と砂は本家でも歩ける（世界地図の森・砂漠と同じ）
+const TOWN_BLOCKED = [T_STONE, T_WATER, T_SIGN_SHOP, T_SIGN_INN, T_COUNTER];
+
 // マップ記号  # 壁 ／ . 床 ／ a b c 階段 ／ < > 地上への出入口 ／ 1〜5 宝箱
 //             + とびら ／ D ドラゴン ／ P ローラ姫
 const DUNGEONS = {
@@ -98,6 +111,49 @@ const DUNGEONS = {
     // 本家「ぬまちのどうくつ」。地形は way78.com/dq1/fc/dn03.html のマップ画像を6×30で読み取った。
     // 北口(0,0)＝地上(112,52)／南口(0,29)＝地上(112,57)。左端の縦通路がリムルダールへの近道で、
     // ドラゴンを避けて通り抜けられる。姫のいる区画へはドラゴンのマスを必ず通る（本家どおり）
+    // 本家「ラダトームのまち」。地形は pidlio.com の実画面マップ(02-01.png)を32×32で
+    // 読み取り、本作のタイルで再現して元画像と見比べて詰めた。
+    // 外周1マスに出ると町の外（地上の(56,49)）へ出る＝本家と同じ
+    radatome: {
+        kind: 'town',
+        name: 'ラダトームの まち',
+        floorName: '',
+        bright: true,          // 町は明るい。たいまつもレミーラも要らない
+        noEncounter: true,     // 町の中では敵が出ない
+        start: { x: 15, y: 2 },// 北の門から入ったところ
+        exitTo: { x: 56, y: 49 },
+        rows: [
+            '................................', '.#############sBBs#############.', '.#TTT....TTTTssBBssTTTTTTTTTT.#.', '.#TT......T.T.sBBs..T########T#.',
+            '.#T.#####......BB...T#BB#B~~#T#.', '.#T.#BBB#......BBs...#BBCB~~#T#.', '.#T.#BCB#......BBs.T.#BB#B~~#T#.', '.#T.##B##..ss..BBssT.#D######.#.',
+            '.#T...BW..ssss.BBs.T....T..T..#.', '.#TT..B..ssTss.BBs.....TTTTTT.#.', '.#T...B..sTTTssBB..#########T.#.', '.#T...B.sssTTTsBB..#BBB#BBB#..#.',
+            '.#....B.ssTTTs.BB..#BBB#BBB#..#.', '.#TT..B..sssss.BB..##B###B##.T#.', '.T....B....ss..BB....B...B...TT.', '.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.',
+            '.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.', '.TT......B....T.B...T.....~~~TT.', '.#TT.....B...TT.B.TTTT.~~~~~~~T.', '.#T......B..TT..BTTT..~~~~~~~~~.',
+            '.#.....#IB#.....B.T..~~~~~~~~~~.', '.#.######B###...BT..~~~~..~~~~~.', '.#.#BB#BBBCB#...B..~~.......~~~.', '.#.#BB#B#####.T.BBB?..........~.',
+            '.#.#BBDBBBBB#.T....~..#B####T.~.', '.#.#B##B##BB#.TT..~~..#BB#B#T.~.', '.#.#BB#BB#BB#TTTT.~~~.#BBCB#.~~.', '.#.#BB#BB#BB#.TT..~~..#BB#B#.T~.',
+            '.#.##########.T..~~~~.######TT~.', '.#..............~~~~~.....~~T~~.', '.####################~~~~~~~~~~.', '................................'
+        ],
+        // 本家のNPCの立ち位置をそのまま使う。せりふは本作のもの
+        npcs: [
+            { x: 6,  y: 5,  sprite: 23, shop: 'weapons', name: 'ぶきや' },
+            { x: 25, y: 5,  sprite: 19, shop: 'tools',   name: 'どうぐや' },
+            { x: 25, y: 11, sprite: 19, shop: 'water',   name: 'せいすいや' },
+            { x: 11, y: 22, sprite: 23, shop: 'inn',     name: 'やどや' },
+            { x: 26, y: 26, sprite: 12, cure: true,      name: 'ろうじん' },
+            { x: 21, y: 11, sprite: 25, lines: ['へいし「ラダトームの しろは', '　　　　この まちの すぐ にしじゃ」'] },
+            { x: 21, y: 24, sprite: 25, lines: ['へいし「よるは まちから でるでないぞ」'] },
+            { x: 11, y: 6,  sprite: 13, lines: ['ろうじん「どうくつは まっくらじゃ', '　　　　　たいまつを わすれるでないぞ」'] },
+            { x: 15, y: 7,  sprite: 23, lines: ['しょうにん「やくそうは いくつあっても', '　　　　　　こまらんよ」'] },
+            { x: 5,  y: 8,  sprite: 21, lines: ['むすめ「ゆうしゃさま…', '　　　ごぶじで おかえりなさい」'] },
+            { x: 2,  y: 14, sprite: 17, lines: ['たびびと「にしの どうくつには', '　　　　　ロトの いしばんが あるそうだ」'] },
+            { x: 4,  y: 23, sprite: 17, lines: ['おとこ「やどに とまれば', '　　　　きずも まほうも もとどおりさ」'] },
+            { x: 11, y: 27, sprite: 16, lines: ['ぎんゆうしじん「ガライの まちには', '　　　　　　　　わが せんぞの はかが ある」'] },
+            { x: 25, y: 21, sprite: 25, lines: ['へいし「ひがしの いえの ろうじんは', '　　　　のろいを といてくれるそうだ」'] },
+            { x: 29, y: 2,  sprite: 13, lines: ['ろうじん「りゅうおうの しろは', '　　　　　ラダトームの めのまえじゃ」'] },
+            { x: 12, y: 29, sprite: 21, lines: ['おんな「ローラひめは さらわれて', '　　　　もう ずいぶんに なります」'] },
+            { x: 14, y: 29, sprite: 21, lines: ['おんな「おうさまが なげいて おられるわ」'] }
+        ],
+        links: {}
+    },
     numachi: {
         name: 'ぬまちの どうくつ',
         floorName: 'ちか1かい',
@@ -145,6 +201,18 @@ const DUNGEON_DOORS = { numachi: 'numachiDoor' };
 // 記号の並びから、描画用のタイル配列・階段・宝箱・とびら・イベントの位置を組み立てる
 function buildDungeon(d, id) {
     d.grid = []; d.marks = {}; d.chestAt = {}; d.doorAt = {}; d.eventAt = {};
+    if (d.kind === 'town') {                       // 町は記号の対応表がちがう
+        d.rows.forEach((row, y) => {
+            const line = [];
+            [...row].forEach((ch, x) => {
+                line.push(TOWN_TILES[ch] !== undefined ? TOWN_TILES[ch] : T_GRASS);
+            });
+            d.grid.push(line);
+        });
+        d.npcAt = {};
+        (d.npcs || []).forEach(n => { d.npcAt[n.x + ',' + n.y] = n; });
+        return;
+    }
     d.rows.forEach((row, y) => {
         const line = [];
         [...row].forEach((ch, x) => {
@@ -175,6 +243,36 @@ let currentMapId = 'world';
 
 function currentDungeon() { return currentMapId === 'world' ? null : DUNGEONS[currentMapId]; }
 function inDungeon() { return currentMapId !== 'world'; }
+// 町は「地上ではないが暗くもない」。たいまつ・レミーラ・リレミトは効かない
+function inTown() { const d = currentDungeon(); return !!(d && d.kind === 'town'); }
+function inCave() { return inDungeon() && !inTown(); }
+// 町の人。足元ではなく「隣に立って話しかける」
+function npcAt(x, y) {
+    const d = currentDungeon();
+    return (d && d.npcAt) ? (d.npcAt[x + ',' + y] || null) : null;
+}
+function adjacentNpc() {
+    if (!inTown()) return null;
+    const g = currentDungeon().grid;
+    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+        const x = playerPosition.x + dx, y = playerPosition.y + dy;
+        const n = npcAt(x, y);
+        if (n) return n;
+        // 本家の店はカウンター越しに話す。1マス先も見る
+        if (g[y] && g[y][x] === T_COUNTER) {
+            const far = npcAt(x + dx, y + dy);
+            if (far) return far;
+        }
+    }
+    return null;
+}
+// 町は外周1マスに出ると外へ出る（本家と同じ）
+function townEdgeExit(x, y) {
+    const d = currentDungeon();
+    if (!d || d.kind !== 'town') return null;
+    const W = d.grid[0].length, H = d.grid.length;
+    return (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) ? d.exitTo : null;
+}
 function mapWraps() { return currentMapId === 'world'; }   // 地上だけ端がつながっている
 
 // 明かり。たいまつは一度つければダンジョンを出るまで消えない（本家どおり）
@@ -183,6 +281,8 @@ let radiantSteps = 0;          // レミーラの残り歩数（本家は合計2
 const RADIANT_STEPS = 200;
 const AUTO_LIGHT = 8;          // オート中の見え方（画面いっぱい。開発用の便宜）
 function lightRadius() {
+    const d = currentDungeon();
+    if (d && d.bright) return Infinity;      // 町は明るい
     // オート中は真っ暗だと何をしているか分からないので、明かり無しでも見えるようにする。
     // 手で遊ぶときは本家どおり真っ暗
     if (typeof autoPilot !== 'undefined' && autoPilot.on) return AUTO_LIGHT;
@@ -221,6 +321,7 @@ function dungeonExit() { return dungeonEnteredFrom; }
 
 // 地上のこのマスに入ったらダンジョンへ、という対応表
 const DUNGEON_ENTRANCES = {
+    '56,49':  ['radatome', null],   // ラダトームのまち（markでなく start から入る）
     '36,20':  ['roto1', '<'],       // ロトの洞窟（ラダトームから北北西）
     '37,65':  ['iwayama1', '<'],
     '112,52': ['numachi', '<'],     // 北口（本土側）
@@ -259,6 +360,7 @@ function stairsHere() {
     const x = playerPosition.x, y = playerPosition.y;
     const d = currentDungeon();
     if (!d) return !!DUNGEON_ENTRANCES[x + ',' + y];
+    if (d.kind === 'town') return false;        // 町は外周から出る
     for (const mark in d.marks) {
         if (d.marks[mark].x === x && d.marks[mark].y === y && d.links[mark]) return true;
     }
@@ -285,7 +387,7 @@ function useStairs(x, y) {
 function enterDungeonAt(x, y) {
     const e = DUNGEON_ENTRANCES[x + ',' + y];
     if (!e) return false;
-    const to = DUNGEONS[e[0]].marks[e[1]];
+    const to = e[1] === null ? DUNGEONS[e[0]].start : DUNGEONS[e[0]].marks[e[1]];
     torchLit = false; radiantSteps = 0; openedChests = new Set();
     dungeonEnteredFrom = { x, y };
     switchMap(e[0], to.x, to.y);
@@ -308,6 +410,10 @@ function chestHere() {
 function dungeonPassable(mapId, x, y) {
     const d = DUNGEONS[mapId], g = d.grid;
     if (y < 0 || x < 0 || y >= g.length || x >= g[0].length) return false;
+    if (d.kind === 'town') {
+        if (TOWN_BLOCKED.includes(g[y][x])) return false;
+        return !(d.npcAt && d.npcAt[x + ',' + y]);   // 人のいるマスは通れない
+    }
     if (g[y][x] === D_WALL) return false;
     const f = d.doorAt ? d.doorAt[x + ',' + y] : null;
     return !(f && !getGameFlag(f));

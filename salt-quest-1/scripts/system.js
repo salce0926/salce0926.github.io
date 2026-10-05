@@ -243,8 +243,8 @@ function drawWindowBattleEnemy() {
     drawEnemy();
 }
 function drawMap(){
-    // ダンジョンは明かりの届く範囲(正方形)だけが見え、外は真っ黒
-    const dark = (typeof inDungeon === 'function') && inDungeon();
+    // 洞窟は明かりの届く範囲(正方形)だけが見え、外は真っ黒。町は明るい
+    const dark = (typeof inCave === 'function') && inCave();
     const wrap = (typeof mapWraps !== 'function') || mapWraps();
     const light = dark ? lightRadius() : Infinity;
     if (dark) { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
@@ -265,6 +265,11 @@ function drawMap(){
             // 本家どおり、開けたとびらは絵が消えてただの床になる
             if(dark && tileIndex === D_DOOR && !isDoorLocked(worldX, worldY)) tileIndex = D_FLOOR;
             drawTile(x, y, tileIndex);
+            // 町の人
+            if (typeof npcAt === 'function') {
+                const n = npcAt(worldX, worldY);
+                if (n) drawCharacter(x, y, n.sprite);
+            }
             if(x === screenWidth/2 && y === screenHeight/2) drawCharacter(x, y, playerIndex);
         }
     }
