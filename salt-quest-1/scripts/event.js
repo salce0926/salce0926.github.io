@@ -1655,10 +1655,16 @@ const TOUR_MAX_DEATHS = 3;
 // 全滅して城へ運ばれるなど、用事のマップから完全に出てしまったら、
 // その用事はいったん諦める（作り直しても経路が引けず、数えきれずに止まるため）
 function abandonTourIfLost(t) {
-    if (!inDungeon() || t.kind === 'explore' || t.kind === 'traverse') return false;
+    // 「外へ出るだけ」の計画は入ってきた口を基準にするので、ここで消さなくてよい。
+    // 洞窟の宝箱めぐりは別の仕組み（ぜんめつ回数）で畳むので除く
+    if (!inDungeon() || t.kind === 'explore') return false;
     const maps = new Set((t.targets || []).map(x => x.map));
+    (t.plan || []).forEach(l => maps.add(l.map));
     const ent = DUNGEON_ENTRANCES[t.entranceKey];
     if (ent) maps.add(ent[0]);
+    // 城の3フロアはひとつの場所として扱う
+    const castle = ['rcastle1', 'rcastle2', 'rcastleB1'];
+    if (castle.some(m => maps.has(m))) castle.forEach(m => maps.add(m));
     if (!maps.size || maps.has(currentMapId)) return false;
     autoPilot.tour = null; autoShopping = null;
     autoPilot.path = null; autoPilot.goal = null; autoPilot.lastLine = '';
@@ -1733,16 +1739,18 @@ function startRoraErrand() {
 const CASTLE_ENTRANCE = '51,51';
 function castleTargets(kind) {
     const t = [];
+    // 玉座の間の出口は かぎ で開ける。全滅して運ばれたときも閉じこめられるので、
+    // 用事の種類にかかわらず、まず宝箱の かぎ で出口を開ける
+    const locked = doorLockedOn('rcastle2', 4, 7);
+    if (locked) for (const k in DUNGEONS.rcastle2.chestAt) {
+        const [x, y] = k.split(',').map(Number);
+        if (!chestOpenedOn('rcastle2', x, y)) t.push({ map: 'rcastle2', x, y, act: 'chest' });
+    }
     if (kind === 'castleKing') {
-        // 玉座の間は かぎ で開ける。最初の1回だけ宝箱を開けて かぎ を手に入れる
-        const locked = doorLockedOn('rcastle2', 4, 7);
-        if (locked) for (const k in DUNGEONS.rcastle2.chestAt) {
-            const [x, y] = k.split(',').map(Number);
-            if (!chestOpenedOn('rcastle2', x, y)) t.push({ map: 'rcastle2', x, y, act: 'chest' });
-        }
         t.push({ map: 'rcastle2', x: 3, y: 4, act: 'king' });
         if (locked) t.push({ map: 'rcastle2', x: 4, y: 6, act: 'door' });
     } else {
+        if (locked) t.push({ map: 'rcastle2', x: 4, y: 6, act: 'door' });
         // とびらは北がわ(19,6)に立って開ける。南がわ(19,8)はとびらの向こうで、
         // 開けるまでは入口から行けない
         if (doorLockedOn('rcastle1', 19, 7)) t.push({ map: 'rcastle1', x: 19, y: 6, act: 'door' });
@@ -1750,8 +1758,18 @@ function castleTargets(kind) {
     }
     return t;
 }
+// とびらを開ける区間があるのに かぎ が1本も用意できないなら、その用事は始めない。
+// 途中の宝箱で かぎ が手に入るなら数に入れる（玉座の間の出口がこれ）
+function canOpenDoors(targets) {
+    if (!targets.some(t => t.act === 'door')) return true;
+    const fromChest = targets.filter(t => t.act === 'chest'
+        && (DUNGEONS[t.map].chestAt || {})[t.x + ',' + t.y] === '9').length;
+    return player.key + fromChest > 0;
+}
+
 function startCastleErrand(kind) {
     const targets = castleTargets(kind);
+    if (!canOpenDoors(targets)) return false;
     const plan = inDungeon() ? planFromHere(targets, CASTLE_ENTRANCE)
                              : planErrand(CASTLE_ENTRANCE, targets, CASTLE_ENTRANCE);
     if (!plan) return false;
@@ -1808,7 +1826,8 @@ function townVisitWorth(key) {
     if (!shop) return false;
     const tools = shop.tools || [];
     if (tools.includes('herb') && player.herb < HERB_MAX && player.gold >= toolGoods.herb.price) return true;
-    if (tools.includes('key')  && player.key  < 3        && player.gold >= (shop.keyPrice || toolGoods.key.price)) return true;
+    if (tools.includes('key') && player.key < 3
+        && player.gold >= (shop.keyPrice || toolGoods.key.price)) return true;
     if (tools.includes('wing') && player.wing < 1        && player.gold >= toolGoods.wing.price * 2) return true;
     const kinds = [[shop.weapons, weapons, 'weaponIndex'],
                    [shop.armors, armors, 'armorIndex'],
@@ -1874,7 +1893,9 @@ function autoPickChoice() {
         // やくそうは最優先。3個までは買えるだけ買い、そのあとは余裕があるときだけ
         if (name === 'やくそう' && player.herb < HERB_MAX
             && player.gold >= price * (player.herb < 3 ? 1 : 4)) return i;
-        if (name === 'かぎ'           && player.key  < 3        && player.gold >= price * 2) return i;
+        // かぎは1本も無いときは買えるだけ買う（扉が開けられないと本編が止まる）
+        if (name === 'かぎ' && player.key < 3
+            && player.gold >= price * (player.key < 1 ? 1 : 2)) return i;
         if (name === 'キメラのつばさ' && player.wing < 1        && player.gold >= price * 6) return i;
         if (name === 'せいすい'       && player.water < 2       && player.gold >= price * 6) return i;
         if (name === 'たいまつ'       && player.torch < 2       && player.gold >= price * 8) return i;
@@ -1888,6 +1909,7 @@ function startTownErrand(kind) {
     if (!e) return false;
     // とびらが もう開いているなら その区間は飛ばす
     const targets = e.targets.filter(t => t.act !== 'door' || doorLockedOn(t.map, t.x, t.y - 1));
+    if (!canOpenDoors(targets)) return false;
     const plan = inDungeon() ? planFromHere(targets, e.entrance)
                              : planErrand(e.entrance, targets, e.entrance);
     if (!plan) return false;
@@ -1896,6 +1918,16 @@ function startTownErrand(kind) {
     autoPilot.path = null; autoPilot.goal = null;
     autoPilot.lastLine = '';
     return true;
+}
+
+// かぎを売っている町のうち、いちばん近いもの
+function nearestKeyTown() {
+    let near = null;
+    for (const t of INN_SPOTS.filter(t => (townShops[t.shop].tools || []).includes('key'))) {
+        const path = findPath(playerPosition, t);
+        if (path && (!near || path.length < near.path.length)) near = { ...t, path };
+    }
+    return near;
 }
 
 // かぎのかかった とびら を開けないと進めない用事かどうか
@@ -1910,8 +1942,11 @@ function questNeedsKey(q) {
 function autoTourStep() {
     const t = autoPilot.tour;
 
-    // 回復手段が尽きて削られたら、宝箱は諦めて出口へ向かう
-    if (!t.retreat && inDungeon() && player.hp < player.maxHp * 0.35) {
+    // 回復手段が尽きて削られたら、宝箱は諦めて出口へ向かう。
+    // 敵の出ない町（宿屋も店もある）では引き返さない。引き返すと、入っては出てを
+    // 繰り返して用事が永久に終わらない
+    const risky = inDungeon() && !currentDungeon().noEncounter;
+    if (!t.retreat && risky && player.hp < player.maxHp * 0.35) {
         const canHeal = (player.spells.includes('ホイミ') && player.mp >= 4) || player.herb > 0;
         if (!canHeal) { t.retreat = true; rebuildTour(true); return; }
     }
@@ -1983,6 +2018,13 @@ function autoTourStep() {
     autoPilot.dir = null;
     t.path = null; t.pathAt = -1;
     if (!leg.act) { t.at++; return; }
+    // かぎが無いと とびら は開かない。ここで粘ると、開かない→次の区間へ行けない→
+    // 計画を作り直す、を繰り返して「みちに まよいました」で止まる
+    if (leg.act === 'door' && player.key <= 0) {
+        t.targets = []; t.retreat = true;
+        rebuildTour(true);                 // 開けられないので、外へ出る計画に切り替える
+        return;
+    }
     if (leg.act === 'shop' || leg.act === 'inn') {
         autoShopping = { tries: 0 };
         if (leg.act === 'inn') { autoPilot.rests++; autoPilot.battlesAtRest = autoPilot.battles; }
@@ -2103,11 +2145,25 @@ function autoTick(now) {
                 Promise.resolve(autoShop(buy.town.shop)).then(() => { autoBusy = false; });
                 return;
             }
-            // かぎが要る用事なのに、かぎも買う金も無いときは、まず稼ぐ。
-            // そのまま向かうと とびらが開けられず、用事を作り直し続けて止まる
-            if (questNeedsKey(q) && player.key <= 0 && player.gold < toolGoods.key.price) {
-                if (!autoPilot.grindUntil) autoPilot.grindUntil = Math.min(30, player.level + 1);
-                autoPilot.path = null; autoPilot.goal = null;
+            // かぎが要る用事は、かぎを手に入れてから向かう。そのまま行くと
+            // とびらが開けられず、用事を作り直し続けて止まる
+            if (questNeedsKey(q) && player.key <= 0) {
+                if (player.gold >= toolGoods.key.price) {
+                    const near = nearestKeyTown();
+                    if (near) {
+                        if (near.path.length === 0) { if (startTownVisit(near.shop, false)) return; }
+                        else {
+                            autoPilot.path = near.path;
+                            autoPilot.goal = 'かいものへ';
+                            autoPilot.shopKey = near.shop;
+                            autoPilot.lastLine = '';
+                            return;
+                        }
+                    }
+                } else {   // 買う金も無いなら、まず稼ぐ
+                    autoPilot.grindUntil = Math.max(autoPilot.grindUntil || 0,
+                                                    Math.min(30, player.level + 1));
+                }
             }
             // 前回たどり着いてもフラグが立たなかった＝倒せていないので、鍛えてから戻る
             else if (autoPilot.grindUntil && player.level < autoPilot.grindUntil) {
