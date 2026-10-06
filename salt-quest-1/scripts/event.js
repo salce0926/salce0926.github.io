@@ -5,13 +5,22 @@
 function isVisit(x, y) { return !inDungeon() && playerPosition.x === x && playerPosition.y === y; }
 
 // 本家同様、やられると所持金が半分になる
+// 本家どおり、冒険の始まり・全滅・ふっかつのじゅもん・ルーラの行き先は
+// ラダトーム城の玉座の間（王様の前）
+function goToThroneRoom() {
+    torchLit = false; radiantSteps = 0; openedChests = new Set();
+    dungeonEnteredFrom = { x: 51, y: 51 };
+    switchMap('rcastle2', 3, 4);
+}
+function startNewGame() { goToThroneRoom(); }
+
 function playerKilled(){
     const lost = player.gold - Math.floor(player.gold / 2);
     player.gold -= lost;
     // 本家: 姫を抱えたまま倒れると、姫は洞窟へ戻ってしまう
     if (getGameFlag('roraRescued') && !getGameFlag('roraLove')) clearGameFlag('roraRescued');
     // 本家同様、王様のもとに運ばれてHPもMPも全快する（眠り・封じも解ける）
-    if (inDungeon()) leaveDungeon(51, 51); else { playerPosition.x = 51; playerPosition.y = 51; }
+    goToThroneRoom();
     player.hp = player.maxHp; player.mp = player.maxMp;
     player.asleep = 0; player.sealed = false;
     // オート中は城送りになっても、狩っていた場所へ戻して続行する（開発用）
@@ -35,7 +44,7 @@ function playerKilled(){
 async function openChestHere() {
     const id = chestHere();
     if (!id) return false;
-    openedChests.add(currentMapId + ':' + id);
+    openedChests.add(currentMapId + ':' + playerPosition.x + ',' + playerPosition.y);
     const got = CHEST_TABLE[id]();
     if (got.read) {                      // 石板など、読むだけで手には入らないもの
         for (const lines of got.read) await showMessage(lines);
@@ -73,7 +82,8 @@ async function useStairsHere() {
     } else {
         if (!enterDungeonAt(playerPosition.x, playerPosition.y)) return false;
         const d = currentDungeon();
-        await showMessage([`${d.name} ${d.floorName}`, 'あたりは まっくらだ...']);
+        await showMessage(d.bright ? [`${d.name} ${d.floorName}`]
+                                   : [`${d.name} ${d.floorName}`, 'あたりは まっくらだ...']);
     }
     currentState = STATE.FIELD;
     return true;
@@ -96,8 +106,67 @@ async function talkToNpc(npc) {
             await showMessage(['のろいが とけた！', 'のろいの しなは きえてしまった...']);
         } else await showMessage(['ろうじん「のろわれた ものが おれば', '　　　　　いつでも つれてきなさい」']);
     }
+    else if (npc.shop === 'castleKey') {
+        // 本家: ラダトーム城の北東にある かぎや（まほうのかぎ 85G）
+        await showMessage(['かぎや「どんな とびらも あけてしまう', '　　　　まほうの かぎは いらんかな？']);
+        await shopTools(['key'], { tools: ['key'], keyPrice: 85 });
+    }
+    else if (npc.lightBe) {
+        // 本家: 入口の東のカウンターの老人。「ひかりあれ」でMPを全快してくれる
+        if (player.mp >= player.maxMp) {
+            await showMessage(['ろうじん「ひかり あれ！」']);
+            await showMessage(['しかし なにも おこらなかった']);
+        } else {
+            player.mp = player.maxMp;
+            await showMessage(['ろうじん「ひかり あれ！」']);
+            await showMessage(['まりょくが みなぎってきた！']);
+        }
+    }
+    else if (npc.sage) {
+        if (getGameFlag('sunStone'))
+            await showMessage(['けんじゃ「たいようの いしは', '　　　　　そなたに たくした', '　　　　　たいせつに つかうのじゃ」']);
+        else
+            await showMessage(['けんじゃ「よくぞ ここまで きた', '　　　　　たからばこの たいようの いしを', '　　　　　もってゆくがよい」']);
+    }
+    else if (npc.king) { await talkToKing(); }
     else await showMessage(npc.lines || ['・・・']);
     currentState = STATE.FIELD;
+}
+
+// 玉座の間の王様。本家どおり、冒険の目的を聞き、ふっかつのじゅもんを教えてくれる
+async function talkToKing() {
+    if (getGameFlag('cursed')) {
+        await showMessage(['おうさま「のろわれし ものよ', '　　　　　わしに ちかよるでない！」']);
+        await showMessage(['（ラダトームの まちで のろいを', '　といて もらうしか なさそうだ）']);
+        return;
+    }
+    if (getGameFlag('lightBall')) {
+        await showMessage(['王様「勇者よ！', '　　　よくぞ りゅうおうを 倒してくれた！', '　　　わしに代わって この国を 治めよ」']);
+        await showMessage(['しかし あなたは いいました（←！？）']);
+        await showMessage(['勇者「自分の治める国があるなら', '　　　それは自分で探したいのです」']);
+        await showMessage(['ローラ姫「私も連れて行ってください！」', 'ローラ姫は 返事も聞かずに隣に立った！']);
+        await showMessage(['～THE END～']);
+        return;
+    }
+    if (!getGameFlag('roraLove') && getGameFlag('roraRescued')) {
+        setGameFlag('roraLove'); addItemToPlayer('おうじょのあい'); playerStyle = playerStyleFull;
+        await showMessage(['王様「ローラ姫！」']);
+        await showMessage(['王様「なんと！ドラゴンに囚われておったのか', '　　　よくぞローラ姫を救い出してくれた！」']);
+        await showMessage(['ローラ姫「ありがとうございます...//」', 'おうじょのあいを手に入れた！']);
+        return;
+    }
+    if (!getGameFlag('start')) {
+        setGameFlag('start');
+        await showMessage(['王様「勇者よ！りゅうおうを倒すのだ！', '　　　光の玉を取り返し', '　　　世界の闇を振り払え！」']);
+        await showMessage(['王様「したくきんを もたせてある', '　　　まずは しろの ひがしの まちで', '　　　ぶきと よろいを ととのえるのじゃ」']);
+    } else if (playerStyle === playerStyleNormal) {
+        await showMessage(['王様「もし敵にやられてしまったら', '　　　ここまで運び込まれるのじゃ」']);
+        await showMessage(['王様「まちの みせで そうびを ととのえ', '　　　やくそうを きらさぬ ことじゃ」']);
+    } else {
+        await showMessage(['王様「ローラ姫を助けるくだりが', '　　　正直ほとんど無かったじゃろう」']);
+        await showMessage(['王様「そのぶん りゅうおうは てごわいぞ', '　　　ドムドーラの ロトのよろいを', '　　　さがすのじゃ」']);
+    }
+    await offerRecord();
 }
 
 // 本家の「とびら」コマンド。隣のマスのとびらに かぎ を1つ使う
@@ -148,8 +217,12 @@ async function interactField() {
     // マイクロタスクまでずれるあいだにオートの押しっぱなしキーで1マス動いてしまい、
     // 城や町のイベントがまるごと起きなくなる（メニューが開くだけになる）
     if (chestHere()) { await openChestHere(); return; }
+    // かぎを持っているなら、とびらを人より先に見る。玉座の間の出口のように
+    // 両どなりが兵士で、話しかけが優先されると永久に開けられない場所がある
+    const lockedDoor = adjacentLockedDoor();
+    if (lockedDoor && player.key > 0) { await openLockedDoor(); return; }
     if (adjacentNpc()) { await talkToNpc(adjacentNpc()); return; }
-    if (adjacentLockedDoor()) { await openLockedDoor(); return; }
+    if (lockedDoor) { await openLockedDoor(); return; }
     if (dungeonEventHere() === 'rora') { await rescueRora(); return; }
     if (stairsHere()) { await useStairsHere(); return; }
 
@@ -166,49 +239,6 @@ async function interactField() {
             await showMessage(['ここはリムルダールの町だ', 'かぎを うっている みせが あるようだ']);
         }else await showMessage(['ここはリムルダールの町だ']);
         await offerTown('リムルダールの町', townShops.rimuldar);
-    } else if (isVisit(gameFlags.sunStone.location.x, gameFlags.sunStone.location.y)) {
-        // 本家: 呪われていると門番に追い返される＝王様に会えない＝記録もできない
-        if (getGameFlag('cursed')) {
-            await showMessage(['へいし「のろわれし ものよ でていけっ！」']);
-            await showMessage(['（ラダトームの まちで のろいを', '　といて もらうしか なさそうだ）']);
-        } else {
-        await showMessage(['ここはラダトームの城だ']);
-        if(getGameFlag('lightBall')){
-            await showMessage(['王様「勇者よ！', '　　　よくぞ りゅうおうを 倒してくれた！', '　　　わしに代わって この国を 治めよ」']);
-            await showMessage(['しかし あなたは いいました（←！？）']);
-            await showMessage(['勇者「自分の治める国があるなら', '　　　それは自分で探したいのです」']);
-            await showMessage(['ローラ姫「私も連れて行ってください！」', 'ローラ姫は 返事も聞かずに隣に立った！']);
-            await showMessage(['～THE END～']);
-        } else if(!getGameFlag('roraLove') && getGameFlag('roraRescued')){
-            setGameFlag('roraLove'); addItemToPlayer('おうじょのあい'); playerStyle = playerStyleFull;
-            await showMessage(['王様「ローラ姫！」']);
-            await showMessage(['王様「なんと！ドラゴンに囚われておったのか', '　　　よくぞローラ姫を救い出してくれた！」']);
-            await showMessage(['ローラ姫「ありがとうございます...//」', 'おうじょのあいを手に入れた！']);
-        } else {
-            if(!getGameFlag('start')){
-                setGameFlag('start');
-                await showMessage(['王様「勇者よ！りゅうおうを倒すのだ！', '　　　光の玉を取り返し', '　　　世界の闇を振り払え！」']);
-                await showMessage(['王様「したくきんを もたせてある', '　　　まずは しろの みぎうえの まちで', '　　　ぶきと よろいを ととのえるのじゃ」']);
-            }
-            if(!getGameFlag('sunStone')){
-                if(player.key > 0){
-                    player.key--;
-                    setGameFlag('sunStone'); addItemToPlayer('たいようのいし');
-                    await showMessage(['城の裏で鍵を使い太陽の石を手に入れた！']);
-                } else await showMessage(['王様「こんな時にローラ姫はどこへ...」',
-                                          '（城の裏に かぎのかかった とびらが ある）']);
-            } else {
-                if(playerStyle === playerStyleNormal){
-                    await showMessage(['王様「もし敵にやられてしまったら', '　　　ここまで運び込まれるのじゃ」']);
-                    await showMessage(['王様「まちの みせで そうびを ととのえ', '　　　やくそうを きらさぬ ことじゃ」']);
-                } else {
-                    await showMessage(['王様「ローラ姫を助けるくだりが', '　　　正直ほとんど無かったじゃろう」']);
-                    await showMessage(['王様「そのぶん りゅうおうは てごわいぞ', '　　　ドムドーラの ロトのよろいを', '　　　さがすのじゃ」']);
-                }
-            }
-            await offerRecord();
-        }
-        }
     } else if (isVisit(gameFlags.silverHerp.location.x, gameFlags.silverHerp.location.y)) {
         if(!getGameFlag('silverHerp')){
             if(player.key > 0){
@@ -395,7 +425,8 @@ const townShops = {
     // 品揃え・宿代・かぎの値段は本家FC版の店データどおり(way78.com/dq1/fc/shop.html)。
     // 本家はラダトームだけ城に鍵屋があるが、本作は城と町を分けていないので町でまとめる。
     // リムルダールに道具屋を置いているのは本家との意図的な差（本家は鍵屋のみ）。
-    radatome:   { inn: 6,   tools: ['herb', 'torch', 'scale', 'water', 'key'], keyPrice: 85,
+    // 本家: まほうのかぎは まちの どうぐやでは 売っていない（しろの かぎや／リムルダール）
+    radatome:   { inn: 6,   tools: ['herb', 'torch', 'scale', 'water'], keyPrice: 85,
                   weapons: [1, 2, 3], armors: [1, 2], shieldList: [1] },
     garai:      { inn: 25,  tools: ['herb', 'torch', 'scale'],  weapons: [2, 3, 4],  armors: [2, 3, 4], shieldList: [2] },
     maira:      { inn: 20,  tools: ['herb', 'torch', 'scale', 'wing'], weapons: [3, 4], armors: [4, 5], shieldList: [1] },
@@ -532,7 +563,7 @@ async function castFieldSpell(spellName) {
         // 本家: 洞窟の中では効かない（町は地上あつかい）
         if (inCave()) await showMessage([`${player.name}は ルーラを となえた！`, 'しかし なにも おこらなかった！']);
         else {
-            playerPosition.x = 51; playerPosition.y = 51;
+            goToThroneRoom();
             await showMessage([`${player.name}は ルーラを となえた！`, 'ラダトームの城に もどった！']);
         }
     } else if (spellName === 'レミーラ') {
@@ -568,7 +599,7 @@ async function useFieldItem(itemName) {
         await showMessage([`${player.name}は キメラのつばさを つかった！`]);
         if (inCave()) await showMessage(['しかし なにも おこらなかった！']);
         else {
-            playerPosition.x = 51; playerPosition.y = 51;
+            goToThroneRoom();
             await showMessage(['ラダトームの城に もどった！']);
         }
     } else if (itemName === 'たいまつ') {
@@ -713,7 +744,7 @@ function drawMenu() {
             drawWindow(displayTileSize * screenWidth - displayTileSize * 7 - displayTileSize / 2, displayTileSize,
                        displayTileSize * 7, displayTileSize * (options.length + 1), text, subCursor);
         } else if (menuCursor === 3) {
-            drawWindowCommon(['ぼうけんの きろくは', 'ラダトームの おうさまに たのもう', '（しろの まんなかで しらべる）']);
+            drawWindowCommon(['ぼうけんの きろくは', 'ラダトームの おうさまに たのもう', '（しろの 2かい たまざの まで）']);
         }
     }
 }
@@ -872,7 +903,7 @@ async function confirmPasscode() {
     if (calcCodeToFlags()) {
         updatePlayerItems();
         updatePlayerStyle();
-        playerPosition.x = 51; playerPosition.y = 51;   // 本家同様ラダトーム城から再開
+        goToThroneRoom();                              // 本家同様ラダトーム城から再開
         await showMessage([`${player.name}よ よくぞもどった！`,
             `レベル${player.level}　G ${player.gold}　やくそう ${player.herb}`,
             `${player.weapon} / ${player.armor} / ${player.shield}`]);
@@ -1238,9 +1269,9 @@ function bestHuntingSpot(opt) {
 
 // 本編の進行順。done が false の一番上が「次に向かうべき場所」になる
 const QUEST_STEPS = [
-    { name: '城で 王様に あう',        x: 51,  y: 51,  done: () => getGameFlag('start') },
+    { name: '城で 王様に あう',        x: 51,  y: 51,  tour: 'castleKing', done: () => getGameFlag('start') },
     { name: 'リムルダールで まほうのかぎ', x: 110, y: 80,  done: () => getGameFlag('magicKey') },
-    { name: '城で たいようのいし',     x: 51,  y: 51,  done: () => getGameFlag('sunStone') },
+    { name: '城で たいようのいし',     x: 51,  y: 51,  tour: 'castleStone', done: () => getGameFlag('sunStone') },
     { name: 'マイラで ようせいのふえ', x: 112, y: 18,  done: () => getGameFlag('fairyFlute') },
     { name: 'ガライの はかで ぎんのたてごと', x: 10, y: 10, done: () => getGameFlag('silverHerp') },
     { name: 'あめのほこらで あまぐものつえ', x: 89, y: 9, done: () => getGameFlag('rainCloudStuff') },
@@ -1249,7 +1280,7 @@ const QUEST_STEPS = [
     { name: 'ドムドーラで ロトのよろい', x: 33, y: 97,  done: () => getGameFlag('rotoArmor') },
     // 本家でも「ドラゴンが強いので救助は後回しでよい」。装備が整ってから向かう
     { name: 'ローラひめを たすける',   x: 112, y: 52,  tour: 'rora', done: () => getGameFlag('roraRescued') },
-    { name: 'ひめを 城へ つれて かえる', x: 51, y: 51,  done: () => getGameFlag('roraLove') },
+    { name: 'ひめを 城へ つれて かえる', x: 51, y: 51,  tour: 'castleKing', done: () => getGameFlag('roraLove') },
     { name: 'にじのしずく',            x: 116, y: 117, done: () => getGameFlag('rainbowDrop') },
     { name: 'にじの はしを かける',    x: 73,  y: 57,  done: () => getGameFlag('rainbowBridge') },
     { name: 'りゅうおうを たおす',     x: 56,  y: 56,  done: () => getGameFlag('lightBall') }
@@ -1347,6 +1378,15 @@ function startTour(exitOnly, entranceKey) {
 async function autoStart() {
     if (autoPilot.on) { autoStop('じぶんで とめた'); return; }
     if (currentState !== STATE.FIELD) return;
+    // ラダトーム城は「町」あつかいだが本編はここから始まる。城の中からでも動かせるようにする
+    if (inCastle()) {
+        if (!nextQuestStep()) { await showMessage(['オート：ぼうけんは おわっています']); currentState = STATE.FIELD; return; }
+        resetAutoState();
+        Object.assign(autoPilot, { questMode: true, goldGoal: 0, targetLevel: 30,
+                                   questFails: 0, questName: '', spot: null, noSpotYet: false });
+        autoPilot.lastLine = '';
+        return;
+    }
     if (inTown()) { await showMessage(['オート：まちの そとで つかってください']); currentState = STATE.FIELD; return; }
     // ダンジョンの中は専用モード（地上用の狩り場・宿の判定が使えないため）
     if (inDungeon()) {
@@ -1560,6 +1600,8 @@ function autoStatusLine() {
         const floor = inDungeon() ? currentDungeon().floorName : 'ちじょう';
         if (t.kind === 'traverse') return `${name}を とおりぬける`;
         if (t.kind === 'rora')     return `ローラひめを たすけに いく（${floor}）`;
+        if (t.kind === 'castleKing')  return `しろ ${floor}：おうさまに あいに いく`;
+        if (t.kind === 'castleStone') return `しろ ${floor}：たいようのいしを とりに いく`;
         if (t.retreat) return `どうくつ ${floor}：ひきあげ中`;
         if (!leg) return 'どうくつ：たんさく おわり';
         const left = t.plan.filter(l => l.act === 'chest').length
@@ -1645,6 +1687,44 @@ function startRoraErrand() {
     return true;
 }
 
+// =====================================================================
+// オートのラダトーム城（本家の流れをそのままなぞる）
+//   王様に会う ：2Fの宝箱(かぎ・たいまつ・120G)を開けて王様に話し、かぎで扉を開けて出る
+//   たいようのいし：1F北東のとびらをかぎで開け、南東の階段からB1へ下りて宝箱を取る
+// =====================================================================
+const CASTLE_ENTRANCE = '51,51';
+function castleTargets(kind) {
+    const t = [];
+    if (kind === 'castleKing') {
+        // 玉座の間は かぎ で開ける。最初の1回だけ宝箱を開けて かぎ を手に入れる
+        const locked = doorLockedOn('rcastle2', 4, 7);
+        if (locked) for (const k in DUNGEONS.rcastle2.chestAt) {
+            const [x, y] = k.split(',').map(Number);
+            if (!chestOpenedOn('rcastle2', x, y)) t.push({ map: 'rcastle2', x, y, act: 'chest' });
+        }
+        t.push({ map: 'rcastle2', x: 3, y: 4, act: 'king' });
+        if (locked) t.push({ map: 'rcastle2', x: 4, y: 6, act: 'door' });
+    } else {
+        // とびらは北がわ(19,6)に立って開ける。南がわ(19,8)はとびらの向こうで、
+        // 開けるまでは入口から行けない
+        if (doorLockedOn('rcastle1', 19, 7)) t.push({ map: 'rcastle1', x: 19, y: 6, act: 'door' });
+        t.push({ map: 'rcastleB1', x: 6, y: 7, act: 'chest' });
+    }
+    return t;
+}
+function startCastleErrand(kind) {
+    const targets = castleTargets(kind);
+    const plan = inDungeon() ? planFromHere(targets, CASTLE_ENTRANCE)
+                             : planErrand(CASTLE_ENTRANCE, targets, CASTLE_ENTRANCE);
+    if (!plan) return false;
+    autoPilot.tour = { plan, at: 0, deaths: 0, retreat: false, path: null, pathAt: -1,
+                       kind, entranceKey: CASTLE_ENTRANCE, exitKey: CASTLE_ENTRANCE, targets };
+    autoPilot.path = null; autoPilot.goal = null;
+    autoPilot.lastLine = '';
+    return true;
+}
+function inCastle() { return ['rcastle1', 'rcastle2', 'rcastleB1'].includes(currentMapId); }
+
 function autoTourStep() {
     const t = autoPilot.tour;
 
@@ -1678,7 +1758,9 @@ function autoTourStep() {
             autoPilot.lastLine = '';
             return;
         }
-        if (t.kind === 'rora') { autoPilot.tour = null; autoPilot.lastLine = ''; return; }
+        if (t.kind === 'rora' || t.kind === 'castleKing' || t.kind === 'castleStone') {
+            autoPilot.tour = null; autoPilot.lastLine = ''; return;
+        }
         autoStop(t.retreat ? 'どうくつから ひきあげました' : 'どうくつを たんさくしました');
         return;
     }
@@ -1827,6 +1909,9 @@ function autoTick(now) {
                 // 下の狩り処理にそのまま流す
             } else if (playerPosition.x === q.x && playerPosition.y === q.y) {
                 autoPilot.grindUntil = 0;
+                if (q.tour === 'castleKing' || q.tour === 'castleStone') {
+                    if (startCastleErrand(q.tour)) return;
+                }
                 if (q.tour === 'rora') {                 // 洞窟の奥まで行く
                     const need = levelForCaveDragon();
                     if (need > player.level) {           // ドラゴンに勝てないうちは鍛えてから
@@ -1942,6 +2027,12 @@ function autoTick(now) {
     }
 
     // 何かの拍子にダンジョンの中で計画を見失ったら、まず外へ出る（地上用の判定は中では使えない）
+    if (!autoPilot.tour && inCastle()) {
+        const q = nextQuestStep();
+        if (q && (q.tour === 'castleKing' || q.tour === 'castleStone') && startCastleErrand(q.tour)) {
+            autoTourStep(); return;
+        }
+    }
     if (!autoPilot.tour && inDungeon()) {
         const key = dungeonExit().x + ',' + dungeonExit().y;
         autoPilot.tour = { plan: [], at: 0, deaths: 0, retreat: true, path: null, pathAt: -1,

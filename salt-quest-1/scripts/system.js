@@ -248,8 +248,11 @@ function drawMap(){
     const wrap = (typeof mapWraps !== 'function') || mapWraps();
     const light = dark ? lightRadius() : Infinity;
     // 地上以外はマップの外にはみ出る。前のフレームの絵が残らないよう毎回いちど塗りつぶす。
-    // 本家(FC実機)は町・城のマップ外を草原タイルで埋めているので、町は草・洞窟は黒
-    const outside = dark ? -1 : T_GRASS;
+    // 本家(FC実機)はマップの外も何かのタイルで埋まっている。ラダトーム城の最南東の
+    // 階段に立った実機画面で、マップ外が草原で埋まっているのを確認した。
+    // 何で埋めるかはマップごとに持つ（城の玉座の間は石づくり）。洞窟は真っ暗なので黒
+    const _d = (typeof currentDungeon === 'function') ? currentDungeon() : null;
+    const outside = dark ? -1 : (_d && _d.outside !== undefined ? _d.outside : T_GRASS);
     if (!wrap) { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
     for (var y = 0; y <= screenHeight; y++) {
         for (var x = 0; x <= screenWidth; x++) {
@@ -433,7 +436,7 @@ function updateTitle() {
     if (Input.consume('ArrowUp')) titleCursor = modAdd(titleCursor, -1, titleOptions.length);
     if (Input.consume('ArrowDown')) titleCursor = modAdd(titleCursor, 1, titleOptions.length);
     if (Input.consume(' ')) {
-        if (titleCursor === 0) currentState = STATE.FIELD;
+        if (titleCursor === 0) { currentState = STATE.FIELD; startNewGame(); }
         else openPasscode(true);   // じゅもんを入力して再開
     }
 }

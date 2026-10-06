@@ -28,7 +28,8 @@ const T_GRASS = 27, T_STONE = 1, T_BRICK = 3, T_TREE = 28, T_WATER = 50,
 const TOWN_TILES = {
     '.': T_GRASS, '#': T_STONE, 'B': T_BRICK, 'T': T_TREE, '~': T_WATER,
     's': T_SAND, 'C': T_COUNTER, 'D': D_DOOR, 'W': T_SIGN_SHOP, 'I': T_SIGN_INN,
-    '?': T_BRIDGE
+    '?': T_BRIDGE,
+    'E': T_BRICK        // 城の門。見た目は床のまま、オートの経路用に目印だけ置く
 };
 // 町で通れないもの。木と砂は本家でも歩ける（世界地図の森・砂漠と同じ）
 const TOWN_BLOCKED = [T_STONE, T_WATER, T_SIGN_SHOP, T_SIGN_INN, T_COUNTER];
@@ -111,6 +112,95 @@ const DUNGEONS = {
     // 本家「ぬまちのどうくつ」。地形は way78.com/dq1/fc/dn03.html のマップ画像を6×30で読み取った。
     // 北口(0,0)＝地上(112,52)／南口(0,29)＝地上(112,57)。左端の縦通路がリムルダールへの近道で、
     // ドラゴンを避けて通り抜けられる。姫のいる区画へはドラゴンのマスを必ず通る（本家どおり）
+    // =================================================================
+    // 本家「ラダトーム城」。1F／2F（玉座の間）／B1（たいようのいし）の3フロア。
+    // 地形は pidlio.com の実画面マップ 01-01/01-02/01-03.png を1マスずつ読み取った
+    // （tileset.png と総当たりで突き合わせ、再描画して元画像と見比べて詰めてある）。
+    // 人物の立ち位置とドット絵は character.png のスプライトと完全一致で特定した。
+    // 宝箱の中身は pidlio の「ラダトーム城で入手できるアイテム」より。
+    // マップ外が黒でなく草なのは、実機のスクリーンショット（城の最南東(31,31)の
+    // 階段に立った画面）でマップ外に草原が描かれていることを確認したため
+    rcastle1: {
+        kind: 'town',
+        name: 'ラダトームの しろ',
+        floorName: '1かい',
+        depth: 0,
+        bright: true,
+        noEncounter: true,
+        start: { x: 11, y: 30 },      // 南の門を入ったところ
+        exitTo: { x: 51, y: 51 },
+        outside: T_GRASS,             // マップの外は草原（実機のスクリーンショットで確認）
+        doorFlags: { '19,7': 'castleDoorB1', '5,14': 'castleDoorTreasure' },
+        rows: [
+            '................................', '.#######........#######.###.T...', '.#BBBBB#.T.TT.T.#BBBBB#.#.#.....', '.#BBBBB#........#BBBBB#.#C#.....',
+            '.#BB#BB####BB####BB#BB#...TT....', '.#BBBBBBBBBBBBBBBBBBBB#.TTT.....', '.#BBBBB##########BBBBB#.........', '.#####B#BBBBBBBB###D#####B###...',
+            '.#BBB#B#aBBBBB#B#BBBBBBBBBBB#...', '.#BBBBB#BBBBBBBB#BBBBBBBBBBB#...', '.#BBB#B###BBBB############BB#...', '.#####B#TTBBBBTT#BB#BB#BB#BB#...',
+            '.#BBB#B#TTBBBBTT#BB#BB#BB#BB#...', '.#BBB#B#T.BBBB.T#BBBBBBBBBBB#...', '.#7BBDB#..BBBB..#BBBBBBBBBBB#...', '.#B7B#B#..BBBB..#BB#BB#BB#BB#...',
+            '.#7B7#B#.BBBBBB.#BB#BB#BB#BB#...', '.#####B#.B~~~~B.##########B##...', '.#BBBBBBBB~~~~BBBBBBBB#BBBBB#...', '.#BBBBBBBB~~~~BBBBBBBB#BBBBB#...',
+            '.###BB###B~~~~B##BBBBB#BBBBB#...', '.#BBBBBB#BBBBBB#BBBBBB#BBBBB#...', '.#BBBBBB##BBBB######BB#BBBBB#~..', '.#BB#BBBB#BBBB#BBBBBBB#######~..',
+            '.#BBBBBBB#BBBB#BBBBBBB#~~~~~~~..', '.#B~~BB#B#BBBB#BB######~~~~~~~..', '.#~~~~BBB#BBBB#BB#BB#B#~~~~~~~..', '.#~~~~BBB##BB##BBBBBCB#~~~~~~~..',
+            '.#~~~~~BB#BBBB#BB#BB#B#~~~~~~~..', '.##########BB##########~~~~~~~..', '.~~........EB........~~~~~~~~~b.', '................................'
+        ],
+        npcs: [
+            { x: 25, y: 2,  sprite: 23, shop: 'castleKey', name: 'かぎや' },
+            { x: 21, y: 27, sprite: 19, lightBe: true,     name: 'ろうじん' },
+            { x: 20, y: 3,  sprite: 13, lines: ['へいし「おうさまは 2かいの', '　　　　たまざの まに おられる」'] },
+            { x: 28, y: 6,  sprite: 22, lines: ['じょちゅう「しろの きたひがしに', '　　　　　　まほうのかぎを うる みせが', '　　　　　　あるそうですよ」'] },
+            { x: 9,  y: 7,  sprite: 13, lines: ['へいし「この かいだんは', '　　　　たまざの まへ つづいておる」'] },
+            { x: 9,  y: 9,  sprite: 13, lines: ['へいし「ラダトームの まちは', '　　　　しろの ひがしじゃ」'] },
+            { x: 18, y: 12, sprite: 19, lines: ['ろうじん「かぎのかかった とびらは', '　　　　　まほうのかぎでしか あかぬ」'] },
+            { x: 23, y: 12, sprite: 17, lines: ['おとこ「きたひがしの とびらの おくを', '　　　　ぬけた さきに ちかへ おりる', '　　　　かいだんが ある」'] },
+            { x: 9,  y: 15, sprite: 22, lines: ['おんな「ローラひめが さらわれてから', '　　　　おうさまは おやつれに なられて…」'] },
+            { x: 27, y: 16, sprite: 12, lines: ['へいし「りゅうおうの しろは', '　　　　うみの むこうに みえておる」'] },
+            { x: 7,  y: 19, sprite: 22, lines: ['おんな「たからの へやの とびらも', '　　　　かぎが いるのよ」'] },
+            { x: 15, y: 19, sprite: 13, lines: ['へいし「ぶきも よろいも', '　　　　まちの みせで ととのえるのだ」'] },
+            { x: 16, y: 21, sprite: 13, lines: ['へいし「よるの たびは きけんだぞ」'] },
+            { x: 25, y: 22, sprite: 17, lines: ['おとこ「ちかに けんじゃが おられる', '　　　　たいようの いしを もっておるとか」'] },
+            { x: 10, y: 28, sprite: 13, lines: ['へいし「ごぶじで おかえりなさいませ」'] },
+            { x: 13, y: 28, sprite: 13, lines: ['へいし「いってらっしゃいませ」'] }
+        ],
+        links: { E: ['world', 51, 51], a: ['rcastle2', 'a'], b: ['rcastleB1', 'a'] }
+    },
+    rcastle2: {
+        kind: 'town',
+        name: 'ラダトームの しろ',
+        floorName: 'たまざの ま',
+        depth: -1,                    // 1階より「うえ」。階段の絵の向きに使う
+        bright: true,
+        noEncounter: true,
+        outside: 0,                   // 玉座の間の外は石づくり（pidlio の実画面マップどおり）
+        doorFlags: { '4,7': 'castleDoorThrone' },
+        rows: [
+            '##########', '#BBBBB9BB#', '#BCCCCCCB#', '#BCCCCBCB#', '#BBB83BBB#',
+            '#BBBBBBBB#', '#BBBBBBBB#', '####D#####', '#BBBBBBBa#', '##########'
+        ],
+        npcs: [
+            { x: 3, y: 3, sprite: 11, king: true, name: 'おうさま' },
+            { x: 6, y: 5, sprite: 12, lines: ['へいし「おうさまの おおせの とおりに」'] },
+            { x: 3, y: 6, sprite: 12, lines: ['へいし「たからばこの なかみは', '　　　　ゆうしゃさまの ものです」'] },
+            { x: 5, y: 6, sprite: 12, lines: ['へいし「とびらは かぎで あきます」'] }
+        ],
+        links: { a: ['rcastle1', 'a'] }
+    },
+    rcastleB1: {
+        kind: 'town',
+        name: 'ラダトームの しろ',
+        floorName: 'ちか1かい',
+        depth: 1,
+        bright: true,
+        noEncounter: true,
+        outside: T_STONE,
+        rows: [
+            '##############', '##############', '###BBBBBBBB###', '##B#BBBBBB#B##',
+            '##BBBBBBBBBB##', '##BBB####BBB##', '##aBB#BB#BBB##', '##BBB#*B#BBB##',
+            '##BBB#BB#BBB##', '##BBBBBBBBBB##', '##B#BBBBBB#B##', '###BBBBBBBB###',
+            '##############'
+        ],
+        npcs: [
+            { x: 6, y: 8, sprite: 19, sage: true, name: 'けんじゃ' }
+        ],
+        links: { a: ['rcastle1', 'b'] }
+    },
     // 本家「ラダトームのまち」。地形は pidlio.com の実画面マップ(02-01.png)を32×32で
     // 読み取り、本作のタイルで再現して元画像と見比べて詰めた。
     // 外周1マスに出ると町の外（地上の(56,49)）へ出る＝本家と同じ
@@ -179,6 +269,12 @@ const CHEST_TABLE = {
     '2': () => ({ item: 'せんしのゆびわ', flag: 'warriorRing' }),
     '3': () => ({ tool: 'torch', name: 'たいまつ' }),
     '4': () => ({ gold: 10 + Math.floor(Math.random() * 6) }),
+    // ラダトーム城（pidlio.com の「ラダトーム城で入手できるアイテム」より）
+    //   1F の4つはどれも 6〜13ゴールド／2F は 120ゴールド・たいまつ・かぎ／B1 はたいようのいし
+    '7': () => ({ gold: 6 + Math.floor(Math.random() * 8) }),
+    '8': () => ({ gold: 120 }),
+    '9': () => ({ tool: 'key', name: 'まほうのかぎ' }),
+    '*': () => ({ item: 'たいようのいし', flag: 'sunStone' }),
     '5': () => (!getGameFlag('deathNecklace') && Math.floor(Math.random() * 16) === 0)
               ? { item: 'しのくびかざり', flag: 'deathNecklace' }
               : { gold: 100 + Math.floor(Math.random() * 32) },
@@ -201,10 +297,22 @@ const DUNGEON_DOORS = { numachi: 'numachiDoor' };
 // 記号の並びから、描画用のタイル配列・階段・宝箱・とびら・イベントの位置を組み立てる
 function buildDungeon(d, id) {
     d.grid = []; d.marks = {}; d.chestAt = {}; d.doorAt = {}; d.eventAt = {};
-    if (d.kind === 'town') {                       // 町は記号の対応表がちがう
+    if (d.kind === 'town') {                       // 町・城は記号の対応表がちがう
         d.rows.forEach((row, y) => {
             const line = [];
             [...row].forEach((ch, x) => {
+                const at = x + ',' + y;
+                if (CHEST_TABLE[ch] && ch !== '.') { line.push(D_CHEST); d.chestAt[at] = ch; return; }
+                // 階段・門。TOWN_TILES にある記号は見た目をそのままにして目印だけ置く
+                if (d.links && d.links[ch]) {
+                    d.marks[ch] = { x, y };
+                    if (TOWN_TILES[ch] !== undefined) { line.push(TOWN_TILES[ch]); return; }
+                    const link = d.links[ch];
+                    const toDepth = (link[0] === 'world') ? 0 : (DUNGEONS[link[0]].depth || 0);
+                    line.push(toDepth > (d.depth || 0) ? D_STAIR_DOWN : D_STAIR_UP);
+                    return;
+                }
+                if (ch === 'D') { line.push(D_DOOR); d.doorAt[at] = (d.doorFlags || {})[at]; return; }
                 line.push(TOWN_TILES[ch] !== undefined ? TOWN_TILES[ch] : T_GRASS);
             });
             d.grid.push(line);
@@ -271,6 +379,8 @@ function townEdgeExit(x, y) {
     const d = currentDungeon();
     if (!d || d.kind !== 'town') return null;
     const W = d.grid[0].length, H = d.grid.length;
+    // 階段の上では外へ出さない（城の外れにある地下への階段が外周に近い）
+    for (const m in d.marks) if (d.marks[m].x === x && d.marks[m].y === y) return null;
     return (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) ? d.exitTo : null;
 }
 function mapWraps() { return currentMapId === 'world'; }   // 地上だけ端がつながっている
@@ -322,6 +432,7 @@ function dungeonExit() { return dungeonEnteredFrom; }
 // 地上のこのマスに入ったらダンジョンへ、という対応表
 const DUNGEON_ENTRANCES = {
     '56,49':  ['radatome', null],   // ラダトームのまち（markでなく start から入る）
+    '51,51':  ['rcastle1', 'E'],    // ラダトーム城（南の門）
     '36,20':  ['roto1', '<'],       // ロトの洞窟（ラダトームから北北西）
     '37,65':  ['iwayama1', '<'],
     '112,52': ['numachi', '<'],     // 北口（本土側）
@@ -333,6 +444,14 @@ function doorFlagAt(x, y) {
     const d = currentDungeon();
     return (d && d.doorAt) ? (d.doorAt[x + ',' + y] || null) : null;
 }
+// 別のマップのとびらが開いているか（オートの計画づくり用）
+function doorLockedOn(mapId, x, y) {
+    const d = DUNGEONS[mapId];
+    const f = (d && d.doorAt) ? d.doorAt[x + ',' + y] : null;
+    return !!f && !getGameFlag(f);
+}
+function chestOpenedOn(mapId, x, y) { return openedChests.has(mapId + ':' + x + ',' + y); }
+
 function isDoorLocked(x, y) {
     const f = doorFlagAt(x, y);
     return !!f && !getGameFlag(f);
@@ -360,7 +479,6 @@ function stairsHere() {
     const x = playerPosition.x, y = playerPosition.y;
     const d = currentDungeon();
     if (!d) return !!DUNGEON_ENTRANCES[x + ',' + y];
-    if (d.kind === 'town') return false;        // 町は外周から出る
     for (const mark in d.marks) {
         if (d.marks[mark].x === x && d.marks[mark].y === y && d.links[mark]) return true;
     }
@@ -398,9 +516,11 @@ function enterDungeonAt(x, y) {
 function chestHere() {
     const d = currentDungeon();
     if (!d) return null;
-    const id = d.chestAt[playerPosition.x + ',' + playerPosition.y];
+    const at = playerPosition.x + ',' + playerPosition.y;
+    const id = d.chestAt[at];
     if (!id) return null;
-    return openedChests.has(currentMapId + ':' + id) ? null : id;
+    // 開けたかどうかは「場所」で覚える。同じ中身の宝箱が同じ階に複数あるため
+    return openedChests.has(currentMapId + ':' + at) ? null : id;
 }
 
 // =====================================================================
@@ -412,6 +532,15 @@ function dungeonPassable(mapId, x, y) {
     if (y < 0 || x < 0 || y >= g.length || x >= g[0].length) return false;
     if (d.kind === 'town') {
         if (TOWN_BLOCKED.includes(g[y][x])) return false;
+        // 城のとびらは町あつかいのマップでも かぎ を使うまで通れない
+        const df = d.doorAt ? d.doorAt[x + ',' + y] : null;
+        if (df && !getGameFlag(df)) return false;
+        // 外周は踏むと町の外へ出てしまう。経路としては使わない
+        // （人が歩くぶんには isMoveAllowed の townEdgeExit 側で通している）
+        if (d.exitTo) {
+            const W = g[0].length, H = g.length;
+            if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
+        }
         return !(d.npcAt && d.npcAt[x + ',' + y]);   // 人のいるマスは通れない
     }
     if (g[y][x] === D_WALL) return false;
@@ -509,7 +638,7 @@ function planDungeonTour(opt) {
     if (!opt.exitOnly) {
         const left = [];
         for (const id in DUNGEONS) for (const k in DUNGEONS[id].chestAt) {
-            if (openedChests.has(id + ':' + DUNGEONS[id].chestAt[k])) continue;
+            if (openedChests.has(id + ':' + k)) continue;
             const [x, y] = k.split(',').map(Number);
             left.push({ map: id, x, y });
         }
