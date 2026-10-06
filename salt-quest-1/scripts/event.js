@@ -1625,6 +1625,7 @@ function autoStatusLine() {
         if (t.kind === 'castleKing')  return `しろ ${floor}：おうさまに あいに いく`;
         if (t.kind === 'castleStone') return `しろ ${floor}：たいようのいしを とりに いく`;
         if (TOWN_ERRANDS[t.kind])     return `${name}：ようじを すませる`;
+        if (t.kind === 'visit')       return `${name}：みせに よる`;
         if (t.retreat) return `どうくつ ${floor}：ひきあげ中`;
         if (!leg) return 'どうくつ：たんさく おわり';
         const left = t.plan.filter(l => l.act === 'chest').length
@@ -1651,8 +1652,22 @@ function autoStatusLine() {
 // 全滅したり手動で動かされて計画からずれたら、その場から作り直す
 // =====================================================================
 const TOUR_MAX_DEATHS = 3;
+// 全滅して城へ運ばれるなど、用事のマップから完全に出てしまったら、
+// その用事はいったん諦める（作り直しても経路が引けず、数えきれずに止まるため）
+function abandonTourIfLost(t) {
+    if (!inDungeon() || t.kind === 'explore' || t.kind === 'traverse') return false;
+    const maps = new Set((t.targets || []).map(x => x.map));
+    const ent = DUNGEON_ENTRANCES[t.entranceKey];
+    if (ent) maps.add(ent[0]);
+    if (!maps.size || maps.has(currentMapId)) return false;
+    autoPilot.tour = null; autoShopping = null;
+    autoPilot.path = null; autoPilot.goal = null; autoPilot.lastLine = '';
+    return true;
+}
+
 function rebuildTour(exitOnly) {
     const t = autoPilot.tour;
+    if (abandonTourIfLost(t)) return;
     if (exitOnly) t.retreat = true;
     // 作り直してばかりで進まないときは、諦めて止める（無限ループの歯止め）
     t.rebuilds = (t.rebuilds || 0) + 1;
@@ -1761,6 +1776,113 @@ const TOWN_ERRANDS = {
     magicKey:   { entrance: '110,80', targets: [] },
     rotoArmor:  { entrance: '33,97',  targets: [{ map: 'domdora', x: 19, y: 13, act: 'armor' }] }
 };
+// =====================================================================
+// オートの町めぐり。地上から店を使うのをやめて、実際に町の中へ入って
+// 店の人の前まで歩き、本物の店のメニューを操作する。
+// 客が立つマスは famicom-database.com の実機スクリーンショットで特定したもの
+// =====================================================================
+const TOWN_INSIDE = {
+    // 店は「道具屋・かぎや → 武器屋」の順に回る。先に装備で使い切ると
+    // やくそうが買えなくなって死にやすくなるため
+    radatome: { entrance: '56,49',  map: 'radatome', inn: { x: 9,  y: 22 },
+                shops: [{ x: 24, y: 26 }, { x: 6,  y: 7  }] },
+    garai:    { entrance: '10,10',  map: 'garai',    inn: { x: 16, y: 16 },
+                shops: [{ x: 4,  y: 12 }, { x: 11, y: 17 }] },
+    maira:    { entrance: '112,18', map: 'maira',    inn: { x: 20, y: 3  },
+                shops: [{ x: 13, y: 22 }, { x: 21, y: 13 }] },
+    rimuldar: { entrance: '110,80', map: 'rimuldar', inn: { x: 19, y: 19 },
+                shops: [{ x: 5,  y: 6  }, { x: 6,  y: 24 }, { x: 24, y: 10 }] },
+    melkido:  { entrance: '81,108', map: 'melkido',  inn: { x: 8,  y: 5  },
+                // 鍵屋と「ほのおのつるぎ・みかがみのたて」の武器屋は(26,9)のとびらの奥
+                doors: [{ door: { x: 26, y: 9 }, at: { x: 26, y: 8 } }],
+                shops: [{ x: 4,  y: 7  }, { x: 5,  y: 12 }, { x: 20, y: 13 }, { x: 27, y: 8  },
+                        { x: 20, y: 5  }, { x: 25, y: 26 }, { x: 26, y: 12 }] }
+};
+function townStartPos(e) {
+    const ent = DUNGEON_ENTRANCES[e.entrance];
+    return ent[1] ? DUNGEONS[e.map].marks[ent[1]] : DUNGEONS[e.map].start;
+}
+// 買えるものが何も無いのに町へ往復しないようにする
+function townVisitWorth(key) {
+    const shop = townShops[key];
+    if (!shop) return false;
+    const tools = shop.tools || [];
+    if (tools.includes('herb') && player.herb < HERB_MAX && player.gold >= toolGoods.herb.price) return true;
+    if (tools.includes('key')  && player.key  < 3        && player.gold >= (shop.keyPrice || toolGoods.key.price)) return true;
+    if (tools.includes('wing') && player.wing < 1        && player.gold >= toolGoods.wing.price * 2) return true;
+    const kinds = [[shop.weapons, weapons, 'weaponIndex'],
+                   [shop.armors, armors, 'armorIndex'],
+                   [shop.shieldList, shields, 'shieldIndex']];
+    for (const [stock, list, k] of kinds)
+        for (const idx of (stock || []))
+            if (idx > player[k] && list[idx].price - Math.floor(list[player[k]].price / 2) <= player.gold) return true;
+    return false;
+}
+function startTownVisit(key, wantInn) {
+    const e = TOWN_INSIDE[key];
+    if (!e) return false;
+    if (!wantInn && !townVisitWorth(key)) return false;
+    const openDoors = player.key > 0;
+    const reach = townReachable(e.map, townStartPos(e), openDoors);
+    const targets = [];
+    if (wantInn && reach.has(e.inn.x + ',' + e.inn.y))
+        targets.push({ map: e.map, x: e.inn.x, y: e.inn.y, act: 'inn' });
+    for (const d of (e.doors || []))
+        if (openDoors && doorLockedOn(e.map, d.door.x, d.door.y))
+            targets.push({ map: e.map, x: d.at.x, y: d.at.y, act: 'door' });
+    for (const sp of e.shops)
+        if (reach.has(sp.x + ',' + sp.y)) targets.push({ map: e.map, x: sp.x, y: sp.y, act: 'shop' });
+    if (!targets.length) return false;
+    const plan = inDungeon() ? planFromHere(targets, e.entrance)
+                             : planErrand(e.entrance, targets, e.entrance);
+    if (!plan) return false;
+    autoPilot.tour = { plan, at: 0, deaths: 0, retreat: false, path: null, pathAt: -1,
+                       kind: 'visit', townKey: key, entranceKey: e.entrance,
+                       exitKey: e.entrance, targets };
+    autoPilot.path = null; autoPilot.goal = null; autoPilot.lastLine = '';
+    return true;
+}
+
+// 店のメニューをオートが選ぶ。本物の店の処理をそのまま通すので、
+// 値段・下取り・在庫のバグがあればここで出る
+let autoShopping = null;
+function autoPickChoice() {
+    const opts = choiceOptions || [];
+    const quit = opts.length - 1;
+    if (quit < 0) return 0;
+    if (!autoShopping) return quit;
+    if (++autoShopping.tries > 24) return quit;      // 無限ループの歯止め
+    let pick = -1, bestPower = -1;
+    for (let i = 0; i < quit; i++) {
+        const m = String(opts[i]).match(/^(\S+)\s+(\d+)G$/);
+        if (!m) continue;
+        const name = m[1], price = Number(m[2]);
+        const w = weapons.findIndex(v => v.name === name);
+        const a = armors.findIndex(v => v.name === name);
+        const sh = shields.findIndex(v => v.name === name);
+        if (w > 0 || a > 0 || sh > 0) {
+            const list = w > 0 ? weapons : a > 0 ? armors : shields;
+            const idx  = w > 0 ? w : a > 0 ? a : sh;
+            const now  = w > 0 ? player.weaponIndex : a > 0 ? player.armorIndex : player.shieldIndex;
+            if (idx <= now) continue;
+            const cost = price - Math.floor(list[now].price / 2);
+            if (cost > player.gold) continue;
+            if (list[idx].power > bestPower) { pick = i; bestPower = list[idx].power; }
+            continue;
+        }
+        // どうぐ。余裕を見て買う（買ったあと装備が買えなくならないように）
+        // やくそうは最優先。3個までは買えるだけ買い、そのあとは余裕があるときだけ
+        if (name === 'やくそう' && player.herb < HERB_MAX
+            && player.gold >= price * (player.herb < 3 ? 1 : 4)) return i;
+        if (name === 'かぎ'           && player.key  < 3        && player.gold >= price * 2) return i;
+        if (name === 'キメラのつばさ' && player.wing < 1        && player.gold >= price * 6) return i;
+        if (name === 'せいすい'       && player.water < 2       && player.gold >= price * 6) return i;
+        if (name === 'たいまつ'       && player.torch < 2       && player.gold >= price * 8) return i;
+        if (name === 'りゅうのうろこ' && !player.scale          && player.gold >= price * 8) return i;
+    }
+    return pick >= 0 ? pick : quit;
+}
+
 function startTownErrand(kind) {
     const e = TOWN_ERRANDS[kind];
     if (!e) return false;
@@ -1774,6 +1896,15 @@ function startTownErrand(kind) {
     autoPilot.path = null; autoPilot.goal = null;
     autoPilot.lastLine = '';
     return true;
+}
+
+// かぎのかかった とびら を開けないと進めない用事かどうか
+function questNeedsKey(q) {
+    if (!q) return false;
+    if (q.tour === 'castleStone') return doorLockedOn('rcastle1', 19, 7);
+    if (q.tour === 'rora')        return doorLockedOn('numachi', 5, 20);
+    if (q.tour === 'garaiTomb')   return doorLockedOn('garai', 18, 11);
+    return false;
 }
 
 function autoTourStep() {
@@ -1809,6 +1940,15 @@ function autoTourStep() {
             autoPilot.lastLine = '';
             return;
         }
+        if (t.kind === 'visit') {
+            autoPilot.tour = null; autoShopping = null;
+            autoPilot.shoppedGold = player.gold;
+            autoPilot.grindUntil = 0;          // 装備が変わったので必要レベルを測り直す
+            // 用が済んだら狩り場へ帰る（町のまわりで戦い続けないように）
+            autoPilot.path = autoPilot.spot ? findPath(playerPosition, autoPilot.spot) : null;
+            autoPilot.goal = autoPilot.path ? 'かりばへ もどる' : null;
+            autoPilot.lastLine = ''; return;
+        }
         if (t.kind === 'rora' || t.kind === 'castleKing' || t.kind === 'castleStone' || TOWN_ERRANDS[t.kind]) {
             autoPilot.tour = null; autoPilot.lastLine = ''; return;
         }
@@ -1843,8 +1983,14 @@ function autoTourStep() {
     autoPilot.dir = null;
     t.path = null; t.pathAt = -1;
     if (!leg.act) { t.at++; return; }
+    if (leg.act === 'shop' || leg.act === 'inn') {
+        autoShopping = { tries: 0 };
+        if (leg.act === 'inn') { autoPilot.rests++; autoPilot.battlesAtRest = autoPilot.battles; }
+    }
     autoBusy = true;
-    Promise.resolve(interactField()).then(() => { autoBusy = false; t.at++; autoPilot.lastLine = ''; });
+    Promise.resolve(interactField()).then(() => {
+        autoBusy = false; autoShopping = null; t.at++; autoPilot.lastLine = '';
+    });
 }
 
 let autoBusy = false;
@@ -1928,6 +2074,7 @@ function autoTick(now) {
                 }
                 if (near) {
                     if (near.path.length === 0) {
+                        if (startTownVisit(near.shop, false)) return;
                         autoBusy = true;
                         Promise.resolve(autoShop(near.shop)).then(() => { autoBusy = false; });
                         return;
@@ -1949,14 +2096,21 @@ function autoTick(now) {
                     autoPilot.lastLine = '';   // 表示を出し直す
                     return;
                 }
+                if (startTownVisit(buy.town.shop, false)) return;
                 autoBusy = true;
                 autoPilot.shoppedGold = player.gold;
                 autoPilot.grindUntil = 0;      // 装備が変わるので必要レベルを測り直す
                 Promise.resolve(autoShop(buy.town.shop)).then(() => { autoBusy = false; });
                 return;
             }
+            // かぎが要る用事なのに、かぎも買う金も無いときは、まず稼ぐ。
+            // そのまま向かうと とびらが開けられず、用事を作り直し続けて止まる
+            if (questNeedsKey(q) && player.key <= 0 && player.gold < toolGoods.key.price) {
+                if (!autoPilot.grindUntil) autoPilot.grindUntil = Math.min(30, player.level + 1);
+                autoPilot.path = null; autoPilot.goal = null;
+            }
             // 前回たどり着いてもフラグが立たなかった＝倒せていないので、鍛えてから戻る
-            if (autoPilot.grindUntil && player.level < autoPilot.grindUntil) {
+            else if (autoPilot.grindUntil && player.level < autoPilot.grindUntil) {
                 // 下の狩り処理にそのまま流す
             } else if (playerPosition.x === q.x && playerPosition.y === q.y) {
                 autoPilot.grindUntil = 0;
@@ -2034,7 +2188,12 @@ function autoTick(now) {
     if (currentState === STATE.YESNO)   { Input.press('Escape'); return; }
     // 何も無いマスでAを押すとメニューが開く。閉じる処理が無いと永久に止まる
     if (currentState === STATE.MENU)    { Input.press('Escape'); return; }
-    if (currentState === STATE.CHOICE) {  // 町のメニューに入ってしまったら出る
+    if (currentState === STATE.CHOICE) {
+        if (autoShopping) {               // 町の店を使っている最中。実際に選んで買う
+            choiceCursor = autoPickChoice();
+            Input.press(' ');
+            return;
+        }
         const idx = choiceOptions.findIndex(o => o === 'でる' || o === 'やめる');
         if (idx >= 0 && choiceCursor !== idx) { Input.press('ArrowDown'); return; }
         Input.press(' ');
@@ -2131,17 +2290,21 @@ function autoTick(now) {
     if (autoPilot.path && !autoPilot.path.length) {
         autoPilot.path = null;
         if (autoPilot.goal === 'やどやへ') {
+            autoPilot.goal = null;
+            // 買うものがあるときだけ町の中まで入る。泊まるだけのために
+            // 毎回町を往復すると、狩りの時間がほとんど無くなる
+            if (townVisitWorth(autoPilot.inn.shop) && startTownVisit(autoPilot.inn.shop, true)) return;
             autoBusy = true;
             autoCheckIn(autoPilot.inn).then(() => { autoBusy = false; });
-            autoPilot.goal = null;
             return;
         }
         if (autoPilot.goal === 'かいものへ') {
+            autoPilot.goal = null;
+            if (startTownVisit(autoPilot.shopKey, false)) return;
             autoBusy = true;
             autoPilot.shoppedGold = player.gold;
             autoPilot.grindUntil = 0;      // 装備が変わるので必要レベルを測り直す
             Promise.resolve(autoShop(autoPilot.shopKey)).then(() => { autoBusy = false; });
-            autoPilot.goal = null;
             return;
         }
         // うろつく基点を更新するのは狩り場に着いたときだけ。

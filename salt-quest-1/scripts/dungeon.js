@@ -240,7 +240,9 @@ const DUNGEONS = {
             { x: 12, y: 9,  sprite: 19, lines: ['ろうじん「はかの なかは ひろいぞ」'] },
             { x: 3,  y: 11, sprite: 19, lines: ['ろうじん「まほうのかぎは', '　　　　　リムルダールで うっておる」'] },
             { x: 14, y: 13, sprite: 22, lines: ['おんな「ガライの たてごとの ねいろは', '　　　　まものを よびよせるとか」'] },
-            { x: 16, y: 14, sprite: 26, lines: ['おとこ「きたの とびらの むこうが', '　　　　ガライの はかじゃ」'] },
+            // 本家の町人は歩き回るので通路を塞ぎ続けないが、本作は立ち位置が固定なので
+            // 宿屋への1マスの通路に立っていた人だけ、隣へずらしてある
+            { x: 17, y: 14, sprite: 26, lines: ['おとこ「きたの とびらの むこうが', '　　　　ガライの はかじゃ」'] },
             { x: 9,  y: 16, sprite: 17, lines: ['たびびと「マイラの むらの おんせんは', '　　　　　ひがしの はてに ある」'] },
             { x: 3,  y: 18, sprite: 19, lines: ['ろうじん「ロトの どうくつは', '　　　　　ここから みなみの ほうじゃ」'] }
         ]
@@ -273,7 +275,8 @@ const DUNGEONS = {
             { x: 23, y: 13, sprite: 24, shop: 'maira:weapons', name: 'ぶきや' },
             { x: 20, y: 5,  sprite: 24, shop: 'maira:inn',     name: 'やどや' },
             { x: 13, y: 2,  sprite: 21, lines: ['むすめ「マイラの おんせんは', '　　　　たびの つかれを いやします」'] },
-            { x: 6,  y: 10, sprite: 26, lines: ['おとこ「おんせんから みなみへ 4ほ', '　　　　なにか うまっておるらしい」'] },
+            // 同上。村の西半分へ通じる1マスの通路に立っていたので隣へずらした
+            { x: 7,  y: 10, sprite: 26, lines: ['おとこ「おんせんから みなみへ 4ほ', '　　　　なにか うまっておるらしい」'] },
             { x: 15, y: 10, sprite: 20, lines: ['ろうじん「ようせいの ふえは', '　　　　　ゴーレムを ねむらせる」'] },
             { x: 14, y: 11, sprite: 26, lines: ['おとこ「みなみひがしの たいりくへは', '　　　　ぬまちの どうくつを ぬける」'] },
             { x: 15, y: 11, sprite: 13, lines: ['へいし「この むらに しろは ない」'] },
@@ -445,7 +448,7 @@ const DUNGEONS = {
         start: { x: 15, y: 2 },// 北の門から入ったところ
         exitTo: { x: 56, y: 49 },
         rows: [
-            '................................', '.#############sBBs#############.', '.#TTT....TTTTssBBssTTTTTTTTTT.#.', '.#TT......T.T.sBBs..T########T#.',
+            '................................', '.#############sBBs#############.', '.#TTT....TTTTssEBssTTTTTTTTTT.#.', '.#TT......T.T.sBBs..T########T#.',
             '.#T.#####......BB...T#BB#B~~#T#.', '.#T.#BBB#......BBs...#BBCB~~#T#.', '.#T.#BCB#......BBs.T.#BB#B~~#T#.', '.#T.##B##..ss..BBssT.#D######.#.',
             '.#T...BW..ssss.BBs.T....T..T..#.', '.#TT..B..ssTss.BBs.....TTTTTT.#.', '.#T...B..sTTTssBB..#########T.#.', '.#T...B.sssTTTsBB..#BBB#BBB#..#.',
             '.#....B.ssTTTs.BB..#BBB#BBB#..#.', '.#TT..B..sssss.BB..##B###B##.T#.', '.T....B....ss..BB....B...B...TT.', '.BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.',
@@ -457,10 +460,10 @@ const DUNGEONS = {
         // 本家のNPCの立ち位置をそのまま使う。せりふは本作のもの
         npcs: [
             { x: 6,  y: 5,  sprite: 23, shop: 'weapons', name: 'ぶきや' },
-            { x: 25, y: 5,  sprite: 19, shop: 'tools',   name: 'どうぐや' },
+            { x: 25, y: 5,  sprite: 19, lines: ['ろうじん「この へやは かぎが ないと', '　　　　　はいれんのじゃ」'] },
             { x: 25, y: 11, sprite: 19, cure: true,  name: 'ろうじん' },
             { x: 11, y: 22, sprite: 23, shop: 'inn',     name: 'やどや' },
-            { x: 26, y: 26, sprite: 12, lines: ['へいし「のろわれた ものは', '　　　　きたの いえの ろうじんに みてもらえ」'] },
+            { x: 26, y: 26, sprite: 23, shop: 'tools',   name: 'どうぐや' },
             { x: 21, y: 11, sprite: 25, lines: ['へいし「ラダトームの しろは', '　　　　この まちの すぐ にしじゃ」'] },
             { x: 21, y: 24, sprite: 25, lines: ['へいし「よるは まちから でるでないぞ」'] },
             { x: 11, y: 6,  sprite: 13, lines: ['ろうじん「どうくつは まっくらじゃ', '　　　　　たいまつを わすれるでないぞ」'] },
@@ -474,7 +477,7 @@ const DUNGEONS = {
             { x: 12, y: 29, sprite: 21, lines: ['おんな「ローラひめは さらわれて', '　　　　もう ずいぶんに なります」'] },
             { x: 14, y: 29, sprite: 21, lines: ['おんな「おうさまが なげいて おられるわ」'] }
         ],
-        links: {}
+        links: { E: ['world', 56, 49] }
     },
     numachi: {
         name: 'ぬまちの どうくつ',
@@ -684,7 +687,7 @@ function dungeonExit() { return dungeonEnteredFrom; }
 
 // 地上のこのマスに入ったらダンジョンへ、という対応表
 const DUNGEON_ENTRANCES = {
-    '56,49':  ['radatome', null],   // ラダトームのまち（markでなく start から入る）
+    '56,49':  ['radatome', 'E'],    // ラダトームのまち（北の門）
     '51,51':  ['rcastle1', 'E'],    // ラダトーム城（南の門）
     '10,10':  ['garai', 'e'],       // ガライのまち
     '112,18': ['maira', 'y'],       // マイラのむら
@@ -721,6 +724,25 @@ function openDoorAt(mapId, x, y) {
     if (st.flag) setGameFlag(st.flag); else openedDoors.add(st.tmp);
 }
 function chestOpenedOn(mapId, x, y) { return openedChests.has(mapId + ':' + x + ',' + y); }
+
+// 町の中で、そのマスから歩いて行けるマス（オートが店へ行けるか調べるのに使う）。
+// ignoreDoors=true なら かぎのとびら は開いているものとして数える
+function townReachable(mapId, from, ignoreDoors) {
+    const d = DUNGEONS[mapId];
+    const seen = new Set([from.x + ',' + from.y]);
+    const q = [[from.x, from.y]];
+    while (q.length) {
+        const [x, y] = q.shift();
+        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+            const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
+            if (seen.has(k)) continue;
+            const isDoor = d.doorAt && (nx + ',' + ny) in d.doorAt;
+            if (!(ignoreDoors && isDoor) && !dungeonPassable(mapId, nx, ny)) continue;
+            seen.add(k); q.push([nx, ny]);
+        }
+    }
+    return seen;
+}
 
 function isDoorLocked(x, y) { return doorLockedOn(currentMapId, x, y); }
 // 隣にある閉じたとびら（本家の「とびら」コマンドは隣のマスに使う）
