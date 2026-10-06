@@ -32,7 +32,7 @@ const TOWN_TILES = {
     '?': T_BRIDGE, 'p': T_POISON,
     'K': D_CHEST,       // みせの たな。宝箱と同じ絵だが開かない（本家の店の飾り）
     'v': D_STAIR_DOWN,  // 下りていく場所。中身は events で決める
-    'E': T_BRICK, 'e': T_GRASS, 'y': T_SAND   // 町の出入口。見た目はそのままで目印だけ置く
+    'E': T_BRICK, 'e': T_GRASS, 'y': T_SAND, 'b': T_BRICK   // 町の出入口。見た目はそのままで目印だけ置く
 };
 // 町で通れないもの。木と砂は本家でも歩ける（世界地図の森・砂漠と同じ）
 const TOWN_BLOCKED = [T_STONE, T_WATER, T_SIGN_SHOP, T_SIGN_INN, T_COUNTER];
@@ -324,6 +324,110 @@ const DUNGEONS = {
         ],
         links: { '<': ['world', 116, 117] }
     },
+    // 本家「リムルダールのまち」。地形は pidlio.com の実画面マップ(09-01.png)を32×31で
+    // 読み取った。湖に囲まれた島の町で、かぎやへは町の外周を回って行く（本家どおり）
+    rimuldar: {
+        kind: 'town',
+        name: 'リムルダールの まち',
+        floorName: '',
+        bright: true,
+        noEncounter: true,
+        start: { x: 30, y: 15 },
+        exitTo: { x: 110, y: 80 },
+        setFlagOnEnter: 'magicKey',   // ここで まほうのかぎ が買えると分かる
+        outside: T_GRASS,
+        rows: [
+            '................................', '................................', '....~~~~~~~~~~~~~~~.............', '..~~~###TT........~~~~..........',
+            '..?..BB#......TTT...T~~~~.......', '.~~..BB#....BBBBBBBBTT..~~~~....', '.~T#BBB#.T..B.T.BssB.....TT~....', '.~T##C##..##B###B##B..#####~....',
+            '.~.#BBB#..#BBB#BBB#B..#BBB#~~...', '.~.#####..#BBB#BBB#BT.##C##s~...', '.~........#########BBBBBBB#s~...', '.~......~~T.....T..B.W#BBB#s~...',
+            '.~.T.~~~~~~...BBBBBBB.#BBB#s~~..', '.~s.~~TTT~~.TBBBBBBBB.#####T.~..', '.~s~~T.TT~..BBB....BB....TTTT~..', '.~sssT.T~~.BBB..T..BBBBBBBBBB?b.',
+            '.~s~~TT~~..BB..TT..BBBBBBBBBB?B.', '.~s.~~~~...BB.TT.#IB..TT..TTT~..', '.~.T....T..BB..T###B#######T.~..', '.~.....TTT.BB.TT#BCB#BB#BB#.~~..',
+            '.~.########BB#.T###BBBBBBB#.~...', '.~.#BBBBBBBBB#..#BBBBBB#BB#T~...', '.~.#BBBB#BBBB#.T##B###D####T~...', '.~.###BB#BBBB#.s#BBB#BB#B##~~...',
+            '.~T#BCBBBB##B#.s#BBB#BBDBw#~....', '.~T###BB#BBBB#.s###########~....', '.~~#BBBB#BBBB#TssssT..TT~~~~....', '..~#BBBBBBBBB#TT..T..~~~~.......',
+            '..~###########TTTT~~~~..........', '....~~~~~~~~~~~~~~~.............', '................................'
+        ],
+        npcs: [
+            { x: 5,  y: 8,  sprite: 19, shop: 'rimuldar:key',     name: 'かぎや' },
+            { x: 24, y: 8,  sprite: 24, shop: 'rimuldar:weapons', name: 'ぶきや' },
+            { x: 17, y: 19, sprite: 24, shop: 'rimuldar:inn',     name: 'やどや' },
+            { x: 4,  y: 24, sprite: 19, shop: 'rimuldar:tools',   name: 'どうぐや' },
+            { x: 28, y: 1,  sprite: 26, lines: ['おとこ「この しまは みずうみの なか', '　　　　はしを わたるしかない」'] },
+            { x: 8,  y: 4,  sprite: 26, lines: ['おとこ「かぎやへは まちの そとを', '　　　　まわって いくのだ」'] },
+            { x: 3,  y: 5,  sprite: 24, lines: ['しょうにん「まほうのかぎは', '　　　　　　ここが いちばん やすい」'] },
+            { x: 16, y: 9,  sprite: 22, lines: ['おんな「にしの うみの むこうに', '　　　　りゅうおうの しろが みえるわ」'] },
+            { x: 25, y: 11, sprite: 18, lines: ['おとこ「みなみの しまに ほこらが ある」'] },
+            { x: 7,  y: 14, sprite: 20, lines: ['ろうじん「ロトの しるしは', '　　　　　みなみの だいちに ねむる」'] },
+            { x: 20, y: 15, sprite: 22, lines: ['おんな「ぬまちの どうくつは', '　　　　きたへ ぬけていますわ」'] },
+            { x: 8,  y: 17, sprite: 13, lines: ['へいし「よるは まちから でるでないぞ」'] },
+            { x: 12, y: 20, sprite: 26, lines: ['おとこ「とびらの おくに たからが ある」'] },
+            { x: 20, y: 20, sprite: 18, lines: ['おとこ「メルキドの ゴーレムは', '　　　　ようせいの ふえで ねむる」'] },
+            { x: 8,  y: 21, sprite: 21, lines: ['むすめ「ドムドーラは まものの すみか', '　　　　もう だれも おりません」'] },
+            { x: 21, y: 24, sprite: 20, lines: ['ろうじん「かぎは つかうたび なくなる', '　　　　　おおめに かっておくがよい」'] },
+            { x: 1,  y: 27, sprite: 22, lines: ['おんな「ローラひめは ぬまちの どうくつに', '　　　　とらわれていると ききました」'] },
+            { x: 4,  y: 27, sprite: 17, lines: ['おとこ「はしを わたれば きたの たいりく」'] },
+            { x: 11, y: 27, sprite: 25, lines: ['おとこ「りゅうおうを たおすには', '　　　　にじの はしが いる」'] }
+        ],
+        links: { b: ['world', 110, 80] }
+    },
+    // 本家「ドムドーラのまち」。地形は pidlio.com の実画面マップ(12-01.png)を22×22で
+    // 読み取った。竜王に滅ぼされた廃墟で、本家どおり町の中でもモンスターが出る
+    // （出現表は pidlio の一覧と一致するゾーン16）。ロトのよろいは東の毒沼の先の森
+    domdora: {
+        kind: 'town',
+        name: 'ドムドーラの まち',
+        floorName: '',
+        bright: true,
+        zone: 16,
+        start: { x: 17, y: 20 },
+        exitTo: { x: 33, y: 97 },
+        outside: T_SAND,
+        events: { '19,13': 'rotoArmor' },
+        rows: [
+            'ssssssssssssssssssssss', 's##ss.##s#######BB#p#s', 's#ss.T#sBBCB#T..sBpp#s', 'ssssT.##BB#B#...Bpps#s',
+            'ss...pp##B###.p.BBpsss', 'sss...pp.B...T..BB.s#s', 's#.BBBspsBBBssBBsB..#s', 's#.BBBBsBBsssBBBBB.T.s',
+            's..BB.sss.T......B..Ts', 's#.BB.s####s#BBB#B##.s', 'sBBsB.#BBBss#p.#BCp#ss', 'sBsBB.###C###.p#Bpp#ps',
+            'sTTBBT#ssBBB#T.##p#pps', 'sT.sBT#s#B#s#TTssppT#s', 's#.BsT#BBBsssTs.####ss', 's#.BB.##BB###s..#sss#s',
+            's#psB.ssTBsBBBBsBBCs#s', 'sppBB..s.BT.....#B#sss', 'sspBsBBBBs...p..#####s', 's#ppp.......ppp.ssssss',
+            'sssp####.#pppp###y###s', 'ssssssssssssssssssssss'
+        ],
+        npcs: [],
+        links: { y: ['world', 33, 97] }
+    },
+    // 本家「メルキドのまち」。地形は pidlio.com の実画面マップ(13-01.png)を30×31で
+    // 読み取った。ゴーレムを倒さないと入れない城塞都市で、店が7つある
+    melkido: {
+        kind: 'town',
+        name: 'メルキドの まち',
+        floorName: '',
+        bright: true,
+        noEncounter: true,
+        start: { x: 9, y: 29 },
+        exitTo: { x: 81, y: 108 },
+        outside: T_BRICK,
+        rows: [
+            'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'B###BB########BBWssssssssB###B', 'B#BBBB#BB#BBB#BBss######sB#B#B', 'B###BB#BB#BBB#BBTT#BB#B#sB#B#B',
+            'BBBBBB##C#B###BBBBBBBCB#sBBBBB', 'BBBBBB#BBBBBB#BBBBBBBCB#sB###B', 'B###BB##B##BB#BBTT#BB#B#sB#B#B', 'B#BCBBsIss#BB#BBss######sB#C#B',
+            'B###BBssss####BBsssssssssB#B#B', 'BBBBBBBBBBBBBBBBBBBBBBBBBBDB#B', 'BBBBBBBBBBBBBBBBBBBBBBBBB##B#B', 'B###BB###BB.~~~....BB#####BB#B',
+            'B#BCBBC.#BB~~~~~...BB#B#BCBB#B', 'B###BB###BB~~T~~~..BBCB#B#BB#B', 'B#BCBBBBBBB.~~~.~~.BB########B', 'B###B####BB......?.BBBBBBBBBBB',
+            'B#BBB#BB#BB......~.BBBBBBBBBBB', 'B#BBBBBB#BB.....~~.BB###BB###B', 'B########BB...~~~~~BBCB#BBBB#B', 'BBBBBBBBBBB..~~~T~~BB###BB#B#B',
+            'BBBBBBBBBBB.~~~TT~~BBBBBBB###B', 'B###D####BB.~~TT~~.BB###BBBBBB', 'B#ssssss#BB..~~~~..BB#B####B#B', 'B#ssssss#BB...~~...BB#C#BBBB#B',
+            'B#####ss#BBB#BBBB#BBB#B##B###B', 'B#BBB#ssDB####DD####BBB#BB#K#B', 'B#BBBCss#B#BBBBBBBB#B#BBBBCB#B', 'B#KBB#ss#B#B######B#B#B#BB#K#B',
+            'B########B#BBBBBBBB#B########B', 'BBBBBBBBBb##########BBBBBBBBBB', 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'
+        ],
+        npcs: [
+            { x: 8,  y: 3,  sprite: 24, shop: 'melkido:tools',   name: 'どうぐや' },
+            { x: 22, y: 22, sprite: 20, shop: 'melkido:tools',   name: 'どうぐや' },
+            { x: 2,  y: 12, sprite: 24, shop: 'melkido:weapons', name: 'ぶきや' },
+            { x: 22, y: 5,  sprite: 24, shop: 'melkido:weapons', name: 'ぶきや' },
+            { x: 27, y: 26, sprite: 24, shop: 'melkido:weapons', name: 'ぶきや' },
+            { x: 27, y: 6,  sprite: 20, shop: 'melkido:key',     name: 'かぎや' },
+            { x: 24, y: 12, sprite: 13, shop: 'melkido:water',   name: 'せいすいや' },
+            { x: 2,  y: 7,  sprite: 26, shop: 'melkido:inn',     name: 'やどや' },
+            { x: 3,  y: 27, sprite: 24, lines: ['しょうにん「ゴーレムが いるかぎり', '　　　　　　この まちは あんぜんだ」'] },
+            { x: 14, y: 28, sprite: 20, lines: ['ろうじん「みかがみの たては', '　　　　　この よで いちばんの たて」'] }
+        ],
+        links: { b: ['world', 81, 108] }
+    },
     // 本家「ラダトームのまち」。地形は pidlio.com の実画面マップ(02-01.png)を32×32で
     // 読み取り、本作のタイルで再現して元画像と見比べて詰めた。
     // 外周1マスに出ると町の外（地上の(56,49)）へ出る＝本家と同じ
@@ -572,6 +676,9 @@ const DUNGEON_ENTRANCES = {
     '112,18': ['maira', 'y'],       // マイラのむら
     '89,9':   ['amehoko', '<'],     // あめのほこら
     '116,117':['seihoko', '<'],     // せいなるほこら
+    '110,80': ['rimuldar', 'b'],    // リムルダールのまち
+    '33,97':  ['domdora', 'y'],     // ドムドーラのまち（廃墟）
+    '81,108': ['melkido', 'b', () => getGameFlag('golemKilled')],  // メルキド（ゴーレムを倒してから）
     '36,20':  ['roto1', '<'],       // ロトの洞窟（ラダトームから北北西）
     '37,65':  ['iwayama1', '<'],
     '112,52': ['numachi', '<'],     // 北口（本土側）
@@ -624,7 +731,7 @@ function dungeonEventHere() {
 function stairsHere() {
     const x = playerPosition.x, y = playerPosition.y;
     const d = currentDungeon();
-    if (!d) return !!DUNGEON_ENTRANCES[x + ',' + y];
+    if (!d) { const e = DUNGEON_ENTRANCES[x + ',' + y]; return !!e && (!e[2] || e[2]()); }
     for (const mark in d.marks) {
         if (d.marks[mark].x === x && d.marks[mark].y === y && d.links[mark]) return true;
     }
@@ -650,11 +757,12 @@ function useStairs(x, y) {
 // 地上の洞窟の入口に乗ったとき
 function enterDungeonAt(x, y) {
     const e = DUNGEON_ENTRANCES[x + ',' + y];
-    if (!e) return false;
+    if (!e || (e[2] && !e[2]())) return false;
     const to = e[1] === null ? DUNGEONS[e[0]].start : DUNGEONS[e[0]].marks[e[1]];
     torchLit = false; radiantSteps = 0; openedChests = new Set(); openedDoors = new Set();
     dungeonEnteredFrom = { x, y };
     switchMap(e[0], to.x, to.y);
+    if (DUNGEONS[e[0]].setFlagOnEnter) setGameFlag(DUNGEONS[e[0]].setFlagOnEnter);
     return true;
 }
 

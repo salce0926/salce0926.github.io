@@ -104,6 +104,27 @@ const TOWN_EVENTS = {
         currentState = STATE.FIELD;
     },
     // 本家: マイラの おんせん から 南に4マス の地面に ようせいのふえ が埋まっている
+    // 本家: 東の毒沼の先の森に ロトのよろい が隠れていて、あくまのきし が守っている
+    rotoArmor: async () => {
+        if (getGameFlag('rotoArmor')) {
+            await showMessage(['もりの じめんを しらべた', 'もう なにも ない']);
+            currentState = STATE.FIELD;
+            return;
+        }
+        await showMessage(['よろいを まもるように', 'あくまのきし が たちはだかった！']);
+        // 門番として出すぶんは逃げないようにする（逃げられると戦わずに よろいが手に入る）
+        const guard = { ...enemyTable.find(e => e.name === 'あくまのきし'), noFlee: true };
+        const result = await startBattle(guard);
+        if (result === 'win') {
+            setGameFlag('rotoArmor');
+            player.armorIndex = armors.findIndex(a => a.name === 'ロトのよろい');
+            recalcPlayerPower();
+            await showMessage(['じめんを しらべた', 'ロトのよろいを 手に入れた！', `しゅび力が ${player.defense}に なった！`]);
+        } else if (result === 'flee') {
+            await showMessage(['にげだしたが よろいは', 'あくまのきしが まもったままだ...']);
+        }
+        currentState = STATE.FIELD;
+    },
     fairyFlute: async () => {
         if (getGameFlag('fairyFlute')) {
             await showMessage(['じめんを しらべたが', 'もう なにも ない']);
@@ -280,13 +301,7 @@ async function interactField() {
     if (ev && TOWN_EVENTS[ev]) { await TOWN_EVENTS[ev](); return; }
     if (stairsHere()) { await useStairsHere(); return; }
 
-    if (isVisit(gameFlags.magicKey.location.x, gameFlags.magicKey.location.y)) {
-        if(!getGameFlag('magicKey')){
-            setGameFlag('magicKey');
-            await showMessage(['ここはリムルダールの町だ', 'かぎを うっている みせが あるようだ']);
-        }else await showMessage(['ここはリムルダールの町だ']);
-        await offerTown('リムルダールの町', townShops.rimuldar);
-    } else if (isVisit(gameFlags.golemKilled.location.x, gameFlags.golemKilled.location.y)) {
+    if (isVisit(gameFlags.golemKilled.location.x, gameFlags.golemKilled.location.y)) {
         if(!getGameFlag('golemKilled')){
             if(!getGameFlag('fairyFlute')){
                 await showMessage(['ゴーレムが現れた！', '動きを止めないと勝ち目がない...！', 'しんでしまった...']);
@@ -305,7 +320,7 @@ async function interactField() {
                 }
             }
         }
-        if (getGameFlag('golemKilled')) await offerTown('メルキドの町', townShops.melkido);
+        // 倒したあとは stairsHere が先に効いて町へ入る
     } else if (isVisit(gameFlags.golemKilled.location.x, gameFlags.golemKilled.location.y + 2)) {
         if(!getGameFlag('rotoEmblem')){
             const dx = gameFlags.rotoEmblem.location.x - gameFlags.sunStone.location.x;
@@ -319,26 +334,6 @@ async function interactField() {
         if(!getGameFlag('rotoEmblem')){
             setGameFlag('rotoEmblem'); addItemToPlayer('ロトのしるし');
             await showMessage(['ロトのしるしを手に入れた！']);
-        }
-    } else if (isVisit(gameFlags.rotoArmor.location.x, gameFlags.rotoArmor.location.y)) {
-        if(!getGameFlag('rotoArmor')){
-            await showMessage(['ここはドムドーラの町だった', '今は はいきょと なってしまっている...']);
-            await showMessage(['よろいを まもるように', 'あくまのきし が たちはだかった！']);
-            // 門番として出すぶんは逃げないようにする（逃げられると戦わずに よろいが手に入る）
-            const guard = { ...enemyTable.find(e => e.name === 'あくまのきし'), noFlee: true };
-            const result = await startBattle(guard);
-            if (result === 'win') {
-                setGameFlag('rotoArmor');
-                player.armorIndex = armors.findIndex(a => a.name === 'ロトのよろい');
-                recalcPlayerPower();
-                await showMessage(['ロトのよろいを 手に入れた！', `しゅび力が ${player.defense}に なった！`]);
-            } else if (result === 'flee') {
-                await showMessage(['にげだしたが よろいは', 'あくまのきしが まもったままだ...']);
-            }
-            // 敗北時は playerKilled で城に運ばれている
-        }else{
-            await showMessage(['ここはドムドーラの町だった', '今は はいきょと なってしまっている...']);
-            await showMessage(['何故ここにロトのよろいがあったのか', 'その真相は製品版をお買い求めください']);
         }
     } else if (isVisit(gameFlags.rainbowBridge.location.x, gameFlags.rainbowBridge.location.y)) {
         if(!getGameFlag('rainbowBridge') && getGameFlag('rainbowDrop')){
@@ -1282,14 +1277,14 @@ function bestHuntingSpot(opt) {
 // 本編の進行順。done が false の一番上が「次に向かうべき場所」になる
 const QUEST_STEPS = [
     { name: '城で 王様に あう',        x: 51,  y: 51,  tour: 'castleKing', done: () => getGameFlag('start') },
-    { name: 'リムルダールで まほうのかぎ', x: 110, y: 80,  done: () => getGameFlag('magicKey') },
+    { name: 'リムルダールで まほうのかぎ', x: 110, y: 80, tour: 'magicKey', done: () => getGameFlag('magicKey') },
     { name: '城で たいようのいし',     x: 51,  y: 51,  tour: 'castleStone', done: () => getGameFlag('sunStone') },
     { name: 'マイラで ようせいのふえ', x: 112, y: 18, tour: 'fairyFlute', done: () => getGameFlag('fairyFlute') },
     { name: 'ガライの はかで ぎんのたてごと', x: 10, y: 10, tour: 'garaiTomb', done: () => getGameFlag('silverHerp') },
     { name: 'あめのほこらで あまぐものつえ', x: 89, y: 9, tour: 'rainCloud', done: () => getGameFlag('rainCloudStuff') },
     { name: 'メルキドの ゴーレム',     x: 81,  y: 108, done: () => getGameFlag('golemKilled') },
     { name: 'ロトのしるし',            x: 91,  y: 121, done: () => getGameFlag('rotoEmblem') },
-    { name: 'ドムドーラで ロトのよろい', x: 33, y: 97,  done: () => getGameFlag('rotoArmor') },
+    { name: 'ドムドーラで ロトのよろい', x: 33, y: 97, tour: 'rotoArmor', done: () => getGameFlag('rotoArmor') },
     // 本家でも「ドラゴンが強いので救助は後回しでよい」。装備が整ってから向かう
     { name: 'ローラひめを たすける',   x: 112, y: 52,  tour: 'rora', done: () => getGameFlag('roraRescued') },
     { name: 'ひめを 城へ つれて かえる', x: 51, y: 51,  tour: 'castleKing', done: () => getGameFlag('roraLove') },
@@ -1744,7 +1739,10 @@ const TOWN_ERRANDS = {
                                                 { map: 'garai', x: 20, y: 1,  act: 'tomb' }] },
     fairyFlute: { entrance: '112,18', targets: [{ map: 'maira', x: 10, y: 7,  act: 'flute' }] },
     rainCloud:  { entrance: '89,9',   targets: [{ map: 'amehoko', x: 7, y: 6, act: 'talk' }] },
-    rainbowDrop:{ entrance: '116,117',targets: [{ map: 'seihoko', x: 5, y: 7, act: 'talk' }] }
+    rainbowDrop:{ entrance: '116,117',targets: [{ map: 'seihoko', x: 5, y: 7, act: 'talk' }] },
+    // リムルダールは入るだけで「かぎが買える町」と分かる（買い物は地上から）
+    magicKey:   { entrance: '110,80', targets: [] },
+    rotoArmor:  { entrance: '33,97',  targets: [{ map: 'domdora', x: 19, y: 13, act: 'armor' }] }
 };
 function startTownErrand(kind) {
     const e = TOWN_ERRANDS[kind];
