@@ -27,7 +27,8 @@ var gameFlags = {
     // ラダトーム城のとびら。本家どおり一度あけたら戻らないのでじゅもんに残す
     castleDoorThrone:   { bit: 20, flag: false, location: { x: 0, y: 0 } },  // 玉座の間の出口
     castleDoorB1:       { bit: 21, flag: false, location: { x: 0, y: 0 } },  // 1F北東（地下へ）
-    castleDoorTreasure: { bit: 22, flag: false, location: { x: 0, y: 0 } }   // 1F たからの へや
+    castleDoorTreasure: { bit: 22, flag: false, location: { x: 0, y: 0 } },  // 1F たからの へや
+    garaiDoor:          { bit: 23, flag: false, location: { x: 0, y: 0 } }   // ガライの町 北への とびら
 };
 
 function setGameFlag(flagName) { gameFlags[flagName].flag = true; }

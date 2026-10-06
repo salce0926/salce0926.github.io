@@ -89,14 +89,48 @@ async function useStairsHere() {
     return true;
 }
 
+// 町のマスの上で「しらべる」と起きること
+const TOWN_EVENTS = {
+    // ガライの町の北にある、ガライの墓への階段。墓そのものはまだ作っていないので
+    // 本家の「墓の奥で ぎんのたてごと を見つける」ところまでをここでまとめている
+    garaiTomb: async () => {
+        if (getGameFlag('silverHerp')) {
+            await showMessage(['ガライの はかだ', 'もう なにも のこっていない']);
+        } else {
+            setGameFlag('silverHerp'); addItemToPlayer('ぎんのたてごと');
+            await showMessage(['ガライの はかへ おりた']);
+            await showMessage(['おくの たからばこから', 'ぎんの たてごとを てにいれた！']);
+        }
+        currentState = STATE.FIELD;
+    },
+    // 本家: マイラの おんせん から 南に4マス の地面に ようせいのふえ が埋まっている
+    fairyFlute: async () => {
+        if (getGameFlag('fairyFlute')) {
+            await showMessage(['じめんを しらべたが', 'もう なにも ない']);
+        } else {
+            setGameFlag('fairyFlute'); addItemToPlayer('ようせいのふえ');
+            await showMessage(['じめんを しらべた', 'なにか うまっている！']);
+            await showMessage(['ようせいの ふえを てにいれた！']);
+        }
+        currentState = STATE.FIELD;
+    }
+};
+
 // 町の人に話しかける。店の人なら その店をひらく
 async function talkToNpc(npc) {
-    const shop = townShops.radatome;
-    if (npc.shop === 'weapons')      { await showMessage([`ぶきや「いらっしゃい！」`]); await shopWeapons(shop); }
-    else if (npc.shop === 'tools')   { await showMessage([`どうぐや「いらっしゃい！」`]); await shopTools(shop.tools.filter(t => t !== 'water'), shop); }
-    else if (npc.shop === 'water')   { await showMessage([`せいすいや「せいすいは いかが？」`]); await shopTools(['water'], shop); }
-    else if (npc.shop === 'inn')     { await stayInn(shop.inn); }
-    else if (npc.cure) {
+    if (npc.shop) {
+        // 'まち:しゅるい'。まちを省いたらラダトーム
+        const [town, kind] = npc.shop.includes(':') ? npc.shop.split(':') : ['radatome', npc.shop];
+        const shop = townShops[town] || townShops.radatome;
+        if (kind === 'weapons')     { await showMessage([`ぶきや「いらっしゃい！」`]); await shopWeapons(shop); }
+        else if (kind === 'tools')  { await showMessage([`どうぐや「いらっしゃい！」`]); await shopTools(shop.tools.filter(k => k !== 'water' && k !== 'key'), shop); }
+        else if (kind === 'water')  { await showMessage([`せいすいや「せいすいは いかが？」`]); await shopTools(['water'], shop); }
+        else if (kind === 'key')    { await showMessage(['かぎや「どんな とびらも あけてしまう', '　　　　まほうの かぎは いらんかな？」']); await shopTools(['key'], shop); }
+        else if (kind === 'inn')    { await stayInn(shop.inn); }
+        currentState = STATE.FIELD;
+        return;
+    }
+    if (npc.cure) {
         if (getGameFlag('cursed')) {
             await showMessage(['ろうじん「おお なんという のろいじゃ！」']);
             await showMessage(['ろうじん「わしが といてしんぜよう」']);
@@ -105,11 +139,6 @@ async function talkToNpc(npc) {
             updatePlayerItems();
             await showMessage(['のろいが とけた！', 'のろいの しなは きえてしまった...']);
         } else await showMessage(['ろうじん「のろわれた ものが おれば', '　　　　　いつでも つれてきなさい」']);
-    }
-    else if (npc.shop === 'castleKey') {
-        // 本家: ラダトーム城の北東にある かぎや（まほうのかぎ 85G）
-        await showMessage(['かぎや「どんな とびらも あけてしまう', '　　　　まほうの かぎは いらんかな？']);
-        await shopTools(['key'], { tools: ['key'], keyPrice: 85 });
     }
     else if (npc.lightBe) {
         // 本家: 入口の東のカウンターの老人。「ひかりあれ」でMPを全快してくれる
@@ -127,6 +156,29 @@ async function talkToNpc(npc) {
             await showMessage(['けんじゃ「たいようの いしは', '　　　　　そなたに たくした', '　　　　　たいせつに つかうのじゃ」']);
         else
             await showMessage(['けんじゃ「よくぞ ここまで きた', '　　　　　たからばこの たいようの いしを', '　　　　　もってゆくがよい」']);
+    }
+    else if (npc.rainCloud) {
+        if (getGameFlag('rainCloudStuff'))
+            await showMessage(['ろうじん「もう おもいのこすことは ないわい」']);
+        else if (!getGameFlag('silverHerp'))
+            await showMessage(['ろうじん「ぎんの たてごとの ねいろを', '　　　　　きいてみたいものじゃ…」']);
+        else {
+            setGameFlag('rainCloudStuff'); addItemToPlayer('あまぐものつえ');
+            await showMessage(['ろうじん「おお それは ぎんの たてごと！', '　　　　　そなたに あまぐもの つえを', '　　　　　さずけよう」']);
+            await showMessage(['あまぐもの つえを てにいれた！']);
+        }
+    }
+    else if (npc.rainbowDrop) {
+        const have = getGameFlag('sunStone') && getGameFlag('rainCloudStuff') && getGameFlag('rotoEmblem');
+        if (getGameFlag('rainbowDrop'))
+            await showMessage(['ろうじん「にじの しずくを つかえば', '　　　　　まのしまへ わたれる」']);
+        else if (!have)
+            await showMessage(['ろうじん「たいようの いし', '　　　　　あまぐもの つえ', '　　　　　ロトの しるし……', '　　　　　3つ そろえて くるのじゃ」']);
+        else {
+            setGameFlag('rainbowDrop'); addItemToPlayer('にじのしずく');
+            await showMessage(['ろうじん「3つの しんぴが そろったな', '　　　　　にじの しずくを さずけよう」']);
+            await showMessage(['にじの しずくを てにいれた！']);
+        }
     }
     else if (npc.king) { await talkToKing(); }
     else await showMessage(npc.lines || ['・・・']);
@@ -177,7 +229,7 @@ async function openLockedDoor() {
         await showMessage(['かぎの かかった とびらだ', 'しかし かぎを もっていない...']);
     } else {
         player.key--;                       // 本家: 開けるたびに1つ消える
-        setGameFlag(door.flag);
+        openDoorAt(currentMapId, door.x, door.y);
         await showMessage(['かぎを つかった！', 'とびらが ひらいた！']);
     }
     currentState = STATE.FIELD;
@@ -223,41 +275,17 @@ async function interactField() {
     if (lockedDoor && player.key > 0) { await openLockedDoor(); return; }
     if (adjacentNpc()) { await talkToNpc(adjacentNpc()); return; }
     if (lockedDoor) { await openLockedDoor(); return; }
-    if (dungeonEventHere() === 'rora') { await rescueRora(); return; }
+    const ev = dungeonEventHere();
+    if (ev === 'rora') { await rescueRora(); return; }
+    if (ev && TOWN_EVENTS[ev]) { await TOWN_EVENTS[ev](); return; }
     if (stairsHere()) { await useStairsHere(); return; }
 
-    if (isVisit(gameFlags.fairyFlute.location.x, gameFlags.fairyFlute.location.y)) {
-        if(!getGameFlag('fairyFlute')){
-            setGameFlag('fairyFlute'); addItemToPlayer('ようせいのふえ');
-            await showMessage(['ここはマイラの村だ', '温泉で有名らしい', '温泉の近くに何か落ちている...']);
-            await showMessage(['妖精の笛を手に入れた！']);
-        } else await showMessage(['ここはマイラの村だ', '温泉で有名らしい']);
-        await offerTown('マイラの村', townShops.maira);
-    } else if (isVisit(gameFlags.magicKey.location.x, gameFlags.magicKey.location.y)) {
+    if (isVisit(gameFlags.magicKey.location.x, gameFlags.magicKey.location.y)) {
         if(!getGameFlag('magicKey')){
             setGameFlag('magicKey');
             await showMessage(['ここはリムルダールの町だ', 'かぎを うっている みせが あるようだ']);
         }else await showMessage(['ここはリムルダールの町だ']);
         await offerTown('リムルダールの町', townShops.rimuldar);
-    } else if (isVisit(gameFlags.silverHerp.location.x, gameFlags.silverHerp.location.y)) {
-        if(!getGameFlag('silverHerp')){
-            if(player.key > 0){
-                player.key--;
-                setGameFlag('silverHerp'); addItemToPlayer('ぎんのたてごと');
-                await showMessage(['ここはガライの町だ', '吟遊詩人ガライの墓があるらしい', '隠し通路の鍵を開けてダンジョンに挑んだ！']);
-                await showMessage(['ガライの墓で銀の竪琴を手に入れた！']);
-            }else await showMessage(['ここはガライの町だ', '吟遊詩人ガライの墓があるらしい', '隠し通路を見つけたが かぎが かかっている...']);
-        }else await showMessage(['ここはガライの町だ', '吟遊詩人ガライの墓があるらしい']);
-        await offerTown('ガライの町', townShops.garai);
-    } else if (isVisit(gameFlags.rainCloudStuff.location.x, gameFlags.rainCloudStuff.location.y)) {
-        if(!getGameFlag('rainCloudStuff')){
-            if(!getGameFlag('silverHerp')) await showMessage(['老人「銀の竪琴の音色を聞きたいなあ...」']);
-            else{
-                setGameFlag('rainCloudStuff'); addItemToPlayer('あまぐものつえ');
-                await showMessage(['老人「おお！それは銀の竪琴ではないか！', '　　　そなたに雨雲の杖を授けよう！　　」']);
-                await showMessage(['雨雲の杖を手に入れた！']);
-            }
-        }else await showMessage(['老人「もう思い残すことはないわいﾋﾟﾛﾋﾟﾛ」']);
     } else if (isVisit(gameFlags.golemKilled.location.x, gameFlags.golemKilled.location.y)) {
         if(!getGameFlag('golemKilled')){
             if(!getGameFlag('fairyFlute')){
@@ -311,23 +339,6 @@ async function interactField() {
         }else{
             await showMessage(['ここはドムドーラの町だった', '今は はいきょと なってしまっている...']);
             await showMessage(['何故ここにロトのよろいがあったのか', 'その真相は製品版をお買い求めください']);
-        }
-    } else if (isVisit(gameFlags.rainbowDrop.location.x, gameFlags.rainbowDrop.location.y)) {
-        if(!getGameFlag('rainbowDrop')){
-            if(getGameFlag('sunStone') && getGameFlag('rainCloudStuff') && getGameFlag('rotoEmblem')){
-                setGameFlag('rainbowDrop'); deleteItemFromPlayer('たいようのいし'); deleteItemFromPlayer('あまぐものつえ'); addItemToPlayer('にじのしずく');
-                await showMessage(['老人「よくぞ太陽と雨雲を揃えた！」']);
-                await showMessage(['老人「ここに虹のしずくが完成した！', '　　　これでりゅうおうへの', '　　　道が開かれるであろう！」']);
-            }else if(!getGameFlag('rotoEmblem')){
-                await showMessage(['老人「勇者だと？嘘をつくな！」']);
-                await showMessage(['老人「もし本物の勇者なら', '　　　どこかにしるしがあるはずじゃ！」']);
-            }else{
-                await showMessage(['老人「しるしを持っているな！', '　　　本物の勇者じゃ」']);
-                await showMessage(['老人「太陽と雨雲が揃ったとき', '　　　虹の橋が架かるとの言い伝えじゃ！」']);
-            }
-        }else{
-            await showMessage(['老人「前から 思ってたけど...」']);
-            await showMessage(['老人「虹のしずくを 経由しなくても', '　　　全部揃ってたら 橋が架かる', '　　　って勘違いしない？」']);
         }
     } else if (isVisit(gameFlags.rainbowBridge.location.x, gameFlags.rainbowBridge.location.y)) {
         if(!getGameFlag('rainbowBridge') && getGameFlag('rainbowDrop')){
@@ -431,6 +442,7 @@ const townShops = {
     garai:      { inn: 25,  tools: ['herb', 'torch', 'scale'],  weapons: [2, 3, 4],  armors: [2, 3, 4], shieldList: [2] },
     maira:      { inn: 20,  tools: ['herb', 'torch', 'scale', 'wing'], weapons: [3, 4], armors: [4, 5], shieldList: [1] },
     rimuldar:   { inn: 55,  tools: ['herb', 'wing', 'key'], keyPrice: 53, weapons: [3, 4, 5], armors: [4, 5, 6] },
+    castle:     { tools: ['key'], keyPrice: 85 },   // ラダトーム城 北東の かぎや
     melkido:    { inn: 100, tools: ['herb', 'torch', 'water', 'scale', 'wing', 'key'], keyPrice: 98,
                   weapons: [1, 2, 3, 4, 5, 6], armors: [2, 3, 5, 6], shieldList: [2, 3] }
 };
@@ -1272,16 +1284,16 @@ const QUEST_STEPS = [
     { name: '城で 王様に あう',        x: 51,  y: 51,  tour: 'castleKing', done: () => getGameFlag('start') },
     { name: 'リムルダールで まほうのかぎ', x: 110, y: 80,  done: () => getGameFlag('magicKey') },
     { name: '城で たいようのいし',     x: 51,  y: 51,  tour: 'castleStone', done: () => getGameFlag('sunStone') },
-    { name: 'マイラで ようせいのふえ', x: 112, y: 18,  done: () => getGameFlag('fairyFlute') },
-    { name: 'ガライの はかで ぎんのたてごと', x: 10, y: 10, done: () => getGameFlag('silverHerp') },
-    { name: 'あめのほこらで あまぐものつえ', x: 89, y: 9, done: () => getGameFlag('rainCloudStuff') },
+    { name: 'マイラで ようせいのふえ', x: 112, y: 18, tour: 'fairyFlute', done: () => getGameFlag('fairyFlute') },
+    { name: 'ガライの はかで ぎんのたてごと', x: 10, y: 10, tour: 'garaiTomb', done: () => getGameFlag('silverHerp') },
+    { name: 'あめのほこらで あまぐものつえ', x: 89, y: 9, tour: 'rainCloud', done: () => getGameFlag('rainCloudStuff') },
     { name: 'メルキドの ゴーレム',     x: 81,  y: 108, done: () => getGameFlag('golemKilled') },
     { name: 'ロトのしるし',            x: 91,  y: 121, done: () => getGameFlag('rotoEmblem') },
     { name: 'ドムドーラで ロトのよろい', x: 33, y: 97,  done: () => getGameFlag('rotoArmor') },
     // 本家でも「ドラゴンが強いので救助は後回しでよい」。装備が整ってから向かう
     { name: 'ローラひめを たすける',   x: 112, y: 52,  tour: 'rora', done: () => getGameFlag('roraRescued') },
     { name: 'ひめを 城へ つれて かえる', x: 51, y: 51,  tour: 'castleKing', done: () => getGameFlag('roraLove') },
-    { name: 'にじのしずく',            x: 116, y: 117, done: () => getGameFlag('rainbowDrop') },
+    { name: 'にじのしずく',            x: 116, y: 117, tour: 'rainbowDrop', done: () => getGameFlag('rainbowDrop') },
     { name: 'にじの はしを かける',    x: 73,  y: 57,  done: () => getGameFlag('rainbowBridge') },
     { name: 'りゅうおうを たおす',     x: 56,  y: 56,  done: () => getGameFlag('lightBall') }
 ];
@@ -1602,6 +1614,7 @@ function autoStatusLine() {
         if (t.kind === 'rora')     return `ローラひめを たすけに いく（${floor}）`;
         if (t.kind === 'castleKing')  return `しろ ${floor}：おうさまに あいに いく`;
         if (t.kind === 'castleStone') return `しろ ${floor}：たいようのいしを とりに いく`;
+        if (TOWN_ERRANDS[t.kind])     return `${name}：ようじを すませる`;
         if (t.retreat) return `どうくつ ${floor}：ひきあげ中`;
         if (!leg) return 'どうくつ：たんさく おわり';
         const left = t.plan.filter(l => l.act === 'chest').length
@@ -1725,6 +1738,29 @@ function startCastleErrand(kind) {
 }
 function inCastle() { return ['rcastle1', 'rcastle2', 'rcastleB1'].includes(currentMapId); }
 
+// 町の中まで歩いて用事を済ませるお使い。入口・目的地・戻り口を並べるだけ
+const TOWN_ERRANDS = {
+    garaiTomb:  { entrance: '10,10',  targets: [{ map: 'garai', x: 18, y: 12, act: 'door' },
+                                                { map: 'garai', x: 20, y: 1,  act: 'tomb' }] },
+    fairyFlute: { entrance: '112,18', targets: [{ map: 'maira', x: 10, y: 7,  act: 'flute' }] },
+    rainCloud:  { entrance: '89,9',   targets: [{ map: 'amehoko', x: 7, y: 6, act: 'talk' }] },
+    rainbowDrop:{ entrance: '116,117',targets: [{ map: 'seihoko', x: 5, y: 7, act: 'talk' }] }
+};
+function startTownErrand(kind) {
+    const e = TOWN_ERRANDS[kind];
+    if (!e) return false;
+    // とびらが もう開いているなら その区間は飛ばす
+    const targets = e.targets.filter(t => t.act !== 'door' || doorLockedOn(t.map, t.x, t.y - 1));
+    const plan = inDungeon() ? planFromHere(targets, e.entrance)
+                             : planErrand(e.entrance, targets, e.entrance);
+    if (!plan) return false;
+    autoPilot.tour = { plan, at: 0, deaths: 0, retreat: false, path: null, pathAt: -1,
+                       kind, entranceKey: e.entrance, exitKey: e.entrance, targets };
+    autoPilot.path = null; autoPilot.goal = null;
+    autoPilot.lastLine = '';
+    return true;
+}
+
 function autoTourStep() {
     const t = autoPilot.tour;
 
@@ -1758,7 +1794,7 @@ function autoTourStep() {
             autoPilot.lastLine = '';
             return;
         }
-        if (t.kind === 'rora' || t.kind === 'castleKing' || t.kind === 'castleStone') {
+        if (t.kind === 'rora' || t.kind === 'castleKing' || t.kind === 'castleStone' || TOWN_ERRANDS[t.kind]) {
             autoPilot.tour = null; autoPilot.lastLine = ''; return;
         }
         autoStop(t.retreat ? 'どうくつから ひきあげました' : 'どうくつを たんさくしました');
@@ -1912,6 +1948,7 @@ function autoTick(now) {
                 if (q.tour === 'castleKing' || q.tour === 'castleStone') {
                     if (startCastleErrand(q.tour)) return;
                 }
+                if (TOWN_ERRANDS[q.tour]) { if (startTownErrand(q.tour)) return; }
                 if (q.tour === 'rora') {                 // 洞窟の奥まで行く
                     const need = levelForCaveDragon();
                     if (need > player.level) {           // ドラゴンに勝てないうちは鍛えてから

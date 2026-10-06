@@ -23,13 +23,16 @@ const D_DOOR  = 5;    // かぎのかかった とびら
 // 町で使うタイル番号（本家の町の実画面と絵柄を照合して決めた）
 const T_GRASS = 27, T_STONE = 1, T_BRICK = 3, T_TREE = 28, T_WATER = 50,
       T_SAND = 33, T_SIGN_SHOP = 9, T_SIGN_INN = 10, T_BRIDGE = 35,
-      T_COUNTER = 2;      // みせの カウンター（本家の町に宝箱は無い）
+      T_COUNTER = 2,      // みせの カウンター（本家の町に宝箱は無い）
+      T_POISON = 34;      // どくの ぬまち（ドムドーラ・マイラ）
 // 町の記号 → タイル。ダンジョンとは別の対応表を使う
 const TOWN_TILES = {
     '.': T_GRASS, '#': T_STONE, 'B': T_BRICK, 'T': T_TREE, '~': T_WATER,
     's': T_SAND, 'C': T_COUNTER, 'D': D_DOOR, 'W': T_SIGN_SHOP, 'I': T_SIGN_INN,
-    '?': T_BRIDGE,
-    'E': T_BRICK        // 城の門。見た目は床のまま、オートの経路用に目印だけ置く
+    '?': T_BRIDGE, 'p': T_POISON,
+    'K': D_CHEST,       // みせの たな。宝箱と同じ絵だが開かない（本家の店の飾り）
+    'v': D_STAIR_DOWN,  // 下りていく場所。中身は events で決める
+    'E': T_BRICK, 'e': T_GRASS, 'y': T_SAND   // 町の出入口。見た目はそのままで目印だけ置く
 };
 // 町で通れないもの。木と砂は本家でも歩ける（世界地図の森・砂漠と同じ）
 const TOWN_BLOCKED = [T_STONE, T_WATER, T_SIGN_SHOP, T_SIGN_INN, T_COUNTER];
@@ -142,7 +145,7 @@ const DUNGEONS = {
             '.#~~~~~BB#BBBB#BB#BB#B#~~~~~~~..', '.##########BB##########~~~~~~~..', '.~~........EB........~~~~~~~~~b.', '................................'
         ],
         npcs: [
-            { x: 25, y: 2,  sprite: 23, shop: 'castleKey', name: 'かぎや' },
+            { x: 25, y: 2,  sprite: 23, shop: 'castle:key', name: 'かぎや' },
             { x: 21, y: 27, sprite: 19, lightBe: true,     name: 'ろうじん' },
             { x: 20, y: 3,  sprite: 13, lines: ['へいし「おうさまは 2かいの', '　　　　たまざの まに おられる」'] },
             { x: 28, y: 6,  sprite: 22, lines: ['じょちゅう「しろの きたひがしに', '　　　　　　まほうのかぎを うる みせが', '　　　　　　あるそうですよ」'] },
@@ -200,6 +203,126 @@ const DUNGEONS = {
             { x: 6, y: 8, sprite: 19, sage: true, name: 'けんじゃ' }
         ],
         links: { a: ['rcastle1', 'b'] }
+    },
+    // 本家「ガライのまち」。地形は pidlio.com の実画面マップ(04-01.png)を22×22で読み取った。
+    // 町の北がわ（ガライの墓への入口がある）へは、(18,11)の かぎの とびら を
+    // 開けないと行けない＝本家の「鍵を持ってくることで町の北側へ入れる」と一致する
+    garai: {
+        kind: 'town',
+        name: 'ガライの まち',
+        floorName: '',
+        bright: true,
+        noEncounter: true,
+        start: { x: 14, y: 20 },
+        exitTo: { x: 10, y: 10 },
+        outside: T_GRASS,
+        doorFlags: { '18,11': 'garaiDoor' },   // 墓へ続く とびら だけ じゅもんに残す
+        events: { '20,1': 'garaiTomb' },
+        links: { e: ['world', 10, 10] },
+        rows: [
+            '......................', '.~~#BBBBBBBBBBBBB~~#v.', '.~~#BssssssssssBBB?BB.', '.###B#############~##.',
+            '.#BBBBBBBBBBBB####~~~.', '.#B#####BBDBBB~~~#~##.', '.#B#BBB#BG3BBB#~~~~~#.', '.#B##D##B1BBBB#~#~#~#.',
+            '.#BBBBBBBBBBBBBBBBBB#.', '.#BBBBBBBBBBBBBBBBBB#.', '.################BBB#.', '.~#BB#B#TTTTTTTT##D##.',
+            '.~#BBCB#TT.BBB.TTTBTT.', '.##B####T..BTBBBBBBBB.', '...B.....BBBBB..B.....', '.BBBBBBBBB.B...IB###T.',
+            '.TTT.B.T...BW..#BCB##.', '.####B#Ts##B##.#B####.', '.~#BBB##s#BCB#.#B#BB#.', '.~#####~##BBB#.#BBBB#.',
+            '.~~~~~~~~#####e######.', '......................'
+        ],
+        npcs: [
+            { x: 6,  y: 12, sprite: 23, shop: 'garai:weapons', name: 'ぶきや' },
+            { x: 11, y: 19, sprite: 24, shop: 'garai:tools',   name: 'どうぐや' },
+            { x: 18, y: 16, sprite: 24, shop: 'garai:inn',     name: 'やどや' },
+            { x: 15, y: 2,  sprite: 19, lines: ['ろうじん「この まちは むかし', '　　　　　ぎんゆうしじん ガライの', '　　　　　すまいだったのじゃ」'] },
+            { x: 4,  y: 6,  sprite: 12, lines: ['へいし「きたの はかには', '　　　　まものが すんでおる」'] },
+            { x: 6,  y: 6,  sprite: 12, lines: ['へいし「かぎが なければ', '　　　　きたへは とおせぬ」'] },
+            { x: 10, y: 7,  sprite: 23, lines: ['しょうにん「たからばこは ごじゆうに', '　　　　　　どうせ すぐ もどってくる」'] },
+            { x: 15, y: 8,  sprite: 25, lines: ['おとこ「ガライの はかには', '　　　　ぎんの たてごとが あるらしい」'] },
+            { x: 11, y: 9,  sprite: 19, lines: ['ろうじん「ぎんの たてごとは', '　　　　　あめを よぶ しなものと', '　　　　　ひきかえに なるという」'] },
+            { x: 12, y: 9,  sprite: 19, lines: ['ろうじん「はかの なかは ひろいぞ」'] },
+            { x: 3,  y: 11, sprite: 19, lines: ['ろうじん「まほうのかぎは', '　　　　　リムルダールで うっておる」'] },
+            { x: 14, y: 13, sprite: 22, lines: ['おんな「ガライの たてごとの ねいろは', '　　　　まものを よびよせるとか」'] },
+            { x: 16, y: 14, sprite: 26, lines: ['おとこ「きたの とびらの むこうが', '　　　　ガライの はかじゃ」'] },
+            { x: 9,  y: 16, sprite: 17, lines: ['たびびと「マイラの むらの おんせんは', '　　　　　ひがしの はてに ある」'] },
+            { x: 3,  y: 18, sprite: 19, lines: ['ろうじん「ロトの どうくつは', '　　　　　ここから みなみの ほうじゃ」'] }
+        ]
+    },
+    // 本家「マイラのむら」。地形は pidlio.com の実画面マップ(06-01.png)を26×26で読み取った。
+    // 本家どおり、ようせいのふえ は おんせん(10,3)から 南に4マス の地面に落ちている
+    maira: {
+        kind: 'town',
+        name: 'マイラの むら',
+        floorName: '',
+        bright: true,
+        noEncounter: true,
+        start: { x: 20, y: 24 },      // 南東の すなの みち から入る
+        exitTo: { x: 112, y: 18 },
+        outside: T_TREE,
+
+        events: { '10,7': 'fairyFlute' },
+        links: { y: ['world', 112, 18] },
+        rows: [
+            'TTTTTTTTTTTTTTTTTTTTTTTTTT', 'T###.TTT#####TTTTTTTT####T', 'T#B#..TT#BBB#TTTTTT#I#BB#T', 'T#C#p.TTBB~BBssssssBBBBB#T',
+            'TpBpp.TT#BBB#TsTTTT#C####T', 'Tppp..####B##TsTTTT#B#TTTT', 'T.p...#TTTTTTTsTTTT###TTTT', 'T....T#TTTTTTTsTTTTTTTT.TT',
+            'TT..TT#TTTTTTTsTTTTT....TT', 'TTT######TTTTsssTTT...T..T', 'TTTTTTTT#TTTsssssTTT.T..TT', 'T#####TT#TTsssssssT######T',
+            'T#BBB#TT#ssssssssss#BB#B#T', 'T#BBB#TsDssssssssssBBBCB#T', 'T#BBB#Ts#Tsssssssss#BB#B#T', 'T#D###Bs#TTsssssssT######T',
+            'T#B#BBBB#TTTsssssTTTTTTTTT', 'T#B#B#######TsssTTTTTTTTTT', 'T#BBB#BBBBB#TTsTTTT####TTT', 'T#B#B#B.B.B#TTssssssss#TTT',
+            'T#B#BBBBBBB#T#####Tsss#TTT', 'T#BBB#BBBBB###BBK#Tsss#TTT', 'T##B##B.B.BBBBCBK#TTsTTTTT', 'TT...#BBBBB###BBK#TTsTTTTT',
+            'TTT..#######T#####TTyTTTTT', 'TTTTTTTTTTTTTTTTTTTTTTTTTT'
+        ],
+        npcs: [
+            { x: 2,  y: 2,  sprite: 20, shop: 'maira:tools',   name: 'どうぐや' },
+            { x: 23, y: 13, sprite: 24, shop: 'maira:weapons', name: 'ぶきや' },
+            { x: 20, y: 5,  sprite: 24, shop: 'maira:inn',     name: 'やどや' },
+            { x: 13, y: 2,  sprite: 21, lines: ['むすめ「マイラの おんせんは', '　　　　たびの つかれを いやします」'] },
+            { x: 6,  y: 10, sprite: 26, lines: ['おとこ「おんせんから みなみへ 4ほ', '　　　　なにか うまっておるらしい」'] },
+            { x: 15, y: 10, sprite: 20, lines: ['ろうじん「ようせいの ふえは', '　　　　　ゴーレムを ねむらせる」'] },
+            { x: 14, y: 11, sprite: 26, lines: ['おとこ「みなみひがしの たいりくへは', '　　　　ぬまちの どうくつを ぬける」'] },
+            { x: 15, y: 11, sprite: 13, lines: ['へいし「この むらに しろは ない」'] },
+            { x: 9,  y: 12, sprite: 18, lines: ['おとこ「おんせんは いい ものだ」'] },
+            { x: 2,  y: 14, sprite: 20, lines: ['ろうじん「リムルダールでは', '　　　　　まほうのかぎが かえる」'] },
+            { x: 21, y: 14, sprite: 18, lines: ['おとこ「メルキドは みなみの はて', '　　　　ゴーレムが もんを まもっておる」'] },
+            { x: 9,  y: 15, sprite: 21, lines: ['むすめ「おんせんには はいれませんの」'] },
+            { x: 10, y: 15, sprite: 13, lines: ['へいし「ゆだんは きんもつだ」'] },
+            { x: 15, y: 22, sprite: 24, lines: ['しょうにん「キメラのつばさは', '　　　　　　まちへ もどるのに べんり」'] },
+            { x: 2,  y: 24, sprite: 13, lines: ['へいし「きを つけて いってらっしゃい」'] }
+        ]
+    },
+    // 本家「あめのほこら」。地形は pidlio.com の実画面マップ(05-01.png)を14×14で読み取った。
+    // ロトの血をひく老人が、ぎんのたてごと と ひきかえに あまぐものつえ をくれる
+    amehoko: {
+        kind: 'town',
+        name: 'あめの ほこら',
+        floorName: '',
+        bright: true,
+        noEncounter: true,
+        outside: T_STONE,
+        rows: [
+            '##############', '##############', '###BBBBBBBB###', '##BBBBBBBBBB##', '##BB######BB##',
+            '##BB#BB#B#BB##', '##BB#KBBBBBB##', '##BB#BB#B#BB##', '##BB######BB##', '##BBBBBBBBBB##',
+            '###BBBBBBBB###', '######<B######', '##############', '##############'
+        ],
+        npcs: [
+            { x: 6, y: 6, sprite: 20, rainCloud: true, name: 'ろうじん' }
+        ],
+        links: { '<': ['world', 89, 9] }
+    },
+    // 本家「せいなるほこら」。地形は pidlio.com の実画面マップ(10-01.png)を14×14で読み取った。
+    // たいようのいし・あまぐものつえ・ロトのしるし を持っていくと にじのしずく をくれる
+    seihoko: {
+        kind: 'town',
+        name: 'せいなる ほこら',
+        floorName: '',
+        bright: true,
+        noEncounter: true,
+        outside: T_STONE,
+        rows: [
+            '##############', '##############', '###BBBBBBBBB##', '###BB#B#B#BB##', '###B##BBB##B##',
+            '###BBB###BBB##', '##<B#B#B#B#B##', '##BB#BBK#B#B##', '###BBB###BBB##', '###B##BBB##B##',
+            '###BB#B#B#BB##', '###BBBBBBBBB##', '##############', '##############'
+        ],
+        npcs: [
+            { x: 6, y: 7, sprite: 20, rainbowDrop: true, name: 'ろうじん' }
+        ],
+        links: { '<': ['world', 116, 117] }
     },
     // 本家「ラダトームのまち」。地形は pidlio.com の実画面マップ(02-01.png)を32×32で
     // 読み取り、本作のタイルで再現して元画像と見比べて詰めた。
@@ -275,6 +398,9 @@ const CHEST_TABLE = {
     '8': () => ({ gold: 120 }),
     '9': () => ({ tool: 'key', name: 'まほうのかぎ' }),
     '*': () => ({ item: 'たいようのいし', flag: 'sunStone' }),
+    // ガライの町（10〜17ゴールド）／リムルダールの町（キメラのつばさ）
+    'G': () => ({ gold: 10 + Math.floor(Math.random() * 8) }),
+    'w': () => ({ tool: 'wing', name: 'キメラのつばさ' }),
     '5': () => (!getGameFlag('deathNecklace') && Math.floor(Math.random() * 16) === 0)
               ? { item: 'しのくびかざり', flag: 'deathNecklace' }
               : { gold: 100 + Math.floor(Math.random() * 32) },
@@ -319,6 +445,7 @@ function buildDungeon(d, id) {
         });
         d.npcAt = {};
         (d.npcs || []).forEach(n => { d.npcAt[n.x + ',' + n.y] = n; });
+        Object.assign(d.eventAt, d.events || {});
         return;
     }
     d.rows.forEach((row, y) => {
@@ -362,17 +489,21 @@ function npcAt(x, y) {
 function adjacentNpc() {
     if (!inTown()) return null;
     const g = currentDungeon().grid;
+    const found = [];
     for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
         const x = playerPosition.x + dx, y = playerPosition.y + dy;
         const n = npcAt(x, y);
-        if (n) return n;
+        if (n) found.push(n);
         // 本家の店はカウンター越しに話す。1マス先も見る
         if (g[y] && g[y][x] === T_COUNTER) {
             const far = npcAt(x + dx, y + dy);
-            if (far) return far;
+            if (far) found.push(far);
         }
     }
-    return null;
+    if (!found.length) return null;
+    // 何人も近くにいるときは、用のある人（店・王様・けんじゃ）を先に拾う
+    return found.find(n => n.shop || n.king || n.sage || n.cure || n.lightBe
+                        || n.rainCloud || n.rainbowDrop) || found[0];
 }
 // 町は外周1マスに出ると外へ出る（本家と同じ）
 function townEdgeExit(x, y) {
@@ -406,6 +537,9 @@ function lightRadius() {
 
 // 開けた宝箱。本家どおり、ダンジョンを出るとまた閉まっている
 let openedChests = new Set();
+// 開けたとびらのうち、じゅもんに残さないもの（家の中のとびらなど）。
+// フラグの桁が足りないので、進行に関わるとびらだけ gameFlags に持たせている
+let openedDoors = new Set();
 
 function switchMap(id, x, y) {
     currentMapId = id;
@@ -423,6 +557,7 @@ function leaveDungeon(x, y) {
     torchLit = false;          // たいまつはダンジョンを出ると効果が切れる
     radiantSteps = 0;
     openedChests = new Set();  // 宝箱が復活する
+    openedDoors = new Set();
 }
 
 // 入ってきた地上の出入口。リレミトや全滅のときの戻り先に使う
@@ -433,6 +568,10 @@ function dungeonExit() { return dungeonEnteredFrom; }
 const DUNGEON_ENTRANCES = {
     '56,49':  ['radatome', null],   // ラダトームのまち（markでなく start から入る）
     '51,51':  ['rcastle1', 'E'],    // ラダトーム城（南の門）
+    '10,10':  ['garai', 'e'],       // ガライのまち
+    '112,18': ['maira', 'y'],       // マイラのむら
+    '89,9':   ['amehoko', '<'],     // あめのほこら
+    '116,117':['seihoko', '<'],     // せいなるほこら
     '36,20':  ['roto1', '<'],       // ロトの洞窟（ラダトームから北北西）
     '37,65':  ['iwayama1', '<'],
     '112,52': ['numachi', '<'],     // 北口（本土側）
@@ -440,29 +579,36 @@ const DUNGEON_ENTRANCES = {
 };
 
 // とびら。開けるまでは壁と同じ扱い
-function doorFlagAt(x, y) {
-    const d = currentDungeon();
-    return (d && d.doorAt) ? (d.doorAt[x + ',' + y] || null) : null;
+// とびらの開き方。flag があればじゅもんに残り、無ければそのマップを出るまで
+function doorStateAt(mapId, x, y) {
+    const d = DUNGEONS[mapId];
+    if (!d || !d.doorAt) return null;
+    const at = x + ',' + y;
+    if (!(at in d.doorAt)) return null;
+    const f = d.doorAt[at];
+    return f ? { flag: f } : { tmp: mapId + ':' + at };
 }
 // 別のマップのとびらが開いているか（オートの計画づくり用）
 function doorLockedOn(mapId, x, y) {
-    const d = DUNGEONS[mapId];
-    const f = (d && d.doorAt) ? d.doorAt[x + ',' + y] : null;
-    return !!f && !getGameFlag(f);
+    const st = doorStateAt(mapId, x, y);
+    if (!st) return false;
+    return st.flag ? !getGameFlag(st.flag) : !openedDoors.has(st.tmp);
+}
+function openDoorAt(mapId, x, y) {
+    const st = doorStateAt(mapId, x, y);
+    if (!st) return;
+    if (st.flag) setGameFlag(st.flag); else openedDoors.add(st.tmp);
 }
 function chestOpenedOn(mapId, x, y) { return openedChests.has(mapId + ':' + x + ',' + y); }
 
-function isDoorLocked(x, y) {
-    const f = doorFlagAt(x, y);
-    return !!f && !getGameFlag(f);
-}
+function isDoorLocked(x, y) { return doorLockedOn(currentMapId, x, y); }
 // 隣にある閉じたとびら（本家の「とびら」コマンドは隣のマスに使う）
 function adjacentLockedDoor() {
     if (!inDungeon()) return null;
     for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
         const x = playerPosition.x + dx, y = playerPosition.y + dy;
         if (!mapData[y] || mapData[y][x] === undefined) continue;
-        if (isDoorLocked(x, y)) return { x, y, flag: doorFlagAt(x, y) };
+        if (isDoorLocked(x, y)) return { x, y };
     }
     return null;
 }
@@ -506,7 +652,7 @@ function enterDungeonAt(x, y) {
     const e = DUNGEON_ENTRANCES[x + ',' + y];
     if (!e) return false;
     const to = e[1] === null ? DUNGEONS[e[0]].start : DUNGEONS[e[0]].marks[e[1]];
-    torchLit = false; radiantSteps = 0; openedChests = new Set();
+    torchLit = false; radiantSteps = 0; openedChests = new Set(); openedDoors = new Set();
     dungeonEnteredFrom = { x, y };
     switchMap(e[0], to.x, to.y);
     return true;
@@ -532,9 +678,10 @@ function dungeonPassable(mapId, x, y) {
     if (y < 0 || x < 0 || y >= g.length || x >= g[0].length) return false;
     if (d.kind === 'town') {
         if (TOWN_BLOCKED.includes(g[y][x])) return false;
-        // 城のとびらは町あつかいのマップでも かぎ を使うまで通れない
-        const df = d.doorAt ? d.doorAt[x + ',' + y] : null;
-        if (df && !getGameFlag(df)) return false;
+        // 宝箱の絵でも、中身の無い「みせの たな」は通れない
+        if (g[y][x] === D_CHEST && !(d.chestAt && d.chestAt[x + ',' + y])) return false;
+        // 城や家の とびら は町あつかいのマップでも かぎ を使うまで通れない
+        if (doorLockedOn(mapId, x, y)) return false;
         // 外周は踏むと町の外へ出てしまう。経路としては使わない
         // （人が歩くぶんには isMoveAllowed の townEdgeExit 側で通している）
         if (d.exitTo) {
@@ -544,8 +691,7 @@ function dungeonPassable(mapId, x, y) {
         return !(d.npcAt && d.npcAt[x + ',' + y]);   // 人のいるマスは通れない
     }
     if (g[y][x] === D_WALL) return false;
-    const f = d.doorAt ? d.doorAt[x + ',' + y] : null;
-    return !(f && !getGameFlag(f));
+    return !doorLockedOn(mapId, x, y);
 }
 
 // 同じ階の中だけを歩く経路。地上とちがって端はつながっていない
