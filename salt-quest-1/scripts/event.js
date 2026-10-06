@@ -1677,7 +1677,16 @@ function rebuildTour(exitOnly) {
     if (exitOnly) t.retreat = true;
     // 作り直してばかりで進まないときは、諦めて止める（無限ループの歯止め）
     t.rebuilds = (t.rebuilds || 0) + 1;
-    if (t.rebuilds > 20) { autoStop('どうくつで みちに まよいました'); return; }
+    if (t.rebuilds > 20) {
+        // 洞窟の宝箱めぐりは本人が選んだ用事なので止めて知らせる。
+        // 本編の用事は止めずに諦めて、鍛え直してから出直す
+        if (t.kind === 'explore') { autoStop('どうくつで みちに まよいました'); return; }
+        autoPilot.tour = null; autoShopping = null;
+        autoPilot.path = null; autoPilot.goal = null;
+        autoPilot.grindUntil = Math.max(autoPilot.grindUntil || 0, Math.min(30, player.level + 1));
+        autoPilot.lastLine = '';
+        return;
+    }
     if (t.kind === 'explore') {
         t.plan = planDungeonTour({ fromMap: currentMapId, x: playerPosition.x, y: playerPosition.y,
                                    entranceKey: t.entranceKey, exitOnly: t.retreat });
@@ -1712,6 +1721,23 @@ function levelForCaveDragon() {
         let lose = 0; const N = 60;
         for (let i = 0; i < N; i++) if (simulateBattle(statsAtLevel(lv), dragon).r === 'lose') lose++;
         if (lose / N <= 0.15) return lv;
+    }
+    return 30;
+}
+
+// りゅうおうに挑めるレベル。本家でも装備を整えてから挑む相手なので、
+// 勝てる見込みが立つまでは挑まない（挑んで負けると所持金が半分になるだけ）
+function levelForDragonLord() {
+    for (let lv = player.level; lv <= 30; lv++) {
+        let lose = 0; const N = 40;
+        for (let i = 0; i < N; i++) {
+            const st = statsAtLevel(lv);
+            // 本家どおり人の姿→竜の姿と続けて戦う。HPとMPは引き継ぐ
+            const a = simulateBattle(st, dragonLordHuman);
+            if (a.r !== 'win') { lose++; continue; }
+            if (simulateBattle(st, dragonLordDragon, a.hp, a.mp).r !== 'win') lose++;
+        }
+        if (lose / N <= 0.1) return lv;
     }
     return 30;
 }
@@ -1812,7 +1838,7 @@ const TOWN_INSIDE = {
                 shops: [{ x: 5,  y: 6  }, { x: 6,  y: 24 }, { x: 24, y: 10 }] },
     melkido:  { entrance: '81,108', map: 'melkido',  inn: { x: 8,  y: 5  },
                 // 鍵屋と「ほのおのつるぎ・みかがみのたて」の武器屋は(26,9)のとびらの奥
-                doors: [{ door: { x: 26, y: 9 }, at: { x: 26, y: 8 } }],
+                doors: [{ door: { x: 26, y: 9 }, at: { x: 25, y: 9 } }],
                 shops: [{ x: 4,  y: 7  }, { x: 5,  y: 12 }, { x: 20, y: 13 }, { x: 27, y: 8  },
                         { x: 20, y: 5  }, { x: 25, y: 26 }, { x: 26, y: 12 }] }
 };
@@ -2174,6 +2200,15 @@ function autoTick(now) {
                     if (startCastleErrand(q.tour)) return;
                 }
                 if (TOWN_ERRANDS[q.tour]) { if (startTownErrand(q.tour)) return; }
+                if (q.name === 'りゅうおうを たおす') {
+                    const need = levelForDragonLord();
+                    if (need > player.level) {           // 勝てないうちは鍛えてから
+                        autoPilot.grindUntil = need;
+                        autoPilot.path = null; autoPilot.goal = null;
+                        autoPilot.lastLine = '';
+                        return;
+                    }
+                }
                 if (q.tour === 'rora') {                 // 洞窟の奥まで行く
                     const need = levelForCaveDragon();
                     if (need > player.level) {           // ドラゴンに勝てないうちは鍛えてから
@@ -2237,7 +2272,10 @@ function autoTick(now) {
                 return;
             }
         }
-        if (player.level >= autoPilot.targetLevel) { autoStop('もくひょうに とうたつ'); return; }
+        // 本編を進めている最中は、レベルが上限に届いても止めない（まだ終わっていない）
+        if (player.level >= autoPilot.targetLevel && !(autoPilot.questMode && nextQuestStep())) {
+            autoStop('もくひょうに とうたつ'); return;
+        }
     }
 
     if (currentState === STATE.MESSAGE) { Input.press(' '); return; }
