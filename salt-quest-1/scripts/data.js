@@ -372,7 +372,7 @@ function updatePlayerLevel(){
 function updatePlayerItems(){
     const flagItems = [
         { itemName: 'ようせいのふえ', flagName: 'fairyFlute' }, { itemName: 'ロトのしるし', flagName: 'rotoEmblem' },
-        { itemName: 'おうじょのあい', flagName: 'roraLove'}, { itemName: 'ぎんのたてごと', flagName: 'silverHerp'},
+        { itemName: 'おうじょのあい', flagName: 'roraLove'}, { itemName: 'ぎんのたてごと', flagName: 'silverHerp', consumedBy: 'rainCloudStuff'},
         { itemName: 'たいようのいし', flagName: 'sunStone', consumedBy: 'rainbowDrop'},
         { itemName: 'あまぐものつえ', flagName: 'rainCloudStuff', consumedBy: 'rainbowDrop'},
         { itemName: 'にじのしずく', flagName: 'rainbowDrop', consumedBy: 'rainbowBridge'},

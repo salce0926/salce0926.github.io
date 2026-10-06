@@ -228,8 +228,8 @@ const DUNGEONS = {
             '.~~~~~~~~#####e######.', '......................'
         ],
         npcs: [
-            { x: 6,  y: 12, sprite: 23, shop: 'garai:weapons', name: 'ぶきや' },
-            { x: 11, y: 19, sprite: 24, shop: 'garai:tools',   name: 'どうぐや' },
+            { x: 6,  y: 12, sprite: 23, shop: 'garai:tools',   name: 'どうぐや' },
+            { x: 11, y: 19, sprite: 24, shop: 'garai:weapons', name: 'ぶきや' },
             { x: 18, y: 16, sprite: 24, shop: 'garai:inn',     name: 'やどや' },
             { x: 15, y: 2,  sprite: 19, lines: ['ろうじん「この まちは むかし', '　　　　　ぎんゆうしじん ガライの', '　　　　　すまいだったのじゃ」'] },
             { x: 4,  y: 6,  sprite: 12, lines: ['へいし「きたの はかには', '　　　　まものが すんでおる」'] },
@@ -269,7 +269,7 @@ const DUNGEONS = {
             'TTT..#######T#####TTyTTTTT', 'TTTTTTTTTTTTTTTTTTTTTTTTTT'
         ],
         npcs: [
-            { x: 2,  y: 2,  sprite: 20, shop: 'maira:tools',   name: 'どうぐや' },
+            { x: 2,  y: 2,  sprite: 20, lines: ['ろうじん「この むらは もりに かこまれ', '　　　　　まものも よりつかぬ」'] },
             { x: 23, y: 13, sprite: 24, shop: 'maira:weapons', name: 'ぶきや' },
             { x: 20, y: 5,  sprite: 24, shop: 'maira:inn',     name: 'やどや' },
             { x: 13, y: 2,  sprite: 21, lines: ['むすめ「マイラの おんせんは', '　　　　たびの つかれを いやします」'] },
@@ -282,7 +282,7 @@ const DUNGEONS = {
             { x: 21, y: 14, sprite: 18, lines: ['おとこ「メルキドは みなみの はて', '　　　　ゴーレムが もんを まもっておる」'] },
             { x: 9,  y: 15, sprite: 21, lines: ['むすめ「おんせんには はいれませんの」'] },
             { x: 10, y: 15, sprite: 13, lines: ['へいし「ゆだんは きんもつだ」'] },
-            { x: 15, y: 22, sprite: 24, lines: ['しょうにん「キメラのつばさは', '　　　　　　まちへ もどるのに べんり」'] },
+            { x: 15, y: 22, sprite: 24, shop: 'maira:tools',   name: 'どうぐや' },
             { x: 2,  y: 24, sprite: 13, lines: ['へいし「きを つけて いってらっしゃい」'] }
         ]
     },
@@ -297,7 +297,7 @@ const DUNGEONS = {
         outside: T_STONE,
         rows: [
             '##############', '##############', '###BBBBBBBB###', '##BBBBBBBBBB##', '##BB######BB##',
-            '##BB#BB#B#BB##', '##BB#KBBBBBB##', '##BB#BB#B#BB##', '##BB######BB##', '##BBBBBBBBBB##',
+            '##BB#BB#B#BB##', '##BB#rBBBBBB##', '##BB#BB#B#BB##', '##BB######BB##', '##BBBBBBBBBB##',
             '###BBBBBBBB###', '######<B######', '##############', '##############'
         ],
         npcs: [
@@ -316,7 +316,7 @@ const DUNGEONS = {
         outside: T_STONE,
         rows: [
             '##############', '##############', '###BBBBBBBBB##', '###BB#B#B#BB##', '###B##BBB##B##',
-            '###BBB###BBB##', '##<B#B#B#B#B##', '##BB#BBK#B#B##', '###BBB###BBB##', '###B##BBB##B##',
+            '###BBB###BBB##', '##<B#B#B#B#B##', '##BB#BBn#B#B##', '###BBB###BBB##', '###B##BBB##B##',
             '###BB#B#B#BB##', '###BBBBBBBBB##', '##############', '##############'
         ],
         npcs: [
@@ -415,14 +415,19 @@ const DUNGEONS = {
             'B########B#BBBBBBBB#B########B', 'BBBBBBBBBb##########BBBBBBBBBB', 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'
         ],
         npcs: [
-            { x: 8,  y: 3,  sprite: 24, shop: 'melkido:tools',   name: 'どうぐや' },
-            { x: 22, y: 22, sprite: 20, shop: 'melkido:tools',   name: 'どうぐや' },
-            { x: 2,  y: 12, sprite: 24, shop: 'melkido:weapons', name: 'ぶきや' },
-            { x: 22, y: 5,  sprite: 24, shop: 'melkido:weapons', name: 'ぶきや' },
-            { x: 27, y: 26, sprite: 24, shop: 'melkido:weapons', name: 'ぶきや' },
-            { x: 27, y: 6,  sprite: 20, shop: 'melkido:key',     name: 'かぎや' },
-            { x: 24, y: 12, sprite: 13, shop: 'melkido:water',   name: 'せいすいや' },
-            { x: 2,  y: 7,  sprite: 26, shop: 'melkido:inn',     name: 'やどや' },
+            // 店の位置は famicom-database.com の実機スクリーンショット9枚と
+            // マップを突き合わせて1マスずつ特定した（全部100%一致）
+            { x: 8,  y: 3,  sprite: 24, shop: 'melkido:inn',     name: 'やどや' },
+            { x: 22, y: 5,  sprite: 24, shop: 'melkidoW1:weapons', name: 'ぶきや' },
+            { x: 24, y: 12, sprite: 13, shop: 'melkidoW2:weapons', name: 'ぶきや' },
+            { x: 27, y: 26, sprite: 24, shop: 'melkidoW3:weapons', name: 'ぶきや' },
+            { x: 2,  y: 7,  sprite: 26, shop: 'melkidoT1:tools',   name: 'どうぐや' },
+            { x: 7,  y: 12, sprite: 24, shop: 'melkidoT2:tools',   name: 'どうぐや' },
+            { x: 22, y: 13, sprite: 22, shop: 'melkidoWater:water', name: 'せいすいや' },
+            { x: 27, y: 6,  sprite: 20, shop: 'melkidoKey:key',    name: 'かぎや' },
+            // 本家の八百屋。大根が安いらしいが買えない
+            { x: 2,  y: 12, sprite: 24, lines: ['やおや「だいこんが やすいよ！」', '（しかし かう ことは できない）'] },
+            { x: 22, y: 22, sprite: 20, lines: ['ろうじん「ロトの しるしは', '　　　　　みなみの だいちに ねむる」'] },
             { x: 3,  y: 27, sprite: 24, lines: ['しょうにん「ゴーレムが いるかぎり', '　　　　　　この まちは あんぜんだ」'] },
             { x: 14, y: 28, sprite: 20, lines: ['ろうじん「みかがみの たては', '　　　　　この よで いちばんの たて」'] }
         ],
@@ -453,9 +458,9 @@ const DUNGEONS = {
         npcs: [
             { x: 6,  y: 5,  sprite: 23, shop: 'weapons', name: 'ぶきや' },
             { x: 25, y: 5,  sprite: 19, shop: 'tools',   name: 'どうぐや' },
-            { x: 25, y: 11, sprite: 19, shop: 'water',   name: 'せいすいや' },
+            { x: 25, y: 11, sprite: 19, cure: true,  name: 'ろうじん' },
             { x: 11, y: 22, sprite: 23, shop: 'inn',     name: 'やどや' },
-            { x: 26, y: 26, sprite: 12, cure: true,      name: 'ろうじん' },
+            { x: 26, y: 26, sprite: 12, lines: ['へいし「のろわれた ものは', '　　　　きたの いえの ろうじんに みてもらえ」'] },
             { x: 21, y: 11, sprite: 25, lines: ['へいし「ラダトームの しろは', '　　　　この まちの すぐ にしじゃ」'] },
             { x: 21, y: 24, sprite: 25, lines: ['へいし「よるは まちから でるでないぞ」'] },
             { x: 11, y: 6,  sprite: 13, lines: ['ろうじん「どうくつは まっくらじゃ', '　　　　　たいまつを わすれるでないぞ」'] },
@@ -505,6 +510,10 @@ const CHEST_TABLE = {
     // ガライの町（10〜17ゴールド）／リムルダールの町（キメラのつばさ）
     'G': () => ({ gold: 10 + Math.floor(Math.random() * 8) }),
     'w': () => ({ tool: 'wing', name: 'キメラのつばさ' }),
+    // ほこらの宝箱。本家では老人が前に立ちはだかっていて、条件を満たすと
+    // 老人が消えて自分で開ける（famicom-database.com／pidlio のシナリオ攻略）
+    'r': () => ({ item: 'あまぐものつえ', flag: 'rainCloudStuff' }),
+    'n': () => ({ item: 'にじのしずく',   flag: 'rainbowDrop' }),
     '5': () => (!getGameFlag('deathNecklace') && Math.floor(Math.random() * 16) === 0)
               ? { item: 'しのくびかざり', flag: 'deathNecklace' }
               : { gold: 100 + Math.floor(Math.random() * 32) },
@@ -588,7 +597,9 @@ function inCave() { return inDungeon() && !inTown(); }
 // 町の人。足元ではなく「隣に立って話しかける」
 function npcAt(x, y) {
     const d = currentDungeon();
-    return (d && d.npcAt) ? (d.npcAt[x + ',' + y] || null) : null;
+    if (!d || !d.npcAt) return null;
+    if (hiddenNpcs.has(currentMapId + ':' + x + ',' + y)) return null;
+    return d.npcAt[x + ',' + y] || null;
 }
 function adjacentNpc() {
     if (!inTown()) return null;
@@ -644,6 +655,8 @@ let openedChests = new Set();
 // 開けたとびらのうち、じゅもんに残さないもの（家の中のとびらなど）。
 // フラグの桁が足りないので、進行に関わるとびらだけ gameFlags に持たせている
 let openedDoors = new Set();
+// その場からいなくなった人（ほこらの老人）。本家どおり、外へ出ると戻ってくる
+let hiddenNpcs = new Set();
 
 function switchMap(id, x, y) {
     currentMapId = id;
@@ -662,6 +675,7 @@ function leaveDungeon(x, y) {
     radiantSteps = 0;
     openedChests = new Set();  // 宝箱が復活する
     openedDoors = new Set();
+    hiddenNpcs = new Set();
 }
 
 // 入ってきた地上の出入口。リレミトや全滅のときの戻り先に使う
@@ -759,7 +773,7 @@ function enterDungeonAt(x, y) {
     const e = DUNGEON_ENTRANCES[x + ',' + y];
     if (!e || (e[2] && !e[2]())) return false;
     const to = e[1] === null ? DUNGEONS[e[0]].start : DUNGEONS[e[0]].marks[e[1]];
-    torchLit = false; radiantSteps = 0; openedChests = new Set(); openedDoors = new Set();
+    torchLit = false; radiantSteps = 0; openedChests = new Set(); openedDoors = new Set(); hiddenNpcs = new Set();
     dungeonEnteredFrom = { x, y };
     switchMap(e[0], to.x, to.y);
     if (DUNGEONS[e[0]].setFlagOnEnter) setGameFlag(DUNGEONS[e[0]].setFlagOnEnter);
@@ -796,7 +810,8 @@ function dungeonPassable(mapId, x, y) {
             const W = g[0].length, H = g.length;
             if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
         }
-        return !(d.npcAt && d.npcAt[x + ',' + y]);   // 人のいるマスは通れない
+        // 人のいるマスは通れない（いなくなった人は除く）
+        return !(d.npcAt && d.npcAt[x + ',' + y]) || hiddenNpcs.has(mapId + ':' + x + ',' + y);
     }
     if (g[y][x] === D_WALL) return false;
     return !doorLockedOn(mapId, x, y);

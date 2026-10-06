@@ -65,6 +65,7 @@ async function openChestHere() {
         if (getGameFlag(got.flag)) await showMessage(['たからばこを あけた！', 'しかし からっぽだった']);
         else {
             setGameFlag(got.flag); addItemToPlayer(got.item);
+            updatePlayerItems();      // 引きかえに渡したもの（ぎんのたてごと等）を手放す
             await showMessage(['たからばこを あけた！', `${got.item}を てにいれた！`]);
         }
     }
@@ -178,15 +179,18 @@ async function talkToNpc(npc) {
         else
             await showMessage(['けんじゃ「よくぞ ここまで きた', '　　　　　たからばこの たいようの いしを', '　　　　　もってゆくがよい」']);
     }
+    // 本家のほこら: 老人が宝箱の前に立ちはだかっていて、条件を満たすと老人が消え、
+    // 自分で宝箱を開ける。取らずに外へ出ると老人が戻ってくる（本家どおり）
     else if (npc.rainCloud) {
         if (getGameFlag('rainCloudStuff'))
             await showMessage(['ろうじん「もう おもいのこすことは ないわい」']);
         else if (!getGameFlag('silverHerp'))
             await showMessage(['ろうじん「ぎんの たてごとの ねいろを', '　　　　　きいてみたいものじゃ…」']);
         else {
-            setGameFlag('rainCloudStuff'); addItemToPlayer('あまぐものつえ');
-            await showMessage(['ろうじん「おお それは ぎんの たてごと！', '　　　　　そなたに あまぐもの つえを', '　　　　　さずけよう」']);
-            await showMessage(['あまぐもの つえを てにいれた！']);
+            await showMessage(['ろうじん「おお それは ぎんの たてごと！', '　　　　　たしかに うけとったぞ」']);
+            await showMessage(['ろうじん「うしろの たからばこを', '　　　　　もってゆくがよい」']);
+            hiddenNpcs.add(currentMapId + ':' + npc.x + ',' + npc.y);
+            await showMessage(['ろうじんは すがたを けした']);
         }
     }
     else if (npc.rainbowDrop) {
@@ -196,9 +200,10 @@ async function talkToNpc(npc) {
         else if (!have)
             await showMessage(['ろうじん「たいようの いし', '　　　　　あまぐもの つえ', '　　　　　ロトの しるし……', '　　　　　3つ そろえて くるのじゃ」']);
         else {
-            setGameFlag('rainbowDrop'); addItemToPlayer('にじのしずく');
-            await showMessage(['ろうじん「3つの しんぴが そろったな', '　　　　　にじの しずくを さずけよう」']);
-            await showMessage(['にじの しずくを てにいれた！']);
+            await showMessage(['ろうじん「3つの しんぴが そろったな', '　　　　　たしかに うけとったぞ」']);
+            await showMessage(['ろうじん「うしろの たからばこを', '　　　　　もってゆくがよい」']);
+            hiddenNpcs.add(currentMapId + ':' + npc.x + ',' + npc.y);
+            await showMessage(['ろうじんは すがたを けした']);
         }
     }
     else if (npc.king) { await talkToKing(); }
@@ -431,13 +436,23 @@ const townShops = {
     // 品揃え・宿代・かぎの値段は本家FC版の店データどおり(way78.com/dq1/fc/shop.html)。
     // 本家はラダトームだけ城に鍵屋があるが、本作は城と町を分けていないので町でまとめる。
     // リムルダールに道具屋を置いているのは本家との意図的な差（本家は鍵屋のみ）。
-    // 本家: まほうのかぎは まちの どうぐやでは 売っていない（しろの かぎや／リムルダール）
-    radatome:   { inn: 6,   tools: ['herb', 'torch', 'scale', 'water'], keyPrice: 85,
+    // 品揃えは famicom-database.com の FC版ページの販売リストと1点ずつ突き合わせてある。
+    // 本家: まほうのかぎは まちの どうぐやでは 売っていない（しろの かぎや／リムルダール）。
+    // せいすいを売っているのは本家ではメルキドの聖水屋だけ
+    radatome:   { inn: 6,   tools: ['herb', 'torch', 'scale'], keyPrice: 85,
                   weapons: [1, 2, 3], armors: [1, 2], shieldList: [1] },
     garai:      { inn: 25,  tools: ['herb', 'torch', 'scale'],  weapons: [2, 3, 4],  armors: [2, 3, 4], shieldList: [2] },
     maira:      { inn: 20,  tools: ['herb', 'torch', 'scale', 'wing'], weapons: [3, 4], armors: [4, 5], shieldList: [1] },
     rimuldar:   { inn: 55,  tools: ['herb', 'wing', 'key'], keyPrice: 53, weapons: [3, 4, 5], armors: [4, 5, 6] },
     castle:     { tools: ['key'], keyPrice: 85 },   // ラダトーム城 北東の かぎや
+    // メルキドは店が8つある。中身は famicom-database.com の FC版ページどおり
+    melkidoW1:  { weapons: [1, 2, 3], armors: [2, 3], shieldList: [2] },
+    melkidoW2:  { weapons: [6], armors: [], shieldList: [3] },        // ほのおのつるぎ・みかがみのたて
+    melkidoW3:  { weapons: [4, 5], armors: [5, 6], shieldList: [] },
+    melkidoT1:  { tools: ['herb', 'torch'] },
+    melkidoT2:  { tools: ['scale', 'wing'] },
+    melkidoWater: { tools: ['water'] },
+    melkidoKey: { tools: ['key'], keyPrice: 98 },
     melkido:    { inn: 100, tools: ['herb', 'torch', 'water', 'scale', 'wing', 'key'], keyPrice: 98,
                   weapons: [1, 2, 3, 4, 5, 6], armors: [2, 3, 5, 6], shieldList: [2, 3] }
 };
@@ -1738,8 +1753,10 @@ const TOWN_ERRANDS = {
     garaiTomb:  { entrance: '10,10',  targets: [{ map: 'garai', x: 18, y: 12, act: 'door' },
                                                 { map: 'garai', x: 20, y: 1,  act: 'tomb' }] },
     fairyFlute: { entrance: '112,18', targets: [{ map: 'maira', x: 10, y: 7,  act: 'flute' }] },
-    rainCloud:  { entrance: '89,9',   targets: [{ map: 'amehoko', x: 7, y: 6, act: 'talk' }] },
-    rainbowDrop:{ entrance: '116,117',targets: [{ map: 'seihoko', x: 5, y: 7, act: 'talk' }] },
+    rainCloud:  { entrance: '89,9',   targets: [{ map: 'amehoko', x: 7, y: 6, act: 'talk' },
+                                                { map: 'amehoko', x: 5, y: 6, act: 'chest' }] },
+    rainbowDrop:{ entrance: '116,117',targets: [{ map: 'seihoko', x: 5, y: 7, act: 'talk' },
+                                                { map: 'seihoko', x: 7, y: 7, act: 'chest' }] },
     // リムルダールは入るだけで「かぎが買える町」と分かる（買い物は地上から）
     magicKey:   { entrance: '110,80', targets: [] },
     rotoArmor:  { entrance: '33,97',  targets: [{ map: 'domdora', x: 19, y: 13, act: 'armor' }] }
