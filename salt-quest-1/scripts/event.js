@@ -92,18 +92,6 @@ async function useStairsHere() {
 
 // 町のマスの上で「しらべる」と起きること
 const TOWN_EVENTS = {
-    // ガライの町の北にある、ガライの墓への階段。墓そのものはまだ作っていないので
-    // 本家の「墓の奥で ぎんのたてごと を見つける」ところまでをここでまとめている
-    garaiTomb: async () => {
-        if (getGameFlag('silverHerp')) {
-            await showMessage(['ガライの はかだ', 'もう なにも のこっていない']);
-        } else {
-            setGameFlag('silverHerp'); addItemToPlayer('ぎんのたてごと');
-            await showMessage(['ガライの はかへ おりた']);
-            await showMessage(['おくの たからばこから', 'ぎんの たてごとを てにいれた！']);
-        }
-        currentState = STATE.FIELD;
-    },
     // 本家: マイラの おんせん から 南に4マス の地面に ようせいのふえ が埋まっている
     // 本家: 東の毒沼の先の森に ロトのよろい が隠れていて、あくまのきし が守っている
     rotoArmor: async () => {
@@ -1690,10 +1678,13 @@ function rebuildTour(exitOnly) {
     if (t.kind === 'explore') {
         t.plan = planDungeonTour({ fromMap: currentMapId, x: playerPosition.x, y: playerPosition.y,
                                    entranceKey: t.entranceKey, exitOnly: t.retreat });
-    } else if (inDungeon()) {
-        t.plan = planFromHere(t.retreat ? [] : t.targets, t.exitKey);
     } else {
-        t.plan = planErrand(t.entranceKey, t.retreat ? [] : t.targets, t.exitKey);
+        // もう開けた とびら は目印から外す。残すと開いた扉の前へ戻ろうとして
+        // いつまでも先へ進めない
+        const left = (t.retreat ? [] : t.targets)
+            .filter(x => x.act !== 'door' || doorLockedOn(x.map, ...doorOf(x)));
+        t.plan = inDungeon() ? planFromHere(left, t.exitKey)
+                             : planErrand(t.entranceKey, left, t.exitKey);
     }
     t.at = 0;
     t.path = null; t.pathAt = -1;
@@ -1786,11 +1777,14 @@ function castleTargets(kind) {
 }
 // とびらを開ける区間があるのに かぎ が1本も用意できないなら、その用事は始めない。
 // 途中の宝箱で かぎ が手に入るなら数に入れる（玉座の間の出口がこれ）
+// とびらの位置。door で明示されていなければ「立つマスの1つ上」
+function doorOf(t) { return t.door ? [t.door.x, t.door.y] : [t.x, t.y - 1]; }
 function canOpenDoors(targets) {
-    if (!targets.some(t => t.act === 'door')) return true;
+    const doors = targets.filter(t => t.act === 'door').length;
+    if (!doors) return true;
     const fromChest = targets.filter(t => t.act === 'chest'
         && (DUNGEONS[t.map].chestAt || {})[t.x + ',' + t.y] === '9').length;
-    return player.key + fromChest > 0;
+    return player.key + fromChest >= doors;   // とびら1枚につき かぎ1本
 }
 
 function startCastleErrand(kind) {
@@ -1809,8 +1803,11 @@ function inCastle() { return ['rcastle1', 'rcastle2', 'rcastleB1'].includes(curr
 
 // 町の中まで歩いて用事を済ませるお使い。入口・目的地・戻り口を並べるだけ
 const TOWN_ERRANDS = {
+    // ガライの墓は、町の奥のとびら と ちか1かいのとびら の2枚を開けないと下へ行けない
     garaiTomb:  { entrance: '10,10',  targets: [{ map: 'garai', x: 18, y: 12, act: 'door' },
-                                                { map: 'garai', x: 20, y: 1,  act: 'tomb' }] },
+                                                { map: 'garaiTomb1', x: 19, y: 18,
+                                                  door: { x: 19, y: 19 }, act: 'door' },
+                                                { map: 'garaiTomb3', x: 15, y: 8, act: 'chest' }] },
     fairyFlute: { entrance: '112,18', targets: [{ map: 'maira', x: 10, y: 7,  act: 'flute' }] },
     rainCloud:  { entrance: '89,9',   targets: [{ map: 'amehoko', x: 7, y: 6, act: 'talk' },
                                                 { map: 'amehoko', x: 5, y: 6, act: 'chest' }] },
@@ -1930,11 +1927,28 @@ function autoPickChoice() {
     return pick >= 0 ? pick : quit;
 }
 
+// 用事の行き先に 敵の出る階 が混じっているか（墓・洞窟など）
+function errandIsRisky(kind) {
+    const e = TOWN_ERRANDS[kind];
+    if (!e) return false;
+    return (e.targets || []).some(t => {
+        const d = DUNGEONS[t.map];
+        return d && d.kind !== 'town' && !d.noEncounter;
+    });
+}
+// 削られたまま踏み込むと、入ってすぐ引き返し→外でまた用事を始める、の往復になる。
+// 敵の出る階へ行く用事は、体力と回復手段を整えてから始める
+function errandReady(kind) {
+    if (!errandIsRisky(kind)) return true;
+    const canHeal = player.herb > 0 || (player.spells.includes('ホイミ') && player.mp >= 4);
+    return player.hp >= player.maxHp * 0.8 && canHeal;
+}
+
 function startTownErrand(kind) {
     const e = TOWN_ERRANDS[kind];
     if (!e) return false;
     // とびらが もう開いているなら その区間は飛ばす
-    const targets = e.targets.filter(t => t.act !== 'door' || doorLockedOn(t.map, t.x, t.y - 1));
+    const targets = e.targets.filter(t => t.act !== 'door' || doorLockedOn(t.map, ...doorOf(t)));
     if (!canOpenDoors(targets)) return false;
     const plan = inDungeon() ? planFromHere(targets, e.entrance)
                              : planErrand(e.entrance, targets, e.entrance);
@@ -1956,13 +1970,15 @@ function nearestKeyTown() {
     return near;
 }
 
-// かぎのかかった とびら を開けないと進めない用事かどうか
+// その用事で開けなければならない とびら の数（＝必要な かぎ の本数）
 function questNeedsKey(q) {
-    if (!q) return false;
-    if (q.tour === 'castleStone') return doorLockedOn('rcastle1', 19, 7);
-    if (q.tour === 'rora')        return doorLockedOn('numachi', 5, 20);
-    if (q.tour === 'garaiTomb')   return doorLockedOn('garai', 18, 11);
-    return false;
+    if (!q) return 0;
+    if (q.tour === 'castleStone') return doorLockedOn('rcastle1', 19, 7) ? 1 : 0;
+    if (q.tour === 'rora')        return doorLockedOn('numachi', 5, 20) ? 1 : 0;
+    // ガライの墓は 町の奥 と ちか1かい の2枚
+    if (q.tour === 'garaiTomb')   return (doorLockedOn('garai', 18, 11) ? 1 : 0)
+                                       + (doorLockedOn('garaiTomb1', 19, 19) ? 1 : 0);
+    return 0;
 }
 
 function autoTourStep() {
@@ -2173,7 +2189,7 @@ function autoTick(now) {
             }
             // かぎが要る用事は、かぎを手に入れてから向かう。そのまま行くと
             // とびらが開けられず、用事を作り直し続けて止まる
-            if (questNeedsKey(q) && player.key <= 0) {
+            if (player.key < questNeedsKey(q)) {
                 if (player.gold >= toolGoods.key.price) {
                     const near = nearestKeyTown();
                     if (near) {
@@ -2194,6 +2210,11 @@ function autoTick(now) {
             // 前回たどり着いてもフラグが立たなかった＝倒せていないので、鍛えてから戻る
             else if (autoPilot.grindUntil && player.level < autoPilot.grindUntil) {
                 // 下の狩り処理にそのまま流す
+            // 用事の入口に着いていても、体力が整っていなければ始めない。
+            // ここで何もしないと、下の宿屋処理が働いて回復してから出直せる
+            } else if (playerPosition.x === q.x && playerPosition.y === q.y
+                       && !errandReady(q.tour)) {
+                autoPilot.path = null; autoPilot.goal = null;
             } else if (playerPosition.x === q.x && playerPosition.y === q.y) {
                 autoPilot.grindUntil = 0;
                 if (q.tour === 'castleKing' || q.tour === 'castleStone') {

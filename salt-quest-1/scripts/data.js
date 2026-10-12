@@ -28,7 +28,8 @@ var gameFlags = {
     castleDoorThrone:   { bit: 20, flag: false, location: { x: 0, y: 0 } },  // 玉座の間の出口
     castleDoorB1:       { bit: 21, flag: false, location: { x: 0, y: 0 } },  // 1F北東（地下へ）
     castleDoorTreasure: { bit: 22, flag: false, location: { x: 0, y: 0 } },  // 1F たからの へや
-    garaiDoor:          { bit: 23, flag: false, location: { x: 0, y: 0 } }   // ガライの町 北への とびら
+    garaiDoor:          { bit: 23, flag: false, location: { x: 0, y: 0 } },  // ガライの町 北への とびら
+    cursedBelt:         { bit: 24, flag: false, location: { x: 0, y: 0 } }   // ガライの墓 のろいのベルト
 };
 
 function setGameFlag(flagName) { gameFlags[flagName].flag = true; }
