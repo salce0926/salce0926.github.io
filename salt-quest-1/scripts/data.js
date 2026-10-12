@@ -29,7 +29,10 @@ var gameFlags = {
     castleDoorB1:       { bit: 21, flag: false, location: { x: 0, y: 0 } },  // 1F北東（地下へ）
     castleDoorTreasure: { bit: 22, flag: false, location: { x: 0, y: 0 } },  // 1F たからの へや
     garaiDoor:          { bit: 23, flag: false, location: { x: 0, y: 0 } },  // ガライの町 北への とびら
-    cursedBelt:         { bit: 24, flag: false, location: { x: 0, y: 0 } }   // ガライの墓 のろいのベルト
+    cursedBelt:         { bit: 24, flag: false, location: { x: 0, y: 0 } },  // ガライの墓 のろいのベルト
+    // りゅうおうの しろ
+    rotoSword:          { bit: 25, flag: false, location: { x: 0, y: 0 } },  // B2 ロトのつるぎ
+    cursedBelt2:        { bit: 26, flag: false, location: { x: 0, y: 0 } }   // B7 のろいのベルト
 };
 
 function setGameFlag(flagName) { gameFlags[flagName].flag = true; }
@@ -275,6 +278,10 @@ const encounterRatesZone0 = { 27: 1/48, 28: 1/32, 29: 1/32, 33: 1/16, 34: 1/16, 
 // キーは dungeon.js のタイル番号（床3／階段6／宝箱4／とびら5）。
 // 開けたあとの とびら は床と同じ扱い
 const dungeonRates = { '3': 1/16, '5': 1/16, '6': 1/24, '7': 1/24, '4': 1/24 };
+// 竜王の城は町の記号で組んであるが中身はダンジョン。ダンジョンの床・階段・宝箱に
+// 加えて、B7に出てくる地上の地形（草原・森・砂漠・橋）も地上と同じ確率で出す
+const castleRates = { '3': 1/16, '8': 1/16, '5': 1/16, '6': 1/24, '7': 1/24, '4': 1/24,
+                      '27': 1/24, '28': 1/16, '33': 1/8, '35': 1/24 };
 
 // そのマスの1歩あたりの遭遇率
 function encounterRateAt(x, y) {
@@ -284,7 +291,7 @@ function encounterRateAt(x, y) {
         // 本家のロトの洞窟のように、敵が一切出ないダンジョンがある
         if (d.noEncounter) return 0;
         // ドムドーラの廃墟は町あつかいだが地形は地上と同じなので、地上の確率表を使う
-        if (d.kind === 'town') return encounterRates[tile] || 0;
+        if (d.kind === 'town') return (d.dark ? castleRates : encounterRates)[tile] || 0;
         return dungeonRates[String(tile)] || 0;
     }
     return (zoneAt(x, y) === 0 ? encounterRatesZone0 : encounterRates)[tile] || 0;
@@ -403,7 +410,7 @@ function updatePlayerStyle(){
 // 本家同様レベルは経験値から復元するので、レベル自体は保存しない
 // =====================================================================
 const PASS_FIELDS = [
-    { name: 'flags',  bits: 24 },  // いまは14個。ダンジョンの宝箱を足しても桁が伸びないよう広めに取る
+    { name: 'flags',  bits: 32 },  // フラグはいま27個。足しても桁が伸びないよう広めに取る
     { name: 'exp',    bits: 16 },
     { name: 'gold',   bits: 16 },
     { name: 'weapon', bits: 3 },
@@ -415,7 +422,7 @@ const PASS_FIELDS = [
     { name: 'water',  bits: 3 },
     { name: 'torch',  bits: 3 },
     { name: 'scale',  bits: 1 },
-    { name: 'spare',  bits: 25 }   // 将来の追加ぶん。中身は0
+    { name: 'spare',  bits: 17 }   // 将来の追加ぶん。中身は0
 ];
 const PASS_CHECKSUM_BITS = 8;
 const PASS_PAYLOAD_BITS = PASS_FIELDS.reduce((n, f) => n + f.bits, 0);   // 106

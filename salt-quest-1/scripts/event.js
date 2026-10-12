@@ -61,6 +61,15 @@ async function openChestHere() {
             player[got.tool]++;
             await showMessage(['たからばこを あけた！', `${got.name}を てにいれた！`]);
         }
+    } else if (got.weapon) {
+        const idx = weapons.findIndex(w => w.name === got.weapon);
+        if (player.weaponIndex >= idx) await showMessage(['たからばこを あけた！', 'しかし からっぽだった']);
+        else {
+            setGameFlag(got.flag);
+            player.weaponIndex = idx; recalcPlayerPower();
+            await showMessage(['たからばこを あけた！', `${got.weapon}を てにいれた！`,
+                               `こうげき力が ${player.attack}に なった！`]);
+        }
     } else {
         if (getGameFlag(got.flag)) await showMessage(['たからばこを あけた！', 'しかし からっぽだった']);
         else {
@@ -160,6 +169,48 @@ async function talkToNpc(npc) {
             await showMessage(['ろうじん「ひかり あれ！」']);
             await showMessage(['まりょくが みなぎってきた！']);
         }
+    }
+    // りゅうおう。本家どおり まず2択の質問を投げてくる。
+    // 「はい」を選ぶと世界の半分と引きかえに仲間になり、そこでゲームが終わる
+    else if (npc.dragonLord) {
+        if (getGameFlag('lightBall')) { currentState = STATE.FIELD; return; }
+        await showMessage(['りゅうおう「よくぞ まいった ゆうしゃよ',
+                           '　　　　　　わしは そなたを まっておった」']);
+        await showMessage(['りゅうおう「どうじゃ ゆうしゃよ',
+                           '　　　　　　わしの みかたに なれば',
+                           '　　　　　　せかいの はんぶんを あたえよう」']);
+        const yes = await chooseFromList(['りゅうおうの さそいに のりますか？'], ['いいえ', 'はい']);
+        if (yes === 1) {
+            await showMessage(['りゅうおう「ほんとうだな？',
+                               '　　　　　　ほんとうに わしの みかたに なるか？」']);
+            const yes2 = await chooseFromList(['ほんとうに そうしますか？'], ['いいえ', 'はい']);
+            if (yes2 === 1) {
+                await showMessage(['りゅうおう「では せかいの はんぶんを あたえよう',
+                                   '　　　　　　ゆうしゃよ ねむるがよい...」']);
+                await showMessage([`${player.name}は やみに のまれた`, 'ぼうけんは ここで おわった...']);
+                await badEnding();
+                return;
+            }
+        }
+        await showMessage(['りゅうおう「ならば しかたあるまい',
+                           '　　　　　　わが しろで ほろびるがよい！」']);
+        const result = await startBattle(dragonLordHuman);
+        if (result === 'win') {
+            setGameFlag('lightBall');
+            await showMessage(['りゅうおうを たおした！', 'ひかりのたまを 手に入れた！']);
+            await showMessage(['せかいに ひかりが もどった！']);
+            // 本家: 倒すと城の外へ自動で脱出する
+            leaveDungeon(56, 56);
+            // オート中は「戻り道」の予定が残っているので捨てる。残すと城へ入り直してしまう
+            if (typeof autoPilot !== 'undefined' && autoPilot.tour) {
+                autoPilot.tour = null; autoPilot.path = null; autoPilot.goal = null;
+                autoPilot.lastLine = '';
+            }
+            await showMessage(['しろの そとへ はこびだされた', 'ラダトームの しろへ もどろう']);
+        } else if (result === 'flee') {
+            await showMessage(['いのちあっての ものだね...']);
+        }
+        // 敗北時は playerKilled で城に運ばれている
     }
     else if (npc.sage) {
         if (getGameFlag('sunStone'))
@@ -338,30 +389,6 @@ async function interactField() {
             deleteItemFromPlayer('にじのしずく');
             await showMessage(['虹の橋が架かった！']);
         }
-    } else if (isVisit(gameFlags.lightBall.location.x, gameFlags.lightBall.location.y)) {
-        if (getGameFlag('lightBall')) {
-            await showMessage(['りゅうおうの しろは しずかだ', 'ひかりのたまは たしかに この手にある']);
-        } else {
-            // 本家ではロトのつるぎは竜王の城B2の宝箱。ダンジョンを作るまでの仮置きとして
-            // 城に着いた時点で拾えることにしておく（装備indexで持っているか判定する）
-            const rotoSword = weapons.findIndex(w => w.name === 'ロトのつるぎ');
-            if (player.weaponIndex < rotoSword) {
-                player.weaponIndex = rotoSword;
-                recalcPlayerPower();
-                await showMessage(['しろの ちかに たからばこが あった！', 'ロトのつるぎを 手に入れた！',
-                                   `こうげき力が ${player.attack}に なった！`]);
-            }
-            await showMessage(['りゅうおう「よくきたな ゆうしゃよ', '　　　　　　わが しろで ほろびるがよい！」']);
-            const result = await startBattle(dragonLordHuman);
-            if (result === 'win') {
-                setGameFlag('lightBall');
-                await showMessage(['りゅうおうを たおした！', 'ひかりのたまを 手に入れた！']);
-                await showMessage(['せかいに ひかりが もどった！', 'ラダトームの しろへ もどろう']);
-            } else if (result === 'flee') {
-                await showMessage(['いのちあっての ものだね...', 'そうびを ととのえて でなおそう']);
-            }
-            // 敗北時は playerKilled で城に運ばれている
-        }
     } else {
         handled = false;
     }
@@ -399,6 +426,29 @@ async function copyPass(text) {
         }
     } catch (e) {}
     return false;
+}
+
+// 本家: りゅうおうの さそいに のると、復活のじゅもんを聞かされてゲームが止まる。
+// そのじゅもんを入れるとレベル1・持ち物なしから やり直しになる
+async function badEnding() {
+    for (const flagName in gameFlags) clearGameFlag(flagName);
+    player.exp = 0; player.gold = 0;
+    player.weaponIndex = 0; player.armorIndex = 0; player.shieldIndex = 0;
+    player.herb = 0; player.key = 0; player.wing = 0; player.water = 0;
+    player.torch = 0; player.scale = false; player.items = [];
+    restorePlayerFromExp();
+    calcFlagsToCode();
+    await showMessage(['りゅうおう「では ふっかつのじゅもんを おしえよう',
+                       '　　　　　　よく メモを とるのじゃぞ」']);
+    await showMessage(['ふっかつのじゅもん',
+                       `　${pass.slice(0,5)}　${pass.slice(5,12)}`,
+                       `　${pass.slice(12,17)}　${pass.slice(17,20)}`]);
+    rememberPass(pass);
+    await copyPass(pass);
+    await showMessage(['...ぼうけんは ここで おわってしまった']);
+    if (typeof autoPilot !== 'undefined' && autoPilot.on) autoStop('りゅうおうの さそいに のった');
+    switchMap('world', 56, 56);
+    currentState = STATE.TITLE;
 }
 
 async function offerRecord() {
@@ -799,7 +849,7 @@ let lastMoveTime = 0;
 function isMoveAllowed(x, y) {
     if (typeof mapData === 'undefined' || !mapData[y] || mapData[y][x] === undefined) return false;
     if (debugMode) return true;
-    if (inTown()) return dungeonPassable(currentMapId, x, y) || !!townEdgeExit(x, y);
+    if (isTownMap()) return dungeonPassable(currentMapId, x, y) || !!townEdgeExit(x, y);
     if (inDungeon()) return mapData[y][x] !== D_WALL && !isDoorLocked(x, y);
     return [25, 26, 27, 28, 29, 31, 32, 33, 34, 35].includes(mapData[y][x]);
 }
@@ -1293,7 +1343,11 @@ const QUEST_STEPS = [
     { name: 'ひめを 城へ つれて かえる', x: 51, y: 51,  tour: 'castleKing', done: () => getGameFlag('roraLove') },
     { name: 'にじのしずく',            x: 116, y: 117, tour: 'rainbowDrop', done: () => getGameFlag('rainbowDrop') },
     { name: 'にじの はしを かける',    x: 73,  y: 57,  done: () => getGameFlag('rainbowBridge') },
-    { name: 'りゅうおうを たおす',     x: 56,  y: 56,  done: () => getGameFlag('lightBall') }
+    // 本家: まず B2 の ロトのつるぎ を取ってから 最深部の りゅうおう へ
+    { name: 'しろの ちかで ロトのつるぎ', x: 56, y: 56, tour: 'rotoSword',
+      done: () => getGameFlag('rotoSword') },
+    { name: 'りゅうおうを たおす',     x: 56,  y: 56,  tour: 'dragonLord',
+      done: () => getGameFlag('lightBall') }
 ];
 function nextQuestStep() { return QUEST_STEPS.find(q => !q.done()) || null; }
 
@@ -1815,7 +1869,10 @@ const TOWN_ERRANDS = {
                                                 { map: 'seihoko', x: 7, y: 7, act: 'chest' }] },
     // リムルダールは入るだけで「かぎが買える町」と分かる（買い物は地上から）
     magicKey:   { entrance: '110,80', targets: [] },
-    rotoArmor:  { entrance: '33,97',  targets: [{ map: 'domdora', x: 19, y: 13, act: 'armor' }] }
+    rotoArmor:  { entrance: '33,97',  targets: [{ map: 'domdora', x: 19, y: 13, act: 'armor' }] },
+    // りゅうおうの しろ。本家どおり ちか2かいの ロトのつるぎ を先に取りに行く
+    rotoSword:  { entrance: '56,56',  targets: [{ map: 'ryuouB2', x: 7, y: 7, act: 'chest' }] },
+    dragonLord: { entrance: '56,56',  targets: [{ map: 'ryuouB7', x: 18, y: 25, act: 'talk' }] }
 };
 // =====================================================================
 // オートの町めぐり。地上から店を使うのをやめて、実際に町の中へ入って
@@ -1933,7 +1990,7 @@ function errandIsRisky(kind) {
     if (!e) return false;
     return (e.targets || []).some(t => {
         const d = DUNGEONS[t.map];
-        return d && d.kind !== 'town' && !d.noEncounter;
+        return d && (d.kind !== 'town' || d.dark) && !d.noEncounter;
     });
 }
 // 削られたまま踏み込むと、入ってすぐ引き返し→外でまた用事を始める、の往復になる。
@@ -2217,10 +2274,6 @@ function autoTick(now) {
                 autoPilot.path = null; autoPilot.goal = null;
             } else if (playerPosition.x === q.x && playerPosition.y === q.y) {
                 autoPilot.grindUntil = 0;
-                if (q.tour === 'castleKing' || q.tour === 'castleStone') {
-                    if (startCastleErrand(q.tour)) return;
-                }
-                if (TOWN_ERRANDS[q.tour]) { if (startTownErrand(q.tour)) return; }
                 if (q.name === 'りゅうおうを たおす') {
                     const need = levelForDragonLord();
                     if (need > player.level) {           // 勝てないうちは鍛えてから
@@ -2230,6 +2283,10 @@ function autoTick(now) {
                         return;
                     }
                 }
+                if (q.tour === 'castleKing' || q.tour === 'castleStone') {
+                    if (startCastleErrand(q.tour)) return;
+                }
+                if (TOWN_ERRANDS[q.tour]) { if (startTownErrand(q.tour)) return; }
                 if (q.tour === 'rora') {                 // 洞窟の奥まで行く
                     const need = levelForCaveDragon();
                     if (need > player.level) {           // ドラゴンに勝てないうちは鍛えてから

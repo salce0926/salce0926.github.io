@@ -24,12 +24,13 @@ const D_DOOR  = 5;    // かぎのかかった とびら
 const T_GRASS = 27, T_STONE = 1, T_BRICK = 3, T_TREE = 28, T_WATER = 50,
       T_SAND = 33, T_SIGN_SHOP = 9, T_SIGN_INN = 10, T_BRIDGE = 35,
       T_COUNTER = 2,      // みせの カウンター（本家の町に宝箱は無い）
-      T_POISON = 34;      // どくの ぬまち（ドムドーラ・マイラ）
+      T_POISON = 34,      // どくの ぬまち（ドムドーラ・マイラ）
+      T_BARRIER = 8;      // 竜王の城の ななめ縞のゆか（本家の実画面で歩けることを確認）
 // 町の記号 → タイル。ダンジョンとは別の対応表を使う
 const TOWN_TILES = {
     '.': T_GRASS, '#': T_STONE, 'B': T_BRICK, 'T': T_TREE, '~': T_WATER,
     's': T_SAND, 'C': T_COUNTER, 'D': D_DOOR, 'W': T_SIGN_SHOP, 'I': T_SIGN_INN,
-    '?': T_BRIDGE, 'p': T_POISON,
+    '?': T_BRIDGE, 'p': T_POISON, 'x': T_BARRIER,
     'K': D_CHEST,       // みせの たな。宝箱と同じ絵だが開かない（本家の店の飾り）
     'v': D_STAIR_DOWN,  // 下りていく場所。中身は events で決める
     'E': T_BRICK, 'e': T_GRASS, 'y': T_SAND, 'b': T_BRICK   // 町の出入口。見た目はそのままで目印だけ置く
@@ -554,6 +555,162 @@ const DUNGEONS = {
             '..#...', '#...##', '###...', '..#.#.', '>...#.'
         ],
         links: { '<': ['world', 112, 52], '>': ['world', 112, 57] }
+    },
+
+    // =================================================================
+    // りゅうおうの しろ（1かい〜ちか7かい）
+    // 地形は pidlio.com の実画面マップ 14-01〜14-08 を16pxタイルで読み取り、
+    // famicom-database.com の実機マップ(DUNJEON_5_1〜8)と突き合わせて確定した。
+    // 階段のつながりは pidlio の A〜U のラベル、出現モンスターは両サイトの
+    // フロア別リストがゾーン16/17/18とちょうど一致する。
+    // =================================================================
+    ryuou1: {
+        kind: 'town',
+        dark: true,          // 本家どおり まっくら。たいまつ／レミーラが要る
+        name: 'りゅうおうの しろ',
+        floorName: '1かい',
+        depth: 0,
+        zone: 16,
+        outside: T_TREE,
+        start: { x: 10, y: 20 },
+        exitTo: { x: 56, y: 56 },
+        rows: [
+            'TTTTTTTTTTTTTTTTTTTTTT', 'TTT###TT###########TTT', 'TT##B##T#xxAxx#BBB##TT', 'T##BBB###xCCCx#B#BB##T',
+            'T#BB#BBB#xCxCx#BBBBB#T', 'T#B####B#xxxxx##B##B#T', 'T#B#BBBB#xxxxx#BBB#B#T', 'T#B##B#B##BBB##B#BBB#T',
+            'T#B#BBBBB##x##BBBBBB#T', 'T#B#####B#BBB######B#T', 'T#B#xxx#B##x###xxx#B#T', 'T#B#x#x#B#BBB##x#x#B#T',
+            'T#B#xxx#B##x###xxx#B#T', 'T#B#x#x#BBBBB##x#x#B#T', 'T#B#xxx########xxx#B#T', 'T#B##c##BBBBBB##f##B#T',
+            'T#BB###BB#BB#BB###BB#T', 'T##BBBBBBBBBBBBBBBB##T', 'TT##BBB###BB###BBB##TT', 'TTT#####T#BB#T#####TTT',
+            'TTTTTTTTT#EB#TTTTTTTTT', 'TTTTTTTTTTTTTTTTTTTTTT'
+        ],
+        links: { A: ['ryuouB1','A'], c: ['ryuouB1','c'], f: ['ryuouB1','f'], E: ['world', 56, 56] }
+    },
+    ryuouB1: {
+        kind: 'town',
+        dark: true,          // 本家どおり まっくら。たいまつ／レミーラが要る
+        name: 'りゅうおうの しろ',
+        floorName: 'ちか1かい',
+        depth: 1,
+        zone: 16,
+        outside: T_STONE,
+        rows: [
+            '########################', '########################', '##BBBBBBBB#A#BBB#BBBBB##', '##B#####BB#BBB#B#i###B##',
+            '##B#BBB##B#####B###BBB##', '##B#BBBB#BBBBBBB##BB#B##', '##B#lB#B##BBBBB##BB#####', '##B####BB#######BB##BB##',
+            '##BBBB##B#BBBB#BB##BBB##', '####BB#BB##BB##FB#BB#m##', '##B##B#B##BBBB####BB####', '##BBBB#B#BB##BB#H##B#B##',
+            '##B####B#BB##BB#BB#B#B##', '##B#BBBB##BBBB##BB######', '##B#B#BBB##BB##BB##B#B##', '##B#B###B#cBBB#BBBBB#B##',
+            '##B#o#BBB########B###B##', '##B###B###BBBBBBBB#fBB##', '##B#BBBBBBB####B###BBB##', '##B#BB####BBB#BBBB#BBB##',
+            '##B####BB###B####BBB#B##', '##BBBBBBBBJ#BBBBBB#BBB##', '########################', '########################'
+        ],
+        links: { A: ['ryuou1','A'], c: ['ryuou1','c'], f: ['ryuou1','f'],
+                 i: ['ryuouB2','i'], l: ['ryuouB2','l'], F: ['ryuouB2','F'], m: ['ryuouB2','m'],
+                 H: ['ryuouB2','H'], o: ['ryuouB2','o'], J: ['ryuouB2','J'] }
+    },
+    ryuouB2: {
+        kind: 'town',
+        dark: true,          // 本家どおり まっくら。たいまつ／レミーラが要る
+        name: 'りゅうおうの しろ',
+        floorName: 'ちか2かい',
+        depth: 2,
+        zone: 17,
+        outside: T_STONE,
+        rows: [
+            '##############', '##############', '##lB#q#JB#iB##', '##o##B##B##L##',
+            '####BBB#BB####', '##BBB####BBB##', '##B###FB#B#B##', '##B#B#BS###B##',
+            '##BBB####BBB##', '####BB#BBB####', '##M##B##B##m##', '##BN#BBBB#HB##',
+            '##############', '##############'
+        ],
+        links: { i: ['ryuouB1','i'], l: ['ryuouB1','l'], F: ['ryuouB1','F'], m: ['ryuouB1','m'],
+                 H: ['ryuouB1','H'], o: ['ryuouB1','o'], J: ['ryuouB1','J'],
+                 q: ['ryuouB3','q'], L: ['ryuouB3','L'], M: ['ryuouB3','M'], N: ['ryuouB3','N'] }
+    },
+    ryuouB3: {
+        kind: 'town',
+        dark: true,          // 本家どおり まっくら。たいまつ／レミーラが要る
+        name: 'りゅうおうの しろ',
+        floorName: 'ちか3かい',
+        depth: 3,
+        zone: 17,
+        outside: T_STONE,
+        rows: [
+            '##############', '##############', '##BBBBBB#qBB##', '##B###BB###B##',
+            '##B#L#BBBBBB##', '##B#B###B##B##', '##B#BB#MBB#B##', '##B##B###B#B##',
+            '##BO#BBB###B##', '#######BBP#B##', '##BBBB#####B##', '##NB#BBBBBBB##',
+            '##############', '##############'
+        ],
+        links: { q: ['ryuouB2','q'], L: ['ryuouB2','L'], M: ['ryuouB2','M'], N: ['ryuouB2','N'],
+                 O: ['ryuouB4','O'], P: ['ryuouB4','P'] }
+    },
+    ryuouB4: {
+        kind: 'town',
+        dark: true,          // 本家どおり まっくら。たいまつ／レミーラが要る
+        name: 'りゅうおうの しろ',
+        floorName: 'ちか4かい',
+        depth: 4,
+        zone: 17,
+        outside: T_STONE,
+        rows: [
+            '##############', '##############', '##BBBBBBBBBB##', '##B######BQB##',
+            '##B#RBBBBBBB##', '##B####BBB#B##', '##BBBB#BBB#B##', '##B##B###B#B##',
+            '####BBBB#B#B##', '###BBB#B#P#B##', '##BBB##B###B##', '##OB##BBBBBB##',
+            '##############', '##############'
+        ],
+        links: { O: ['ryuouB3','O'], P: ['ryuouB3','P'], Q: ['ryuouB5','Q'], R: ['ryuouB5','R'] }
+    },
+    ryuouB5: {
+        kind: 'town',
+        dark: true,          // 本家どおり まっくら。たいまつ／レミーラが要る
+        name: 'りゅうおうの しろ',
+        floorName: 'ちか5かい',
+        depth: 5,
+        zone: 18,
+        outside: T_STONE,
+        rows: [
+            '##############', '##############', '##t#B#QBBB#R##', '##B#B####B#B##',
+            '##B#BBBB#B#B##', '##B#B##B#B#B##', '##B#B#BB#B#B##', '##B#B#Bu#B#B##',
+            '##B#B####B#B##', '##B#BBBBBB#B##', '##B########B##', '##BBBBBBBBBB##',
+            '##############', '##############'
+        ],
+        links: { Q: ['ryuouB4','Q'], R: ['ryuouB4','R'], t: ['ryuouB6','t'], u: ['ryuouB6','u'] }
+    },
+    ryuouB6: {
+        kind: 'town',
+        dark: true,          // 本家どおり まっくら。たいまつ／レミーラが要る
+        name: 'りゅうおうの しろ',
+        floorName: 'ちか6かい',
+        depth: 6,
+        zone: 18,
+        outside: T_STONE,
+        stairKind: { Z: 'down' },   // 本家の「ループ階段」。降りても同じ階に戻る
+        rows: [
+            '##############', '##############', '##############', '##uBBBBBBBBZ##',
+            '##############', '##############', '###BBBBBBBB###', '###BBBBBBBB###',
+            '##tBBBBBBBBU##', '###BBBBBBBB###', '###BBBBBBBB###', '##############',
+            '##############', '##############'
+        ],
+        links: { t: ['ryuouB5','t'], u: ['ryuouB5','u'], U: ['ryuouB7','U'], Z: ['ryuouB6','u'] }
+    },
+    ryuouB7: {
+        kind: 'town',
+        dark: true,          // 本家どおり まっくら。たいまつ／レミーラが要る
+        name: 'りゅうおうの しろ',
+        floorName: 'ちか7かい',
+        depth: 7,
+        zone: 18,
+        outside: T_WATER,
+        rows: [
+            '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~', '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~', '~~~~####~~~~~~~#########~###~~~~', '~~~##BB#########BBB#BBB###B##~~~',
+            '~~##BBBB##BBBB#BBBBBBBBB#BBB##~~', '~~#BBBBBB##BB##BBBB#BBBB#B#BB#~~', '~~#BB#BBB#BBBBBBBB###BBBBBBBB#~~', '~~#BBBBBB#BBBB#####B#####B#BB#~~',
+            '~~##BBBB##BBBB#BBB###BBB#BBB##~~', '~~~##BB##BBBBB##BBBBBBB###B##s~~', '~~~~#B##BB#######BB#BB##s#B#ss~~', '~~~~#BBBBB#BBBBB##BBB##ssssss~~~',
+            '~~~~#B#####B1BBB###B##ss~sss~~~~', '~~~~#B#BBB#Bd9BBBBDB#ss~~~~s?s~~', '~~~~#B#B#B#Bwj1B###B##s~~~~~~.~~', '~~~~#B#BBB#BBBBB##BBB#~~.s~~T.~~',
+            '~~~~#B#B#B#######BBB##~s~Ts?s~~~', '~~~~#B#BBB##BBBBBBB##~~~~..~~~~~', '~~~~#B#B#B#BBB###B##~~~s~~Ts~~~~', '~~~~#B#BBB#BB##~###~~~ss~sT.~s~~',
+            '~~~~#B#B#B#B##~~~~~~~ss~~ss.ss~~', '~~~~#B#BBB#B#~~~###~~~~~ssTTs~~~', '~~~##B##B##B##~##B##~~~ss..Tss~~', '~~##BBB#B#BBB###BBB##~~s##B##s~~',
+            '~~#BBBBBBBBBB##BCCBB#####BBB#s~~', '~~#BB#BB##BBB#BBCBBBBBBBBBBB#.~~', '~~#BBBBB###B###BCCBB#####BBB#.~~', '~~##BBB##~#B#~##BBB##~~T#####s~~',
+            '~~~##B##~~#B#~~##B##~~~ssTTTss~~', '~~~~###~~T#B#T~~###~~~~~sssss~~~', '~~~~~~~~TT#U#TT~~~~~~~~~~~~~~~~~', '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
+            '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+        ],
+        npcs: [
+            { x: 17, y: 25, sprite: 27, dragonLord: true, name: 'りゅうおう' }
+        ],
+        links: { U: ['ryuouB6','U'] }
     }
 };
 
@@ -585,6 +742,11 @@ const CHEST_TABLE = {
     '5': () => (!getGameFlag('deathNecklace') && Math.floor(Math.random() * 16) === 0)
               ? { item: 'しのくびかざり', flag: 'deathNecklace' }
               : { gold: 100 + Math.floor(Math.random() * 32) },
+    // 竜王の城（pidlio.com／famicom-database.com の「竜王の城で入手できるアイテム」より）
+    //   B2 ロトのつるぎ ／ B7 やくそう2・500〜755G・キメラのつばさ・まほうのかぎ・のろいのベルト
+    'S': () => ({ weapon: 'ロトのつるぎ', flag: 'rotoSword' }),
+    'd': () => ({ gold: 500 + Math.floor(Math.random() * 256) }),
+    'j': () => ({ item: 'のろいのベルト', flag: 'cursedBelt2' }),
     // ロトの洞窟の石板。本家どおり、読むだけでアイテムにはならない
     '6': () => ({ read: [
         ['たからばこの なかには', 'いしばんが おさめられていた'],
@@ -614,6 +776,8 @@ function buildDungeon(d, id) {
                 if (d.links && d.links[ch]) {
                     d.marks[ch] = { x, y };
                     if (TOWN_TILES[ch] !== undefined) { line.push(TOWN_TILES[ch]); return; }
+                    const forced = (d.stairKind || {})[ch];
+                    if (forced) { line.push(forced === 'down' ? D_STAIR_DOWN : D_STAIR_UP); return; }
                     const link = d.links[ch];
                     const toDepth = (link[0] === 'world') ? 0 : (DUNGEONS[link[0]].depth || 0);
                     line.push(toDepth > (d.depth || 0) ? D_STAIR_DOWN : D_STAIR_UP);
@@ -660,7 +824,11 @@ let currentMapId = 'world';
 function currentDungeon() { return currentMapId === 'world' ? null : DUNGEONS[currentMapId]; }
 function inDungeon() { return currentMapId !== 'world'; }
 // 町は「地上ではないが暗くもない」。たいまつ・レミーラ・リレミトは効かない
-function inTown() { const d = currentDungeon(); return !!(d && d.kind === 'town'); }
+// 町の記号で組んだマップか（タイルの意味・移動・人との会話に使う）
+function isTownMap() { const d = currentDungeon(); return !!(d && d.kind === 'town'); }
+// 「あかるい町」か（たいまつ・レミーラ・リレミトが要らない場所）。
+// 竜王の城は町の記号で組んであるが本家どおり まっくら なので町あつかいにしない
+function inTown() { const d = currentDungeon(); return !!(d && d.kind === 'town' && !d.dark); }
 function inCave() { return inDungeon() && !inTown(); }
 // 町の人。足元ではなく「隣に立って話しかける」
 function npcAt(x, y) {
@@ -670,7 +838,7 @@ function npcAt(x, y) {
     return d.npcAt[x + ',' + y] || null;
 }
 function adjacentNpc() {
-    if (!inTown()) return null;
+    if (!isTownMap()) return null;
     const g = currentDungeon().grid;
     const found = [];
     for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
@@ -761,6 +929,7 @@ const DUNGEON_ENTRANCES = {
     '110,80': ['rimuldar', 'b'],    // リムルダールのまち
     '33,97':  ['domdora', 'y'],     // ドムドーラのまち（廃墟）
     '81,108': ['melkido', 'b', () => getGameFlag('golemKilled')],  // メルキド（ゴーレムを倒してから）
+    '56,56':  ['ryuou1', 'E'],      // りゅうおうの しろ（虹の橋の先）
     '36,20':  ['roto1', '<'],       // ロトの洞窟（ラダトームから北北西）
     '37,65':  ['iwayama1', '<'],
     '112,52': ['numachi', '<'],     // 北口（本土側）
