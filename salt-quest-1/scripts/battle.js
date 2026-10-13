@@ -53,6 +53,11 @@ function startBattle(enemyDef) {
 }
 
 async function beginBattleSequence(enemyDef) {
+    // 画面をすぐ戦闘に切り替える。await をはさんでから切り替えると、
+    // そのあいだ画面は「フィールド」のままなので、キーを押しっぱなしだと
+    // 戦闘のウィンドウを出したまま歩けてしまう（さらに歩いた先で
+    // もう1つ戦闘が始まり、前の戦闘が宙に浮く）
+    currentState = STATE.BATTLE;
     enemy = { ...enemyDef };
     // 本家同様、敵のHPは図鑑値の75〜100%でばらつく（毎回きっちり満タンではない）
     if (!enemy.noCritical) {
@@ -298,6 +303,7 @@ function pickEnemyAction() {
 }
 
 async function executeEnemyTurn() {
+    currentState = STATE.MESSAGE;   // 処理中は入力をロック（たたかうと同じ扱い）
     if (enemy.asleep > 0) {
         enemy.asleep--;
         await showMessage([`${enemy.name}は ぐっすり ねむっている！`]);

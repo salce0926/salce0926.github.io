@@ -271,8 +271,13 @@ function drawMap(){
             }
             var tileIndex = mapData[worldY][worldX];
             if(tileIndex >= 350) tileIndex -= 12*25;
-            // 本家どおり、開けたとびらは絵が消えてただの床になる
-            if(dark && tileIndex === D_DOOR && !isDoorLocked(worldX, worldY)) tileIndex = D_FLOOR;
+            // 本家どおり、開けた とびら と あけた たからばこ は絵が消えて床になる。
+            // 町でも城でも同じ（以前は暗いダンジョンでしか消していなかった）。
+            // みせの たな は chestAt に無いので消えない
+            if (typeof inDungeon === 'function' && inDungeon()) {
+                if (tileIndex === D_DOOR && !isDoorLocked(worldX, worldY)) tileIndex = D_FLOOR;
+                else if (tileIndex === D_CHEST && chestOpenedOn(currentMapId, worldX, worldY)) tileIndex = D_FLOOR;
+            }
             drawTile(x, y, tileIndex);
             // 町の人
             if (typeof npcAt === 'function') {
