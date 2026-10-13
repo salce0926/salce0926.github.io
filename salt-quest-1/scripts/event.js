@@ -1746,12 +1746,13 @@ function rebuildTour(exitOnly) {
 }
 
 // 地上の経路の途中で沼地の洞窟をくぐる。抜けたら元の経路に戻す
-function startTraverse(fromX, fromY, to) {
+function startTraverse(fromX, fromY, to, resumeTour) {
     const entranceKey = fromX + ',' + fromY, exitKey = to.x + ',' + to.y;
     const plan = planTraverse(entranceKey, exitKey);
     if (!plan) return false;
     autoPilot.tour = { plan, at: 0, deaths: 0, retreat: false, path: null, pathAt: -1,
                        kind: 'traverse', entranceKey, exitKey, targets: [],
+                       resumeTour: resumeTour || null,
                        resume: { path: autoPilot.path, goal: autoPilot.goal } };
     autoPilot.path = null; autoPilot.goal = null;
     autoPilot.lastLine = '';
@@ -2067,6 +2068,13 @@ function autoTourStep() {
         t.rebuilds = 0;                                // 外に出られたので数え直す
         // 通り抜け・お使いは本編の続きがあるので止めない
         if (t.kind === 'traverse') {
+            // 用事の途中でくぐったのなら、その用事に戻る
+            if (t.resumeTour) {
+                autoPilot.tour = t.resumeTour;
+                autoPilot.tour.path = null; autoPilot.tour.pathAt = -1;
+                autoPilot.path = null; autoPilot.goal = null; autoPilot.lastLine = '';
+                return;
+            }
             const r = t.resume;
             autoPilot.tour = null;
             autoPilot.path = r && r.path ? findPath(playerPosition, r.path[r.path.length - 1]) : null;
@@ -2106,7 +2114,22 @@ function autoTourStep() {
         if (t.path[0] && playerPosition.x === t.path[0].x && playerPosition.y === t.path[0].y) t.path.shift();
         if (!t.path.length) { t.path = null; return; }
         const k = stepKeyToward(playerPosition, t.path[0]);
-        if (!k) { t.path = null; t.pathAt = -1; return; }   // 道から外れた。次のフレームで引き直す
+        if (!k) {
+            // 地上の経路が沼地の洞窟をまたいでいる。ここで引き直すだけだと
+            // 入口に立ったまま永久に足踏みするので、洞窟をくぐってから戻る
+            const w = !inDungeon() && warpFrom(playerPosition.x, playerPosition.y);
+            if (w && w.x === t.path[0].x && w.y === t.path[0].y) {
+                for (const other of ARROW_KEYS) Input.release(other);
+                autoPilot.dir = null;
+                t.path = null; t.pathAt = -1;
+                if (startTraverse(playerPosition.x, playerPosition.y, w, t)) return;
+            }
+            t.path = null; t.pathAt = -1;
+            t.stuck = (t.stuck || 0) + 1;      // 歯止め。詰まり続けたら用事を作り直す
+            if (t.stuck > 60) { t.stuck = 0; rebuildTour(); }
+            return;
+        }
+        t.stuck = 0;
         for (const other of ARROW_KEYS) if (other !== k) Input.release(other);
         autoPilot.dir = k;
         Input.press(k);
