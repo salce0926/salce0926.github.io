@@ -345,6 +345,13 @@ function showMessage(textLines) {
 }
 
 function updateMessage() {
+    // 送り先の無いメッセージ状態は、何かの拍子に取り残されたもの。
+    // そのままだと入力を受け付けないまま二度と進まなくなるので、元の画面へ戻す
+    if (!messageResolver && !(typeof battleBusy !== 'undefined' && battleBusy)) {
+        currentState = (typeof battleResolver !== 'undefined' && battleResolver)
+                     ? STATE.BATTLE : STATE.FIELD;
+        return;
+    }
     if (Input.consume(' ')) {
         if (messageResolver) {
             let res = messageResolver;

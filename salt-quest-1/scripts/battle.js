@@ -79,7 +79,16 @@ async function beginBattleSequence(enemyDef) {
     }
 }
 
+// 1回のターン処理が終わるまで、次のターンを始めさせないための錠。
+// オートは毎フレームAを押すので、これが無いとターンの途中でもう1回
+// 走り込んでしまい、状態がちぐはぐになって固まることがある
+let battleBusy = false;
 async function executeBattleTurn() {
+    if (battleBusy) return;
+    battleBusy = true;
+    try { await executeBattleTurnInner(); } finally { battleBusy = false; }
+}
+async function executeBattleTurnInner() {
     currentState = STATE.MESSAGE; // メッセージ中は入力をロック
 
     if (player.asleep > 0) {      // ラリホーで眠っている間は行動できない
@@ -154,6 +163,11 @@ async function executeBattleTurn() {
 }
 
 async function executeSpellTurn(spellName) {
+    if (battleBusy) return;
+    battleBusy = true;
+    try { await executeSpellTurnInner(spellName); } finally { battleBusy = false; }
+}
+async function executeSpellTurnInner(spellName) {
     currentState = STATE.MESSAGE;
     let mpCost = 0, heal = 0, damage = 0;
 
@@ -369,6 +383,7 @@ async function executeEnemyTurn() {
 }
 
 function updateBattle() {
+    if (battleBusy) return;        // ターン処理中は入力を受けない
     if (battleStateMode === 'COMMAND') {
         if (Input.consume('ArrowUp')) battleCursor = modAdd(battleCursor, -1, 4);
         if (Input.consume('ArrowDown')) battleCursor = modAdd(battleCursor, 1, 4);

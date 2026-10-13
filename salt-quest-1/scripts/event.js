@@ -638,8 +638,10 @@ async function castFieldSpell(spellName) {
         else await showMessage(['しかし なにも おこらなかった！']);
     } else if (spellName === 'トヘロス') {
         player.mp -= mpCost;
-        repelSteps = 128;
-        await showMessage([`${player.name}は トヘロスを となえた！`, 'よわい まものが よってこなくなった！']);
+        await showMessage([`${player.name}は トヘロスを となえた！`]);
+        // 本家: 洞窟の中では効かない。効くのは127歩
+        if (inCave()) await showMessage(['しかし なにも おこらなかった！']);
+        else { repelSteps = 127; await showMessage(['よわい まものが よってこなくなった！']); }
     } else {
         player.mp -= mpCost;
         await showMessage([`${player.name}は ${spellName}を となえた！`, 'しかし なにも おこらなかった！']);
@@ -680,8 +682,10 @@ async function useFieldItem(itemName) {
         }
     } else if (itemName === 'せいすい') {
         player.water--;
-        repelSteps = 127;                                  // 本家は127歩
-        await showMessage([`${player.name}は せいすいを まいた！`, 'よわい まものが よってこなくなった！']);
+        await showMessage([`${player.name}は せいすいを まいた！`]);
+        // 本家: トヘロスと同じく洞窟の中では効かない。効くのは127歩
+        if (inCave()) await showMessage(['しかし なにも おこらなかった！']);
+        else { repelSteps = 127; await showMessage(['よわい まものが よってこなくなった！']); }
     } else if (itemName === 'りゅうのうろこ') {
         await showMessage(['りゅうのうろこを みに つけている', `しゅび力が 2 あがっている`]);
     } else if (itemName === 'ぎんのたてごと') {
@@ -893,7 +897,7 @@ function updateField() {
             if (isMoveAllowed(nx, ny)) {
                 playerPosition.x = nx;
                 playerPosition.y = ny;
-                if (repelSteps > 0) repelSteps--; // トヘロスは128歩で切れる
+                if (repelSteps > 0) repelSteps--; // トヘロス・せいすいは127歩で切れる
                 if (radiantSteps > 0) radiantSteps--; // レミーラは合計200歩で切れる
                 const out = townEdgeExit(nx, ny);
                 if (out) { leaveDungeon(out.x, out.y); return; }   // 町の外へ
@@ -2310,10 +2314,21 @@ function autoTick(now) {
             else if (autoPilot.grindUntil && player.level < autoPilot.grindUntil) {
                 // 下の狩り処理にそのまま流す
             // 用事の入口に着いていても、体力が整っていなければ始めない。
-            // ここで何もしないと、下の宿屋処理が働いて回復してから出直せる
+            // ここでは何もせず、下の宿屋・狩りの処理に任せる。
+            // 経路を消すと「狩り場へ戻る」処理が毎フレーム引き直して押し合いになり、
+            // 入口のマスから一歩も動けなくなる
             } else if (playerPosition.x === q.x && playerPosition.y === q.y
                        && !errandReady(q.tour)) {
-                autoPilot.path = null; autoPilot.goal = null;
+                // 用事の入口に着いていても、体力や回復手段が整っていなければ始めない。
+                // 宿へ寄って整えてから出直す（やくそうも泊まったついでに買う）。
+                // ここで経路を消すだけだと、HPが満タンでMPも薬草も無いときに
+                // 宿へ行く条件も立たず、入口の前から永久に動けなくなる
+                const inn = nearestInn();
+                if (inn) {
+                    autoPilot.inn = inn; autoPilot.path = inn.path;
+                    autoPilot.goal = 'やどやへ'; autoPilot.lastLine = '';
+                    return;
+                }
             } else if (playerPosition.x === q.x && playerPosition.y === q.y) {
                 autoPilot.grindUntil = 0;
                 if (q.name === 'りゅうおうを たおす') {
@@ -2445,7 +2460,7 @@ function autoTick(now) {
     }
     // 移動中はトヘロスで弱い敵を避ける（本家の使いどころ）。
     // 回復に要るぶんのMPは残す
-    if (repelSteps <= 0 && autoTravelling() && player.spells.includes('トヘロス') && !player.sealed
+    if (repelSteps <= 0 && !inCave() && autoTravelling() && player.spells.includes('トヘロス') && !player.sealed
         && player.mp >= 2 + (healSpell ? healCost * 2 : 0)) {
         autoBusy = true;
         Promise.resolve(castFieldSpell('トヘロス')).then(() => { autoBusy = false; });
