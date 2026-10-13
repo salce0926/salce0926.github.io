@@ -344,14 +344,22 @@ function showMessage(textLines) {
     return new Promise(resolve => { messageResolver = resolve; });
 }
 
+// 送り先の無いメッセージ状態が続いたら、取り残されたものとみなして元の画面へ戻す。
+// ターン処理中(battleBusy)はその処理が自分で戻すので、しばらく待ってから助ける
+let stuckMessageFrames = 0;
 function updateMessage() {
-    // 送り先の無いメッセージ状態は、何かの拍子に取り残されたもの。
-    // そのままだと入力を受け付けないまま二度と進まなくなるので、元の画面へ戻す
-    if (!messageResolver && !(typeof battleBusy !== 'undefined' && battleBusy)) {
-        currentState = (typeof battleResolver !== 'undefined' && battleResolver)
-                     ? STATE.BATTLE : STATE.FIELD;
+    if (!messageResolver) {
+        const busy = (typeof battleBusy !== 'undefined' && battleBusy);
+        stuckMessageFrames++;
+        if (!busy || stuckMessageFrames > 120) {
+            stuckMessageFrames = 0;
+            if (busy) battleBusy = false;
+            currentState = (typeof battleResolver !== 'undefined' && battleResolver)
+                         ? STATE.BATTLE : STATE.FIELD;
+        }
         return;
     }
+    stuckMessageFrames = 0;
     if (Input.consume(' ')) {
         if (messageResolver) {
             let res = messageResolver;

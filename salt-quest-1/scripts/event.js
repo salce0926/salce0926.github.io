@@ -2012,9 +2012,11 @@ function autoPickChoice() {
 function errandIsRisky(kind) {
     const e = TOWN_ERRANDS[kind];
     if (!e) return false;
+    // 敵が出る場所には zone が設定してある。ドムドーラのように
+    // 「町あつかいだが敵が出る」場所を取りこぼさないよう、これで見る
     return (e.targets || []).some(t => {
         const d = DUNGEONS[t.map];
-        return d && (d.kind !== 'town' || d.dark) && !d.noEncounter;
+        return d && d.zone !== undefined && !d.noEncounter;
     });
 }
 // 削られたまま踏み込むと、入ってすぐ引き返し→外でまた用事を始める、の往復になる。
@@ -2499,6 +2501,19 @@ function autoTick(now) {
         if (autoPilot.path) { autoPilot.goal = 'かりばへ もどる'; return; }
     }
 
+    // 道中で削られたら、目的地より先に宿へ寄る。
+    // ここを入れないと、経路をたどる処理が下の宿屋処理より先に返してしまうので、
+    // 瀕死のまま100歩歩いて途中で全滅する（全滅の大半がこれだった）
+    if (autoPilot.path && autoPilot.path.length && autoPilot.goal !== 'やどやへ'
+        && player.hp <= player.maxHp * 0.4 && !(healSpell && player.mp >= healCost)
+        && player.herb <= 0) {
+        const inn = nearestInn();
+        if (inn && inn.path.length < autoPilot.path.length) {
+            autoPilot.inn = inn; autoPilot.path = inn.path;
+            autoPilot.goal = 'やどやへ'; autoPilot.lastLine = '';
+            return;
+        }
+    }
     // 目的地があるときは、うろつかずに経路をたどる（宿へ／狩り場へ）
     if (autoPilot.path && autoPilot.path.length) {
         const next = autoPilot.path[0];
