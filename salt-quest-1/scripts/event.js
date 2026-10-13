@@ -44,6 +44,7 @@ function playerKilled(){
 async function openChestHere() {
     const id = chestHere();
     if (!id) return false;
+    Sound.se('chest');
     openedChests.add(currentMapId + ':' + playerPosition.x + ',' + playerPosition.y);
     const got = CHEST_TABLE[id]();
     if (got.read) {                      // 石板など、読むだけで手には入らないもの
@@ -85,6 +86,7 @@ async function openChestHere() {
 // 階段・洞窟の出入口。本家FC版は「かいだん」コマンドで昇り降りするので、
 // 乗っただけでは移動せず、しらべたときに移動する
 async function useStairsHere() {
+    Sound.se('stairs');
     if (inDungeon()) {
         if (!useStairs(playerPosition.x, playerPosition.y)) return false;
         const d = currentDungeon();
@@ -290,6 +292,7 @@ async function talkToKing() {
 async function openLockedDoor() {
     const door = adjacentLockedDoor();
     if (!door) return;
+    if (player.key > 0) Sound.se('door');
     if (player.key <= 0) {
         await showMessage(['かぎの かかった とびらだ', 'しかし かぎを もっていない...']);
     } else {
@@ -608,6 +611,7 @@ let repelSteps = 0; // トヘロスの残り歩数
 
 async function castFieldSpell(spellName) {
     const mpCost = FIELD_SPELL_MP[spellName] || 0;
+    Sound.se(spellName === 'ホイミ' || spellName === 'ベホイミ' ? 'heal' : 'spell');
     if (player.mp < mpCost) {
         await showMessage(['MPが たりない！']);
         currentState = STATE.FIELD;
@@ -722,7 +726,7 @@ async function useFieldItem(itemName) {
 // メニューロジック
 // =====================================================================
 let menuLevel = 0, menuCursor = 0, subCursor = 0;
-const commandList = ['つよさ', 'じゅもん', 'どうぐ', 'きろく'];
+const commandList = ['つよさ', 'じゅもん', 'どうぐ', 'きろく', 'おと'];
 
 // じゅもん/どうぐ画面の選択肢
 function menuOptions() {
@@ -739,10 +743,13 @@ function menuOptions() {
 
 function updateMenu() {
     if (menuLevel === 1) {
-        if (Input.consume('ArrowUp')) menuCursor = modAdd(menuCursor, -1, 4);
-        if (Input.consume('ArrowDown')) menuCursor = modAdd(menuCursor, 1, 4);
+        if (Input.consume('ArrowUp')) { menuCursor = modAdd(menuCursor, -1, commandList.length); Sound.se('select'); }
+        if (Input.consume('ArrowDown')) { menuCursor = modAdd(menuCursor, 1, commandList.length); Sound.se('select'); }
         if (consumeCancel()) { menuLevel = 0; currentState = STATE.FIELD; return; }  // メニューを閉じる
         if (Input.consume(' ')) {
+            // 「おと」はその場で切り替えるだけ。はじめはオフなので、
+            // ここで入れてもらうまで音は鳴らない
+            if (menuCursor === commandList.length - 1) { Sound.toggle(); Sound.se('confirm'); return; }
             menuLevel = 2; subCursor = 0;
         }
     } else if (menuLevel === 2) {
@@ -767,14 +774,17 @@ function updateMenu() {
 function drawMenu() {
     drawWindowPlayerInfo();
     let cmdText = commandList.map(c => `　${c}`);
-    drawWindow(displayTileSize * screenWidth - displayTileSize * 4.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 4.5, displayTileSize * 4.5, cmdText, menuCursor);
+    drawWindow(displayTileSize * screenWidth - displayTileSize * 4.5 - displayTileSize / 2, displayTileSize / 2,
+               displayTileSize * 4.5, displayTileSize * (commandList.length + 0.5), cmdText, menuCursor);
 
     if (menuLevel === 1) {
         const explains = [
             ['つよさ：', '　あなたの つよさは あなたがきめよう', '　でも きゃっかんてきには こうみえてます'],
             ['じゅもん：', '　あなたの つかえる じゅもんりすと', '　MPの ごりようは けいかくてきに'],
             ['どうぐ：', '　あなたの もっている どうぐたち', '　でもほぼ ふらぐの りすとです'],
-            ['きろく：', '　ラダトームの おうさまに はなすと', '　ふっかつのじゅもんを おしえてくれる']
+            ['きろく：', '　ラダトームの おうさまに はなすと', '　ふっかつのじゅもんを おしえてくれる'],
+            ['おと：', '　いまは ' + (Sound.enabled ? 'ON' : 'OFF') + '　Aで きりかえ',
+                       '　はじめは OFF。きりかえは おぼえています']
         ];
         drawWindowCommon(explains[menuCursor]);
     } else if (menuLevel === 2) {
@@ -2192,6 +2202,21 @@ function autoTick(now) {
         autoPilot.lastLine = line;
         document.getElementById('message').textContent = line;
     }
+    // 店や宿の処理待ち(autoBusy)が返ってこないまま止まることがある。
+    // 原因は突き止められていないが、オートは開発用なので、
+    // しばらく進まなければ自分で畳んでやり直す（人の操作には影響しない）
+    if (autoBusy) {
+        autoPilot.busyFrames = (autoPilot.busyFrames || 0) + 1;
+        if (autoPilot.busyFrames > 600) {
+            autoPilot.busyFrames = 0;
+            autoBusy = false; autoShopping = null;
+            if (currentState !== STATE.FIELD && currentState !== STATE.BATTLE) currentState = STATE.FIELD;
+            if (autoPilot.tour) rebuildTour(); else { autoPilot.path = null; autoPilot.goal = null; }
+            autoPilot.lastLine = '';
+            return;
+        }
+    } else autoPilot.busyFrames = 0;
+
     // autoBusy中（宿の処理待ち）でもメッセージ送りは続ける。ここで止めると
     // 「やすんだ」の表示から進めなくなって固まる
 

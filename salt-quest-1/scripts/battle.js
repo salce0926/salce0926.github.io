@@ -37,6 +37,11 @@ let battleResolver = null;
 function endBattle(result) {
     battleStateMode = 'COMMAND';
     currentState = STATE.FIELD;
+    if (typeof Sound !== 'undefined') {
+        if (result === 'win') Sound.se('win');
+        else if (result === 'flee') Sound.se('flee');
+        if (typeof updateSceneBgm === 'function') updateSceneBgm();
+    }
     if (battleResolver) {
         const resolve = battleResolver;
         battleResolver = null;
@@ -47,6 +52,8 @@ function endBattle(result) {
 // 敵データを受け取って戦闘を開始する（ランダムエンカウント/Bキー/ボス共通の入口）
 function startBattle(enemyDef) {
     if (typeof autoPilot !== 'undefined' && autoPilot.on) autoPilot.wasBattle = true;
+    if (typeof Sound !== 'undefined')
+        Sound.bgm((enemyDef && (enemyDef.boss || enemyDef.noFlee)) ? 'boss' : 'battle');
     const done = new Promise(resolve => { battleResolver = resolve; });
     beginBattleSequence(enemyDef);   // 演出は非同期に進める
     return done;
@@ -106,6 +113,7 @@ async function executeBattleTurnInner() {
             return;
         }
         const critical = !enemy.noCritical && Math.floor(Math.random() * 32) === 0;
+        Sound.se(critical ? 'critical' : 'attack');
         const damage = critical ? calcCritical(player.attack) : calcDamage(player.attack, enemy.defense);
         enemy.hp -= damage;
         if (damage > 0) enemyFlash = FLASH_FRAMES;
@@ -248,6 +256,7 @@ async function checkEnemySurvival() {
         const oldLevel = player.level;
         updatePlayerLevel();
         if (player.level > oldLevel) {
+            Sound.se('levelup');
             await showMessage([`${player.name}は レベル${player.level}に あがった！`,
                 `HP ${player.maxHp}　MP ${player.maxMp}　こうげき ${player.attack}　しゅび ${player.defense}`]);
         }
@@ -366,11 +375,13 @@ async function executeEnemyTurn() {
             if (damage === 0) {
                 await showMessage([`${enemy.name}の こうげき！`, `しかし ${player.name}は`, `ダメージを うけなかった！`]);
             } else {
+                Sound.se('hurt');
                 await showMessage([`${enemy.name}の こうげき！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
             }
     }
 
     if (player.hp <= 0) {
+        Sound.se('dead');
         await showMessage([`${player.name}は しんでしまった！`]);
         const lost = playerKilled();
         await showMessage(['王様「しっかりするのじゃ！」',

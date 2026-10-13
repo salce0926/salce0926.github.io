@@ -901,6 +901,7 @@ function switchMap(id, x, y) {
     mapHeight = mapData.length;
     playerPosition.x = x;
     playerPosition.y = y;
+    if (typeof updateSceneBgm === 'function') updateSceneBgm();
 }
 
 // 地上へ戻る（出口・リレミト・全滅・つばさ など共通）
