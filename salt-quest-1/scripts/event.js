@@ -1303,9 +1303,13 @@ function bestHuntingSpot(opt) {
             const d = Math.abs(s.x - spot.x) + Math.abs(s.y - spot.y);
             return (!b || d < b.d) ? { ...s, d } : b;
         }, null);
-        const mid = { x: Math.round((inn.x + spot.x) / 2), y: Math.round((inn.y + spot.y) / 2) };
-        const trip = [zoneAt(inn.x, inn.y), zoneAt(mid.x, mid.y)];
-        if (dangerAtLevel(trip, player.level) > RISK_SPOT) continue;
+        // 宿との往復は何度も繰り返すので、「1戦あたりの危なさ」ではなく
+        // 「その道で何回戦うか」まで込みで見る。ここを見ていなかったため、
+        // 狩り場は安全でも往復の途中で全滅を積み上げていた
+        const innPath = findPath(spot, inn);
+        if (!innPath) continue;
+        const tripRisk = pathRisk(innPath);
+        if (tripRisk > RISK_PATH) continue;
         // そこへ辿り着くまでの道も見る。行き帰りで死んでいては意味がない
         const approach = findPath(playerPosition, spot);
         if (!approach || pathRisk(approach) > RISK_PATH) continue;
@@ -1326,7 +1330,8 @@ function bestHuntingSpot(opt) {
         if (death > maxDeath) continue;
         // 1歩あたりの期待経験値（ゾーン0の割引は encounterRateAt が見ている）
         const rate = autoRateAt(spot.x, spot.y);
-        const score = (exp / N) * rate;
+        // 往復が危ない狩り場は、同じ稼ぎでも割に合わないので下げる
+        const score = (exp / N) * rate * (1 - tripRisk);
         if (!best || score > best.score) best = { ...spot, score, death, exp: exp / N };
     }
     return best;
@@ -1643,6 +1648,19 @@ function battleCost() {
     const rounds = Math.ceil((enemy.hp || enemy.maxHp) / hit);
     return rounds * expectedHit(enemy.attack, player.defense);
 }
+// 逃げ切るまでに削られそうな量。本家の逃走成功率をそのまま使う。
+// 逃げるのも只ではなく、失敗するたびに1発もらう。素早い相手から
+// 逃げ続けて削り殺される——という死に方が全滅のいちばん多い形だった
+function escapeChance() {
+    const A = player.agility, B = enemy.agility || enemy.defense || 1;
+    const k = [4, 8 / 3, 2, 1][enemy.escapeRank || 0];
+    return (A * k) / (A * k + B);
+}
+function escapeCost() {
+    const p = escapeChance();
+    if (p <= 0) return Infinity;
+    return expectedHit(enemy.attack, player.defense) * (1 / p - 1);
+}
 
 function autoBattleChoice() {
     const can = (name, cost) => player.spells.includes(name) && player.mp >= cost && !player.sealed;
@@ -1650,9 +1668,11 @@ function autoBattleChoice() {
     // 逃げられない相手だと「にげられない」でターンを捨てるだけになる
     const boss = !!(enemy.boss || enemy.noFlee);
     // 移動中は、1戦で体力の半分以上を持っていかれそうな相手からは逃げる。
+    // ただし逃げ切るほうが高くつく相手（素早くて逃げられない）からは逃げない。
     // 本家の攻略チャートも要所で「逃げたほうがいい」としている。
     // 狩っている最中は逃げない（経験値が入らなくなる）
-    if (!boss && autoTravelling() && battleCost() > player.maxHp * 0.5) return { cmd: 3 };
+    if (!boss && autoTravelling() && battleCost() > player.maxHp * 0.5
+        && escapeCost() < battleCost()) return { cmd: 3 };
     const low = player.hp <= player.maxHp * (boss ? 0.6 : 0.45);
     if (low && can('ベホイミ', 10)) return { cmd: 1, spell: 'ベホイミ' };
     if (low && can('ホイミ', 4))    return { cmd: 1, spell: 'ホイミ' };
@@ -1670,8 +1690,9 @@ function autoBattleChoice() {
 
     // 殴っても呪文も通らない相手からは逃げる
     if (phys <= 0 && !boss) return { cmd: 3 };
-    // 回復手段が尽きて削られたら粘らずに逃げる（全滅すると所持金が半分になる）
-    if (player.hp <= player.maxHp * 0.3 && !boss) return { cmd: 3 };
+    // 回復手段が尽きて削られたら粘らずに逃げる（全滅すると所持金が半分になる）。
+    // ここも、逃げるほうが高くつくなら殴って決着をつけたほうが生き残る
+    if (player.hp <= player.maxHp * 0.3 && !boss && escapeCost() < battleCost()) return { cmd: 3 };
     return { cmd: 0 };
 }
 
@@ -2000,6 +2021,10 @@ function autoPickChoice() {
             if (idx <= now) continue;
             const cost = price - Math.floor(list[now].price / 2);
             if (cost > player.gold) continue;
+            // やくそうを切らしたまま旅に出ると道中で倒れる。
+            // 3個ぶんのお金は装備に使わずに残す
+            const reserve = Math.max(0, 3 - player.herb) * toolGoods.herb.price;
+            if (player.gold - cost < reserve) continue;
             if (list[idx].power > bestPower) { pick = i; bestPower = list[idx].power; }
             continue;
         }
@@ -2513,14 +2538,49 @@ function autoTick(now) {
         if (autoPilot.path) { autoPilot.goal = 'かりばへ もどる'; return; }
     }
 
-    // 道中で削られたら、目的地より先に宿へ寄る。
+    // いま持っている体力と回復手段の合計
+function healingPool() {
+    const spell = player.spells.includes('ベホイミ') ? { cost: 10, heal: 92 }
+                : player.spells.includes('ホイミ')   ? { cost: 4,  heal: 13 } : null;
+    const bySpell = (spell && !player.sealed) ? Math.floor(player.mp / spell.cost) * spell.heal : 0;
+    return player.hp + player.herb * 26 + bySpell;      // やくそうは23〜30
+}
+// この道を渡り切れそうか。危険度のつまみ(RISK_PATH)は「HP満タンでの1戦の死亡率」
+// しか見ておらず、実際に死ぬのは削られた状態なので当てにならなかった。
+// いまの体力・やくそう・MPと、道中で食らいそうな量を直接くらべる
+function tripSurvivable(path) {
+    if (!path || !path.length) return true;
+    const fights = battlesOnPath(path);
+    if (fights <= 0) return true;
+    let sum = 0, n = 0;
+    for (const z of pathZones(path)) {
+        for (const i of zoneEnemySets[z]) {
+            const e = enemyTable[i];
+            const hit = expectedHit(player.attack, e.defense);
+            const rounds = hit > 0 ? Math.ceil(e.maxHp / hit) : 4;   // 殴れない相手は逃げる前提で4ターン
+            sum += Math.min(rounds, 4) * expectedHit(e.attack, player.defense); n++;
+        }
+    }
+    if (!n) return true;
+    // 道中は逃げる相手も多いので、まともに戦うのは3分の1くらいと見る
+    const need = (sum / n) * fights * 0.35;
+    if (healingPool() >= need) return true;
+    // 休んでも増やしようがないなら、待っていても仕方がないので出発する
+    // （ここを入れないと宿に籠もりきりになる）
+    const full = player.hp >= player.maxHp && player.herb >= HERB_MAX
+                 && (!player.spells.includes('ホイミ') || player.mp >= player.maxMp);
+    return full;
+}
+
+// 道中で削られたら、目的地より先に宿へ寄る。
     // ここを入れないと、経路をたどる処理が下の宿屋処理より先に返してしまうので、
     // 瀕死のまま100歩歩いて途中で全滅する（全滅の大半がこれだった）
     if (autoPilot.path && autoPilot.path.length && autoPilot.goal !== 'やどやへ'
-        && player.hp <= player.maxHp * 0.4 && !(healSpell && player.mp >= healCost)
-        && player.herb <= 0) {
+        && !tripSurvivable(autoPilot.path)) {
+        // 宿が目的地より遠くても寄る。削られたまま歩き続けると、
+        // たいてい着く前に倒れる（全滅の3分の2が道中だった）
         const inn = nearestInn();
-        if (inn && inn.path.length < autoPilot.path.length) {
+        if (inn) {
             autoPilot.inn = inn; autoPilot.path = inn.path;
             autoPilot.goal = 'やどやへ'; autoPilot.lastLine = '';
             return;
