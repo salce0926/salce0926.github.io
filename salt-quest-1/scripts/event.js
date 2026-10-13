@@ -44,7 +44,6 @@ function playerKilled(){
 async function openChestHere() {
     const id = chestHere();
     if (!id) return false;
-    Sound.se('chest');
     openedChests.add(currentMapId + ':' + playerPosition.x + ',' + playerPosition.y);
     const got = CHEST_TABLE[id]();
     if (got.read) {                      // 石板など、読むだけで手には入らないもの
@@ -86,7 +85,6 @@ async function openChestHere() {
 // 階段・洞窟の出入口。本家FC版は「かいだん」コマンドで昇り降りするので、
 // 乗っただけでは移動せず、しらべたときに移動する
 async function useStairsHere() {
-    Sound.se('stairs');
     if (inDungeon()) {
         if (!useStairs(playerPosition.x, playerPosition.y)) return false;
         const d = currentDungeon();
@@ -292,7 +290,6 @@ async function talkToKing() {
 async function openLockedDoor() {
     const door = adjacentLockedDoor();
     if (!door) return;
-    if (player.key > 0) Sound.se('door');
     if (player.key <= 0) {
         await showMessage(['かぎの かかった とびらだ', 'しかし かぎを もっていない...']);
     } else {
@@ -611,7 +608,6 @@ let repelSteps = 0; // トヘロスの残り歩数
 
 async function castFieldSpell(spellName) {
     const mpCost = FIELD_SPELL_MP[spellName] || 0;
-    Sound.se(spellName === 'ホイミ' || spellName === 'ベホイミ' ? 'heal' : 'spell');
     if (player.mp < mpCost) {
         await showMessage(['MPが たりない！']);
         currentState = STATE.FIELD;
@@ -726,7 +722,7 @@ async function useFieldItem(itemName) {
 // メニューロジック
 // =====================================================================
 let menuLevel = 0, menuCursor = 0, subCursor = 0;
-const commandList = ['つよさ', 'じゅもん', 'どうぐ', 'きろく', 'おと'];
+const commandList = ['つよさ', 'じゅもん', 'どうぐ', 'きろく'];
 
 // じゅもん/どうぐ画面の選択肢
 function menuOptions() {
@@ -743,13 +739,10 @@ function menuOptions() {
 
 function updateMenu() {
     if (menuLevel === 1) {
-        if (Input.consume('ArrowUp')) { menuCursor = modAdd(menuCursor, -1, commandList.length); Sound.se('select'); }
-        if (Input.consume('ArrowDown')) { menuCursor = modAdd(menuCursor, 1, commandList.length); Sound.se('select'); }
+        if (Input.consume('ArrowUp')) menuCursor = modAdd(menuCursor, -1, commandList.length);
+        if (Input.consume('ArrowDown')) menuCursor = modAdd(menuCursor, 1, commandList.length);
         if (consumeCancel()) { menuLevel = 0; currentState = STATE.FIELD; return; }  // メニューを閉じる
         if (Input.consume(' ')) {
-            // 「おと」はその場で切り替えるだけ。はじめはオフなので、
-            // ここで入れてもらうまで音は鳴らない
-            if (menuCursor === commandList.length - 1) { Sound.toggle(); Sound.se('confirm'); return; }
             menuLevel = 2; subCursor = 0;
         }
     } else if (menuLevel === 2) {
@@ -782,9 +775,7 @@ function drawMenu() {
             ['つよさ：', '　あなたの つよさは あなたがきめよう', '　でも きゃっかんてきには こうみえてます'],
             ['じゅもん：', '　あなたの つかえる じゅもんりすと', '　MPの ごりようは けいかくてきに'],
             ['どうぐ：', '　あなたの もっている どうぐたち', '　でもほぼ ふらぐの りすとです'],
-            ['きろく：', '　ラダトームの おうさまに はなすと', '　ふっかつのじゅもんを おしえてくれる'],
-            ['おと：', '　いまは ' + (Sound.enabled ? 'ON' : 'OFF') + '　Aで きりかえ',
-                       '　はじめは OFF。きりかえは おぼえています']
+            ['きろく：', '　ラダトームの おうさまに はなすと', '　ふっかつのじゅもんを おしえてくれる']
         ];
         drawWindowCommon(explains[menuCursor]);
     } else if (menuLevel === 2) {
@@ -1935,14 +1926,23 @@ function townStartPos(e) {
     return ent[1] ? DUNGEONS[e.map].marks[ent[1]] : DUNGEONS[e.map].start;
 }
 // 買えるものが何も無いのに町へ往復しないようにする
+// 「店に寄る価値があるか」。ここの基準は、実際に買うかどうかを決める
+// autoPickChoice とそろえること。ずれていると、町に入っても何も買わずに出て、
+// 同じ条件がまた立つので町に入り直す——を永久に繰り返す
+function toolWorthBuying(key, price) {
+    if (key === 'herb')  return player.herb  < HERB_MAX && player.gold >= price * (player.herb < 3 ? 1 : 4);
+    if (key === 'key')   return player.key   < 3        && player.gold >= price * (player.key  < 1 ? 1 : 2);
+    if (key === 'wing')  return player.wing  < 1        && player.gold >= price * 6;
+    if (key === 'water') return player.water < 2        && player.gold >= price * 6;
+    if (key === 'torch') return player.torch < 2        && player.gold >= price * 8;
+    if (key === 'scale') return !player.scale           && player.gold >= price * 8;
+    return false;
+}
 function townVisitWorth(key) {
     const shop = townShops[key];
     if (!shop) return false;
     const tools = shop.tools || [];
-    if (tools.includes('herb') && player.herb < HERB_MAX && player.gold >= toolGoods.herb.price) return true;
-    if (tools.includes('key') && player.key < 3
-        && player.gold >= (shop.keyPrice || toolGoods.key.price)) return true;
-    if (tools.includes('wing') && player.wing < 1        && player.gold >= toolGoods.wing.price * 2) return true;
+    for (const t of tools) if (toolWorthBuying(t, toolPrice(shop, t))) return true;
     const kinds = [[shop.weapons, weapons, 'weaponIndex'],
                    [shop.armors, armors, 'armorIndex'],
                    [shop.shieldList, shields, 'shieldIndex']];
@@ -2003,17 +2003,10 @@ function autoPickChoice() {
             if (list[idx].power > bestPower) { pick = i; bestPower = list[idx].power; }
             continue;
         }
-        // どうぐ。余裕を見て買う（買ったあと装備が買えなくならないように）
-        // やくそうは最優先。3個までは買えるだけ買い、そのあとは余裕があるときだけ
-        if (name === 'やくそう' && player.herb < HERB_MAX
-            && player.gold >= price * (player.herb < 3 ? 1 : 4)) return i;
-        // かぎは1本も無いときは買えるだけ買う（扉が開けられないと本編が止まる）
-        if (name === 'かぎ' && player.key < 3
-            && player.gold >= price * (player.key < 1 ? 1 : 2)) return i;
-        if (name === 'キメラのつばさ' && player.wing < 1        && player.gold >= price * 6) return i;
-        if (name === 'せいすい'       && player.water < 2       && player.gold >= price * 6) return i;
-        if (name === 'たいまつ'       && player.torch < 2       && player.gold >= price * 8) return i;
-        if (name === 'りゅうのうろこ' && !player.scale          && player.gold >= price * 8) return i;
+        // どうぐ。買うかどうかは townVisitWorth と同じ基準で決める（上の注意を参照）
+        const toolKey = { 'やくそう': 'herb', 'かぎ': 'key', 'キメラのつばさ': 'wing',
+                          'せいすい': 'water', 'たいまつ': 'torch', 'りゅうのうろこ': 'scale' }[name];
+        if (toolKey && toolWorthBuying(toolKey, price)) return i;
     }
     return pick >= 0 ? pick : quit;
 }
@@ -2202,21 +2195,6 @@ function autoTick(now) {
         autoPilot.lastLine = line;
         document.getElementById('message').textContent = line;
     }
-    // 店や宿の処理待ち(autoBusy)が返ってこないまま止まることがある。
-    // 原因は突き止められていないが、オートは開発用なので、
-    // しばらく進まなければ自分で畳んでやり直す（人の操作には影響しない）
-    if (autoBusy) {
-        autoPilot.busyFrames = (autoPilot.busyFrames || 0) + 1;
-        if (autoPilot.busyFrames > 600) {
-            autoPilot.busyFrames = 0;
-            autoBusy = false; autoShopping = null;
-            if (currentState !== STATE.FIELD && currentState !== STATE.BATTLE) currentState = STATE.FIELD;
-            if (autoPilot.tour) rebuildTour(); else { autoPilot.path = null; autoPilot.goal = null; }
-            autoPilot.lastLine = '';
-            return;
-        }
-    } else autoPilot.busyFrames = 0;
-
     // autoBusy中（宿の処理待ち）でもメッセージ送りは続ける。ここで止めると
     // 「やすんだ」の表示から進めなくなって固まる
 
@@ -2470,7 +2448,16 @@ function autoTick(now) {
         return;
     }
 
-    if (currentState !== STATE.FIELD || autoBusy) return;
+    // 呪文・買い物・宿などの処理待ちの間は、方向キーを離して足を止める。
+    // 押したままにしていると処理の最中も歩き続け、途中でエンカウントして
+    // 「呪文を唱える処理」と「戦闘のターン処理」が同時に走り、
+    // どちらも返ってこなくなって固まる（これが詰まりの原因だった）
+    if (autoBusy || (typeof battleBusy !== 'undefined' && battleBusy)) {
+        for (const k of ARROW_KEYS) Input.release(k);
+        autoPilot.dir = null;
+        return;
+    }
+    if (currentState !== STATE.FIELD) return;
 
     // 戦闘が終わった直後に数える
     if (autoPilot.wasBattle) { autoPilot.wasBattle = false; autoPilot.battles++; autoPilot.recentBattles++; }
