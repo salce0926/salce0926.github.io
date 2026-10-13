@@ -1624,11 +1624,30 @@ function expectedHit(attack, defense) {
     return (Math.floor(base / 4) + Math.floor(base / 2)) / 2;
 }
 
+// いま「目的地へ移動している最中」か。本家の攻略どおり、移動中は割に合わない
+// 相手からは逃げて先へ進む（粘って削られると全滅して余計に時間がかかる）
+const TRAVEL_GOALS = ['もくてきちへ', 'やどやへ', 'かいものへ', 'みせへ', 'かりばへ もどる'];
+function autoTravelling() {
+    if (autoPilot.tour) return true;                       // 用事の道中
+    return TRAVEL_GOALS.includes(autoPilot.goal);
+}
+// この1戦でどれだけ削られそうか（期待値）。殴れないなら Infinity
+function battleCost() {
+    const hit = expectedHit(player.attack, enemy.defense);
+    if (hit <= 0) return Infinity;
+    const rounds = Math.ceil((enemy.hp || enemy.maxHp) / hit);
+    return rounds * expectedHit(enemy.attack, player.defense);
+}
+
 function autoBattleChoice() {
     const can = (name, cost) => player.spells.includes(name) && player.mp >= cost && !player.sealed;
     // 本編のボスからは逃げない。逃げると先へ進めないうえ、
     // 逃げられない相手だと「にげられない」でターンを捨てるだけになる
     const boss = !!(enemy.boss || enemy.noFlee);
+    // 移動中は、1戦で体力の半分以上を持っていかれそうな相手からは逃げる。
+    // 本家の攻略チャートも要所で「逃げたほうがいい」としている。
+    // 狩っている最中は逃げない（経験値が入らなくなる）
+    if (!boss && autoTravelling() && battleCost() > player.maxHp * 0.5) return { cmd: 3 };
     const low = player.hp <= player.maxHp * (boss ? 0.6 : 0.45);
     if (low && can('ベホイミ', 10)) return { cmd: 1, spell: 'ベホイミ' };
     if (low && can('ホイミ', 4))    return { cmd: 1, spell: 'ホイミ' };
@@ -2422,6 +2441,14 @@ function autoTick(now) {
     if (healSpell && player.hp < player.maxHp * 0.8 && player.mp >= healCost * 3) {
         autoBusy = true;
         Promise.resolve(castFieldSpell(healSpell)).then(() => { autoBusy = false; });
+        return;
+    }
+    // 移動中はトヘロスで弱い敵を避ける（本家の使いどころ）。
+    // 回復に要るぶんのMPは残す
+    if (repelSteps <= 0 && autoTravelling() && player.spells.includes('トヘロス') && !player.sealed
+        && player.mp >= 2 + (healSpell ? healCost * 2 : 0)) {
+        autoBusy = true;
+        Promise.resolve(castFieldSpell('トヘロス')).then(() => { autoBusy = false; });
         return;
     }
     // ダンジョンでは呪文が尽きてもやくそうで粘る（外に宿は無い）
