@@ -860,6 +860,9 @@ function isMoveAllowed(x, y) {
 }
 
 function updateField() {
+    // 本家どおり、町の人はその場をうろうろ歩く
+    if (typeof stepTownNpcs === 'function') stepTownNpcs();
+
     // 開発用キー（d=すり抜け l=レベルアップ b=エンカウント）。?dev=1 のときだけ効く
     if (devMode) {
         if (Input.consume('d')) { debugMode = !debugMode; }
@@ -1871,6 +1874,11 @@ function castleTargets(kind) {
         const [x, y] = k.split(',').map(Number);
         if (!chestOpenedOn('rcastle2', x, y)) t.push({ map: 'rcastle2', x, y, act: 'chest' });
     }
+    // 玉座の間から出るだけの用事（王様の話が済んだあとに閉じこめられた場合）
+    if (kind === 'castleOut') {
+        if (locked) t.push({ map: 'rcastle2', x: 4, y: 6, act: 'door' });
+        return t;
+    }
     if (kind === 'castleKing') {
         t.push({ map: 'rcastle2', x: 3, y: 4, act: 'king' });
         if (locked) t.push({ map: 'rcastle2', x: 4, y: 6, act: 'door' });
@@ -2152,7 +2160,8 @@ function autoTourStep() {
             autoPilot.goal = autoPilot.path ? 'かりばへ もどる' : null;
             autoPilot.lastLine = ''; return;
         }
-        if (t.kind === 'rora' || t.kind === 'castleKing' || t.kind === 'castleStone' || TOWN_ERRANDS[t.kind]) {
+        if (t.kind === 'rora' || t.kind === 'castleKing' || t.kind === 'castleStone'
+            || t.kind === 'castleOut' || TOWN_ERRANDS[t.kind]) {
             autoPilot.tour = null; autoPilot.lastLine = ''; return;
         }
         autoStop(t.retreat ? 'どうくつから ひきあげました' : 'どうくつを たんさくしました');
@@ -2525,6 +2534,13 @@ function autoTick(now) {
     if (!autoPilot.tour && inCastle()) {
         const q = nextQuestStep();
         if (q && (q.tour === 'castleKing' || q.tour === 'castleStone') && startCastleErrand(q.tour)) {
+            autoTourStep(); return;
+        }
+        // 玉座の間の出口は本家どおり かぎ の扉。王様の話が済んだあとの用事（買い物など）
+        // では扉を開ける手順が入らないので、閉じこめられたまま経路が作れず止まっていた。
+        // 用事が何であれ、まず宝箱の かぎ で出口を開けて城の外へ出る
+        if (currentMapId === 'rcastle2' && doorLockedOn('rcastle2', 4, 7)
+            && startCastleErrand('castleOut')) {
             autoTourStep(); return;
         }
     }

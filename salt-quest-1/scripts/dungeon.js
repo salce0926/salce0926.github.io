@@ -858,6 +858,149 @@ function npcAt(x, y) {
     if (hiddenNpcs.has(currentMapId + ':' + x + ',' + y)) return null;
     return d.npcAt[x + ',' + y] || null;
 }
+// =====================================================================
+// 町の人が歩く（本家どおり）
+// 本家の町人はその場をうろうろ歩き回る。実画面マップで人の位置が
+// 妙な場所（カウンターの奥・湖の対岸）に写っているのは、たまたまその
+// 瞬間を捉えた一枚だから。
+// 役目のある人（店・王様・けんじゃ・のろいを解く老人・ほこらの老人・
+// りゅうおう）と、カウンターや玉座の上に立っている人は動かない。
+// =====================================================================
+function npcWanders(d, n) {
+    if (n.shop || n.king || n.sage || n.cure || n.lightBe
+        || n.rainCloud || n.rainbowDrop || n.dragonLord) return false;
+    const t = d.grid[n.y] && d.grid[n.y][n.x];
+    if (t === T_COUNTER) return false;        // カウンター・玉座の上の人は動かない
+    // カウンター越しに話しかける人も動かない。動かれると、
+    // 「カウンターの1マス先を見る」判定から外れて一生話せなくなる
+    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]])
+        if (d.grid[n.y + dy] && d.grid[n.y + dy][n.x + dx] === T_COUNTER) return false;
+    // 本家の配置どおり、袋小路や一本道に立っている人はそのまま動かさない
+    // （そこから歩き出すと、せまい所をふさいだまま戻れなくなる）
+    const h = n.home || n;
+    if (npcStandLevel(d, h.x, h.y) < 2) return false;
+    return true;
+}
+// 町の人が立ってよいマスか。0=だめ ／ 1=急ぎのときだけ ／ 2=いつでも
+// 「そこに人が立つと通れる範囲が分断されるマス」や行き止まりに入られると、
+// 勇者の行く手をふさいだまま動けなくなる（階段前の一本道など）。
+// 判定は人が実際に歩ける範囲で行う。人は町の外周（踏むと町の外）や
+// 階段・とびら・宝箱のマスには入れないので、そこは道として数えない。
+// 地形だけで決まるので、マップごとに一度だけ調べて覚えておく
+function npcStandLevel(d, x, y) {
+    if (!d.standable) {
+        const g = d.grid, H = g.length, W = g[0].length;
+        const edge = d.exitTo ? 1 : 0;
+        const walk = (px, py) => {
+            if (px < edge || py < edge || px >= W - edge || py >= H - edge) return false;
+            const t = g[py][px];
+            if (t === undefined || TOWN_BLOCKED.includes(t)) return false;
+            if (t === D_CHEST || t === D_DOOR || t === D_STAIR_DOWN || t === D_STAIR_UP) return false;
+            for (const m in d.marks) if (d.marks[m].x === px && d.marks[m].y === py) return false;
+            return true;
+        };
+        const cells = [];
+        for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) if (walk(xx, yy)) cells.push([xx, yy]);
+        // 1マスふさいだ状態で、startから何マス行けるか
+        const fill = (start, skipX, skipY) => {
+            const seen = new Set([start.join(',')]); const q = [start];
+            while (q.length) {
+                const [cx, cy] = q.pop();
+                for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+                    const nx = cx + dx, ny = cy + dy, k = nx + ',' + ny;
+                    if (seen.has(k) || (nx === skipX && ny === skipY) || !walk(nx, ny)) continue;
+                    seen.add(k); q.push([nx, ny]);
+                }
+            }
+            return seen;
+        };
+        // とびらや階段で仕切られた部屋は人から見ると別の区画。区画ごとに数える
+        const area = {};
+        for (const [cx, cy] of cells) {
+            if (area[cx + ',' + cy] !== undefined) continue;
+            const seen = fill([cx, cy], -1, -1);
+            for (const k of seen) area[k] = seen.size;
+        }
+        d.standable = {};
+        for (const [cx, cy] of cells) {
+            const open = [];
+            for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]])
+                if (walk(cx + dx, cy + dy)) open.push([cx + dx, cy + dy]);
+            // 行き止まりは論外。ふさいでも区画がつながったままなら、いつでも立ってよい
+            d.standable[cx + ',' + cy] = open.length < 2 ? 0
+                : (fill(open[0], cx, cy).size === area[cx + ',' + cy] - 1 ? 2 : 1);
+        }
+    }
+    return d.standable[x + ',' + y] || 0;
+}
+// そのマスへ歩いて入れるか（人どうし・勇者とは重ならない）
+function npcCanStep(d, mapId, x, y, urgent) {
+    const g = d.grid;
+    if (!g[y] || g[y][x] === undefined) return false;
+    if (TOWN_BLOCKED.includes(g[y][x])) return false;
+    if ([D_DOOR, D_CHEST, D_STAIR_DOWN, D_STAIR_UP].includes(g[y][x])) return false;  // 出入口はふさがない
+    if (d.marks && Object.values(d.marks).some(m => m.x === x && m.y === y)) return false;
+    if (d.exitTo) {                            // 外周は踏ませない（町から出てしまう）
+        const W = g[0].length, H = g.length;
+        if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
+    }
+    if (d.npcAt[x + ',' + y]) return false;
+    if (mapId === currentMapId && playerPosition.x === x && playerPosition.y === y) return false;
+    // 急ぎ（勇者がとなりに来た）のときだけ、袋小路にならない狭いマスへも どく
+    if (npcStandLevel(d, x, y) < (urgent ? 1 : 2)) return false;
+    return true;
+}
+const NPC_STEP_MIN = 40, NPC_STEP_MAX = 110;   // 次に動くまでのフレーム数
+const NPC_ROAM = 2;                            // もとの場所からこのマス数までで うろつく（本家も部屋の中をうろうろする程度）
+// 全滅して玉座の間へ運ばれたときなど、決まった場所に置かれると
+// そこに町の人が立っていることがある。重なったままにせず、すぐ どいてもらう。
+// どかすのは歩き回る人だけ（店の人やほこらの老人は立ち位置に意味がある）
+function npcMakeWayForPlayer() {
+    const d = currentDungeon();
+    if (!d || !d.npcAt) return;
+    const here = d.npcAt[playerPosition.x + ',' + playerPosition.y];
+    if (!here) return;
+    if (hiddenNpcs.has(currentMapId + ':' + here.x + ',' + here.y)) return;
+    if (here.home === undefined) { here.home = { x: here.x, y: here.y }; here.wait = 0; here.roams = npcWanders(d, here); }
+    if (!here.roams) return;
+    for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        const nx = here.x + dx, ny = here.y + dy;
+        if (!npcCanStep(d, currentMapId, nx, ny, true)) continue;
+        delete d.npcAt[here.x + ',' + here.y];
+        here.x = nx; here.y = ny; d.npcAt[nx + ',' + ny] = here;
+        return;
+    }
+}
+function stepTownNpcs() {
+    const d = currentDungeon();
+    if (!d || !d.npcs) return;
+    npcMakeWayForPlayer();
+    for (const n of d.npcs) {
+        if (n.home === undefined) { n.home = { x: n.x, y: n.y }; n.wait = 0; n.roams = npcWanders(d, n); }
+        if (!n.roams) continue;
+        if (hiddenNpcs.has(currentMapId + ':' + n.x + ',' + n.y)) continue;
+        if (--n.wait > 0) continue;
+        n.wait = NPC_STEP_MIN + Math.floor(Math.random() * (NPC_STEP_MAX - NPC_STEP_MIN));
+        const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]].sort(() => Math.random() - 0.5);
+        // 勇者がすぐ隣にいるなら、その人は道をふさいでいる可能性が高い。
+        // うろつく範囲も「広い場所だけ」の決まりも外して、とにかく どく
+        const blocking = Math.abs(n.x - playerPosition.x) + Math.abs(n.y - playerPosition.y) === 1;
+        const near = [], far = [];
+        for (const [dx, dy] of dirs) {
+            const nx = n.x + dx, ny = n.y + dy;
+            if (!npcCanStep(d, currentMapId, nx, ny, blocking)) continue;
+            if (Math.abs(nx - n.home.x) > NPC_ROAM || Math.abs(ny - n.home.y) > NPC_ROAM) far.push([nx, ny]);
+            else near.push([nx, ny]);
+        }
+        const pick = near.length ? near[0] : (blocking && far.length ? far[0] : null);
+        if (!pick) continue;
+        const [nx, ny] = pick;
+        delete d.npcAt[n.x + ',' + n.y];
+        n.x = nx; n.y = ny;
+        d.npcAt[nx + ',' + ny] = n;
+    }
+}
+
 function adjacentNpc() {
     if (!isTownMap()) return null;
     const g = currentDungeon().grid;
@@ -922,6 +1065,7 @@ function switchMap(id, x, y) {
     mapHeight = mapData.length;
     playerPosition.x = x;
     playerPosition.y = y;
+    npcMakeWayForPlayer();      // 置かれた先に人が立っていたら どいてもらう
 }
 
 // 地上へ戻る（出口・リレミト・全滅・つばさ など共通）
@@ -992,7 +1136,7 @@ function townReachable(mapId, from, ignoreDoors) {
             const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
             if (seen.has(k)) continue;
             const isDoor = d.doorAt && (nx + ',' + ny) in d.doorAt;
-            if (!(ignoreDoors && isDoor) && !dungeonPassable(mapId, nx, ny)) continue;
+            if (!(ignoreDoors && isDoor) && !dungeonPassable(mapId, nx, ny, true)) continue;
             seen.add(k); q.push([nx, ny]);
         }
     }
@@ -1072,7 +1216,11 @@ function chestHere() {
 // オート用: ダンジョンの経路探索と巡回計画
 // =====================================================================
 // そのマスを歩けるか（壁と、まだ開けていないとびらは通れない）
-function dungeonPassable(mapId, x, y) {
+// ignoreNpc=true のときは人のいるマスも通れる扱いにする。
+// 本家どおり町の人が歩き回るようになったので、計画を立てるときに人を
+// 壁とみなすと「通路をふさがれた＝永久に通れない」と誤認して進まなくなる。
+// 人はすぐどくので、計画では無視し、実際に歩くときだけぶつかって待つ
+function dungeonPassable(mapId, x, y, ignoreNpc) {
     const d = DUNGEONS[mapId], g = d.grid;
     if (y < 0 || x < 0 || y >= g.length || x >= g[0].length) return false;
     if (d.kind === 'town') {
@@ -1088,7 +1236,11 @@ function dungeonPassable(mapId, x, y) {
             if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
         }
         // 人のいるマスは通れない（いなくなった人は除く）
-        return !(d.npcAt && d.npcAt[x + ',' + y]) || hiddenNpcs.has(mapId + ':' + x + ',' + y);
+        const who = d.npcAt && d.npcAt[x + ',' + y];
+        if (!who || hiddenNpcs.has(mapId + ':' + x + ',' + y)) return true;
+        // 計画づくりのときは「歩き回る人」だけ無視する。いずれどいてくれるため。
+        // 店の人やけんじゃのように動かない人は、どかないので壁と同じに扱う
+        return ignoreNpc && (who.roams !== undefined ? who.roams : npcWanders(d, who));
     }
     if (g[y][x] === D_WALL) return false;
     return !doorLockedOn(mapId, x, y);
@@ -1104,7 +1256,7 @@ function dungeonWalk(mapId, from, to) {
         if (x === to.x && y === to.y) break;
         for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
             const nx = x + dx, ny = y + dy;
-            if (!dungeonPassable(mapId, nx, ny)) continue;
+            if (!dungeonPassable(mapId, nx, ny, true)) continue;
             const k = nx + ',' + ny;
             if (prev.has(k)) continue;
             prev.set(k, [x + ',' + y, { x: nx, y: ny }]);
@@ -1134,7 +1286,7 @@ function dungeonRoute(fromMap, from, toMap, to) {
         const here = key(m, x, y);
         for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
             const nx = x + dx, ny = y + dy;
-            if (!dungeonPassable(m, nx, ny)) continue;
+            if (!dungeonPassable(m, nx, ny, true)) continue;
             const k = key(m, nx, ny);
             if (prev.has(k)) continue;
             prev.set(k, [here, { kind: 'walk' }]);

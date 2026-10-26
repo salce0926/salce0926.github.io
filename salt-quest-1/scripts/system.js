@@ -352,6 +352,7 @@ function showMessage(textLines) {
 // 送り先の無いメッセージ状態が続いたら、取り残されたものとみなして元の画面へ戻す。
 // ターン処理中(battleBusy)はその処理が自分で戻すので、しばらく待ってから助ける
 let stuckMessageFrames = 0;
+let stuckBattleFrames = 0, stuckBattleSig = '';
 function updateMessage() {
     if (!messageResolver) {
         const busy = (typeof battleBusy !== 'undefined' && battleBusy);
@@ -505,6 +506,20 @@ function gameLoop(timestamp) {
             if (timestamp - autoPilot.startedAt > 1500) autoStop('じぶんで とめた');
         } else if (currentState === STATE.FIELD) autoStart();
     }
+
+    // ごくまれに、戦闘のターン処理が途中で返ってこなくなることがある
+    // （原因は未特定）。そのままだと入力を受け付けないまま固まるので、
+    // 変化が止まったまま5秒たったら、その戦闘を畳んで操作を返す
+    if (typeof battleBusy !== 'undefined' && battleBusy) {
+        const sig = (typeof enemy !== 'undefined' && enemy ? enemy.hp : 0) + ':' + player.hp + ':' + currentState;
+        if (sig === stuckBattleSig) {
+            if (++stuckBattleFrames > 300) {
+                stuckBattleFrames = 0; battleBusy = false;
+                if (typeof battleResolver !== 'undefined' && battleResolver) endBattle('flee');
+                else currentState = STATE.FIELD;
+            }
+        } else { stuckBattleSig = sig; stuckBattleFrames = 0; }
+    } else { stuckBattleFrames = 0; stuckBattleSig = ''; }
 
     switch (currentState) {
         case STATE.FIELD: updateField(); break;
