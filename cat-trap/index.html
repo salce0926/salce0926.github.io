@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ネコを囲め</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>
+  /* 一画面のゲーム：上に題、真ん中に草地の六角盤、下に操作 */
+  :root {
+    --bg: #edf0e4;
+    --ink: #33392a;
+    --sub: #7a8268;
+    --cell: #cfe2a2;
+    --cell-hover: #b9d67c;
+    --edge: #c2d894;
+    --wall: #55603f;
+    --cat: #2a2622;
+    --eye: #f3cd4e;
+    --pupil: #2a2622;
+    --nose: #e7a0a0;
+    --win: #44782c;
+    --lose: #b8513a;
+    --font: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1a1e16; --ink: #e4e8d8; --sub: #98a083;
+      --cell: #3e4c2c; --cell-hover: #52653a; --edge: #46572f; --wall: #10130c;
+      --cat: #ded7ca; --eye: #e2a53c; --pupil: #2a2622; --nose: #d98a8a; --win: #8fcf6a; --lose: #ef8a6f;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1a1e16; --ink: #e4e8d8; --sub: #98a083;
+    --cell: #3e4c2c; --cell-hover: #52653a; --edge: #46572f; --wall: #10130c;
+    --cat: #ded7ca; --eye: #e2a53c; --pupil: #2a2622; --nose: #d98a8a; --win: #8fcf6a; --lose: #ef8a6f;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    display: flex; flex-direction: column; align-items: center;
+    padding-block: 12px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    user-select: none; -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+  }
+  header { text-align: center; display: grid; gap: 2px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: .12em; font-weight: 700; }
+  .rule { font-size: 13px; color: var(--sub); margin: 0; }
+  #wrap { flex: 1; min-height: 0; width: 100%; max-width: 600px; display: flex; align-items: center; }
+  svg { width: 100%; height: 100%; display: block; touch-action: manipulation; }
+  #cells { transition: opacity .8s; }
+  #cells.faded { opacity: .45; }
+  .cell { fill: var(--cell); stroke: var(--bg); stroke-width: 2; cursor: pointer; transition: fill .15s; transform-box: fill-box; transform-origin: center; }
+  .cell.edge { fill: var(--edge); }
+  @media (hover: hover) { .cell:not(.wall):hover { fill: var(--cell-hover); } }
+  .cell.wall { fill: var(--wall); cursor: default; }
+  .cell.pop { animation: pop .28s ease-out; }
+  @keyframes pop { 0% { transform: scale(.4); } 70% { transform: scale(1.12); } 100% { transform: scale(1); } }
+  .cat-fill { fill: var(--cat); }
+  .cat-line { stroke: var(--cat); stroke-width: 3.2; stroke-linecap: round; fill: none; }
+  #shadow { fill: var(--ink); opacity: .14; }
+  #bubble { font: 700 13px var(--font); fill: var(--ink); text-anchor: middle; }
+  #status { font-size: 16px; min-height: 1.5em; text-align: center; font-weight: 700; margin-top: 4px; }
+  #status.win { color: var(--win); }
+  #status.lose { color: var(--lose); }
+  #statusRow { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+  #statusRow #status { margin-top: 0; }
+  #status { user-select: text; -webkit-user-select: text; }
+  #shareBtn { min-height: 32px; padding: 4px 12px; font-size: 13px; }
+  #info { font-size: 13px; color: var(--sub); text-align: center; font-variant-numeric: tabular-nums; }
+  #bar { display: grid; grid-template-columns: repeat(4, auto); gap: 8px; justify-content: center; margin-top: 10px; }
+  button {
+    font: 500 14px var(--font); padding: 9px 14px; border-radius: 999px; min-height: 40px;
+    border: 2px solid var(--ink); background: transparent; color: var(--ink); cursor: pointer;
+  }
+  button:focus-visible { outline: 3px solid var(--cell-hover); outline-offset: 2px; }
+  @media (hover: hover) { button:hover { background: var(--ink); color: var(--bg); } }
+  button.on { background: var(--ink); color: var(--bg); }
+  @media (max-width: 520px) {
+    #bar { grid-template-columns: 1fr 1fr; width: 100%; max-width: 360px; }
+    button { font-size: 13px; padding: 6px; min-height: 36px; }
+    #bar { gap: 6px; margin-top: 8px; }
+  }
+  #modes { display: flex; flex-wrap: wrap; gap: 6px 8px; justify-content: center; margin-top: 8px; }
+  #modes.daily #level { opacity: .45; }
+  .seg { display: inline-flex; border: 2px solid var(--ink); border-radius: 999px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; min-height: 32px; padding: 4px 10px; font-size: 12.5px; }
+  .seg button + button { border-left: 2px solid var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  @media (prefers-reduced-motion: reduce) { .cell.pop { animation: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>ネコを囲め</h1>
+  <p class="rule">マスを押して壁を置き、ネコを閉じ込めよう</p>
+  <div id="modes">
+    <div id="level" class="seg" role="group" aria-label="難易度">
+      <button id="lvEasy" data-level="easy">やさしい</button>
+      <button id="lvNormal" data-level="normal">ふつう</button>
+      <button id="lvHard" data-level="hard">むずかしい</button>
+    </div>
+    <div id="brain" class="seg" role="group" aria-label="ネコの強さ">
+      <button id="catNormal" data-brain="normal">のんびり</button>
+      <button id="catSmart" data-brain="smart">かしこい</button>
+    </div>
+  </div>
+</header>
+<div id="wrap"><svg id="board" preserveAspectRatio="xMidYMid meet"></svg></div>
+<div id="statusRow"><div id="status"></div><button id="shareBtn" hidden>結果をコピー</button></div>
+<div id="info"></div>
+<div id="bar">
+  <button id="newBtn">新しい盤面</button>
+  <button id="retryBtn">やり直す</button>
+  <button id="undoBtn">1手戻す</button>
+  <button id="dailyBtn">今日の一問</button>
+</div>
+
+<script>
+const N = 11;
+const R = 22;                        // 六角形の半径
+const W = Math.sqrt(3) * R;          // 横幅
+const H = 1.5 * R;                   // 行の間隔
+const TOP = 18;                      // 上段のネコの耳がはみ出さないための余白
+const svg = document.getElementById('board');
+const statusEl = document.getElementById('status');
+const infoEl = document.getElementById('info');
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let walls, initialWalls, cat, history, moves, over, busy, enclosedShown;
+let brain = 'normal';      // ネコの強さ
+let daily = null;          // 今日の一問なら { seed, label }
+let timer = null;
+
+const key = (r, c) => r * N + c;
+const inside = (r, c) => r >= 0 && r < N && c >= 0 && c < N;
+const isEdge = (r, c) => r === 0 || c === 0 || r === N - 1 || c === N - 1;
+
+// 偶数行・奇数行で隣のマスがずれる（横ずらしの六角形盤）
+function deltas(r) {
+  return r % 2 === 0
+    ? [[-1,-1],[-1,0],[0,-1],[0,1],[1,-1],[1,0]]
+    : [[-1,0],[-1,1],[0,-1],[0,1],[1,0],[1,1]];
+}
+function neighbors(r, c) {
+  return deltas(r).map(([dr, dc]) => [r + dr, c + dc]).filter(([a, b]) => inside(a, b));
+}
+function center(r, c) {
+  return [W / 2 + c * W + (r % 2 ? W / 2 : 0) + 4, TOP + R + r * H + 4];
+}
+// ネコの足元の位置（六角形の中心より少し下に立たせる）
+function feet(r, c) { const [x, y] = center(r, c); return [x, y + 9]; }
+
+/* ---------- ネコの思考 ---------- */
+
+function distToEdge() {
+  const dist = new Array(N * N).fill(Infinity);
+  const q = [];
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (isEdge(r, c) && !walls.has(key(r, c))) { dist[key(r, c)] = 0; q.push([r, c]); }
+  }
+  for (let i = 0; i < q.length; i++) {
+    const [r, c] = q[i];
+    for (const [a, b] of neighbors(r, c)) {
+      const k = key(a, b);
+      if (walls.has(k) || dist[k] !== Infinity) continue;
+      dist[k] = dist[key(r, c)] + 1;
+      q.push([a, b]);
+    }
+  }
+  return dist;
+}
+
+/* 乱数。今日の一問では盤面とネコの迷い方を日付から決め、誰がやっても同じになるようにする */
+function mulberry32(a) {
+  return () => {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function catRandom() {
+  if (!daily) return Math.random();
+  let h = daily.seed ^ (key(...cat) * 7919);
+  for (const k of walls) h = Math.imul(h ^ (k + 1), 2654435761);
+  return mulberry32(h)();
+}
+const pick = arr => arr[Math.floor(catRandom() * arr.length)];
+
+/* かしこいネコ用：壁を配列で持ち、距離を速く数える */
+const NBK = [], EDGEK = [];
+for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+  NBK.push(neighbors(r, c).map(([a, b]) => key(a, b)));
+  EDGEK.push(isEdge(r, c));
+}
+const FAR = 999;
+// 出口までの普通の距離
+function oneDistArr(wa) {
+  const d = new Int16Array(N * N).fill(FAR), q = [];
+  for (let k = 0; k < N * N; k++) if (EDGEK[k] && !wa[k]) { d[k] = 0; q.push(k); }
+  for (let i = 0; i < q.length; i++) for (const y of NBK[q[i]])
+    if (!wa[y] && d[y] === FAR) { d[y] = d[q[i]] + 1; q.push(y); }
+  return d;
+}
+// 「1つ塞がれても残る道」での出口までの距離（2番目に近い隣＋1）
+function twoDistArr(wa) {
+  const d = new Int16Array(N * N).fill(FAR);
+  for (let k = 0; k < N * N; k++) if (EDGEK[k] && !wa[k]) d[k] = 0;
+  for (let changed = true; changed;) {
+    changed = false;
+    for (let k = 0; k < N * N; k++) {
+      if (wa[k] || EDGEK[k]) continue;
+      let m1 = FAR, m2 = FAR;
+      for (const y of NBK[k]) {
+        if (wa[y]) continue;
+        const v = d[y];
+        if (v < m1) { m2 = m1; m1 = v; } else if (v < m2) m2 = v;
+      }
+      const v = m2 < FAR ? m2 + 1 : FAR;
+      if (v < d[k]) { d[k] = v; changed = true; }
+    }
+  }
+  return d;
+}
+
+function catMove() { return brain === 'smart' ? smartMove() : greedyMove(); }
+
+// かしこいネコ：行き先ごとに「相手が一番いやな所を塞いだら」を全部試し、
+// それでも一番逃げやすいマスへ進む。囲まれたら広い方へ粘る
+function smartMove() {
+  const opts = neighbors(...cat).filter(([a, b]) => !walls.has(key(a, b)));
+  if (opts.length === 0) return null;
+  const exit = opts.find(([a, b]) => isEdge(a, b));
+  if (exit) return exit;
+  const wa = new Uint8Array(N * N);
+  for (const k of walls) wa[k] = 1;
+  const dist = oneDistArr(wa);
+  if (!opts.some(([a, b]) => dist[key(a, b)] < FAR)) {
+    const room = ([a, b]) => neighbors(a, b).filter(([x, y]) => !walls.has(key(x, y))).length;
+    const most = Math.max(...opts.map(room));
+    return pick(opts.filter(p => room(p) === most));
+  }
+  // 塞がれうるマス＝ネコがいる囲いの中
+  const region = [], seen = new Uint8Array(N * N), here = key(...cat);
+  seen[here] = 1;
+  for (const q = [here]; q.length;) {
+    const x = q.pop();
+    for (const y of NBK[x]) if (!wa[y] && !seen[y]) { seen[y] = 1; region.push(y); q.push(y); }
+  }
+  const score = n => {
+    let worst = -1;
+    for (const b of region) {
+      if (b === n) continue;
+      wa[b] = 1;
+      const v = Math.min(twoDistArr(wa)[n], 99) * 1000 + Math.min(oneDistArr(wa)[n], 99);
+      wa[b] = 0;
+      if (v > worst) worst = v;
+    }
+    return worst;
+  };
+  const scored = opts.map(p => [p, score(key(...p))]);
+  const best = Math.min(...scored.map(([, v]) => v));
+  return pick(scored.filter(([, v]) => v === best).map(([p]) => p));
+}
+
+// のんびりネコ：一番近い出口へ。同じ近さなら、その先の逃げ道が多い方へ
+function greedyMove() {
+  const dist = distToEdge();
+  const opts = neighbors(...cat).filter(([a, b]) => !walls.has(key(a, b)));
+  if (opts.length === 0) return null;
+  const reachable = opts.filter(([a, b]) => dist[key(a, b)] !== Infinity);
+  if (reachable.length) {
+    const best = Math.min(...reachable.map(([a, b]) => dist[key(a, b)]));
+    let cands = reachable.filter(([a, b]) => dist[key(a, b)] === best);
+    const freedom = ([a, b]) => neighbors(a, b).filter(([x, y]) =>
+      !walls.has(key(x, y)) && dist[key(x, y)] < dist[key(a, b)]).length;
+    const maxF = Math.max(...cands.map(freedom));
+    cands = cands.filter(p => freedom(p) === maxF);
+    return pick(cands);
+  }
+  return pick(opts);   // 出口なし：囲いの中をうろうろ
+}
+
+/* ---------- ネコの体と動き ---------- */
+
+const motion = {
+  queue: [],          // 予定しているジャンプ
+  rest: [0, 0],       // 止まっているときの足元
+  face: 1,            // 1=右向き -1=左向き
+  caughtAt: null,     // 捕まった時刻（ふて寝の始まり）
+  twitchAt: -1e9,     // 耳ぴくっ
+  bubble: null,       // { text, until }
+  nextBlink: 0,
+};
+
+// from→to へ1回跳ぶ。dur ミリ秒、lift は跳ぶ高さ
+function hop(from, to, dur, lift, done) {
+  motion.queue.push({ from, to, dur, lift, done, start: null });
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function ease(t) { return t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+function pose(now) {
+  const p = {
+    x: motion.rest[0], y: motion.rest[1], lift: 0, face: motion.face,
+    crouch: 0, stretch: 0, lie: 0, tilt: 0, droop: 0, blink: 0,
+    sway: Math.sin(now / 420) * .35, straight: 0,
+  };
+  // 呼吸
+  p.crouch = .1 * (Math.sin(now / 520) + 1) / 2;
+  // まばたき
+  if (now > motion.nextBlink) motion.nextBlink = now + 2200 + Math.random() * 3000;
+  const toBlink = motion.nextBlink - now;
+  if (toBlink < 130) p.blink = 1;
+  // 耳ぴくっ（壁が置かれた瞬間）
+  const tw = now - motion.twitchAt;
+  if (tw < 220) p.droop = Math.sin(tw / 220 * Math.PI) * .6;
+
+  const a = motion.queue[0];
+  if (a) {
+    if (a.start === null) a.start = now;
+    const dx = a.to[0] - a.from[0];
+    if (Math.abs(dx) > .1) motion.face = p.face = dx > 0 ? 1 : -1;
+    let t = (now - a.start) / a.dur;
+    if (reduceMotion) t = 1;
+    if (t >= 1) {
+      motion.queue.shift();
+      motion.rest = a.to.slice();
+      p.x = a.to[0]; p.y = a.to[1];
+      if (a.done) a.done();
+    } else if (t < .22) {                       // ためる
+      p.crouch = ease(t / .22);
+      p.x = a.from[0]; p.y = a.from[1];
+    } else if (t < .78) {                       // 跳ぶ
+      const q = (t - .22) / .56;
+      const e = ease(q);
+      p.x = lerp(a.from[0], a.to[0], e);
+      p.y = lerp(a.from[1], a.to[1], e);
+      p.lift = Math.sin(Math.PI * q) * a.lift;
+      p.stretch = Math.sin(Math.PI * Math.min(1, q * 1.2));
+      p.crouch = Math.max(0, 1 - q * 4) * .6;
+      p.straight = Math.sin(Math.PI * q);
+      p.tilt = Math.sign(a.to[1] - a.from[1]) * (q < .5 ? -12 : 10);
+    } else {                                    // 着地
+      const q = (t - .78) / .22;
+      p.x = a.to[0]; p.y = a.to[1];
+      p.crouch = Math.sin(Math.PI * q) * .7;
+    }
+  }
+  // 捕まったらふて寝
+  if (motion.caughtAt !== null) {
+    const k = Math.min(1, (now - motion.caughtAt) / 600);
+    p.lie = ease(k); p.droop = Math.max(p.droop, ease(k));
+    p.sway = Math.sin(now / 900) * .12;
+    p.blink = k > .6 ? 1 : p.blink;
+  }
+  return p;
+}
+
+const catSVG = `
+<g id="cat" pointer-events="none">
+  <ellipse id="shadow" cx="0" cy="0" rx="11" ry="3"/>
+  <g id="catLift">
+    <g id="catFlip">
+      <path id="tail" class="cat-line"/>
+      <line id="lb1" class="cat-line"/><line id="lb2" class="cat-line"/>
+      <line id="lf1" class="cat-line"/><line id="lf2" class="cat-line"/>
+      <ellipse id="cbody" class="cat-fill"/>
+      <g id="head">
+        <polygon id="earL" class="cat-fill"/>
+        <polygon id="earR" class="cat-fill"/>
+        <circle r="6.6" class="cat-fill"/>
+        <g id="eyes">
+          <ellipse cx="1.2" cy="-1" rx="1.7" ry="1.9" fill="var(--eye)"/>
+          <ellipse cx="4.8" cy="-1" rx="1.7" ry="1.9" fill="var(--eye)"/>
+          <ellipse cx="1.5" cy="-1" rx=".55" ry="1.45" fill="var(--pupil)"/>
+          <ellipse cx="5.1" cy="-1" rx=".55" ry="1.45" fill="var(--pupil)"/>
+        </g>
+        <path id="sleepy" d="M-0.6,-0.6 q1.8,1.4 3.6,0 M3.2,-0.6 q1.6,1.3 3.2,0" stroke="var(--eye)" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+        <path d="M6.3,1.6 l-1.6,0 l.8,1.1z" fill="var(--nose)"/>
+      </g>
+    </g>
+  </g>
+  <text id="bubble" x="0" y="-38"></text>
+</g>`;
+
+let C = {};
+function drawCat(now) {
+  const p = pose(now);
+  const set = (el, attrs) => { for (const k in attrs) el.setAttribute(k, attrs[k]); };
+  C.cat.setAttribute('transform', `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`);
+  set(C.shadow, { rx: (11 - p.lift * .3).toFixed(1) });
+  C.lift.setAttribute('transform', `translate(0,${(-p.lift).toFixed(1)})`);
+  C.flip.setAttribute('transform', `scale(${p.face},1)`);
+
+  const by = -12 + 4 * p.crouch + 6.5 * p.lie;
+  set(C.body, {
+    cx: 0, cy: by.toFixed(2),
+    rx: (10 * (1 + .22 * p.stretch) + 1.5 * p.lie).toFixed(2),
+    ry: (6.6 * (1 - .12 * p.stretch + .08 * p.crouch)).toFixed(2),
+  });
+
+  // 脚：立ち・伸び・香箱座りの3つを混ぜる
+  const hip = [-6, by + 3], sh = [6, by + 3];
+  const stand = [[-7.5, 0], [-4.5, 0], [4.5, 0], [7.5, 0]];
+  const leap = [[-16, by + 6], [-13.5, by + 8], [16, by + 4], [13.5, by + 7]];
+  const tuck = [[-8, by + 4], [-5, by + 4], [5, by + 4], [8, by + 4]];
+  const legs = [C.lb1, C.lb2, C.lf1, C.lf2];
+  legs.forEach((el, i) => {
+    let fx = lerp(stand[i][0], leap[i][0], p.stretch), fy = lerp(stand[i][1], leap[i][1], p.stretch);
+    fx = lerp(fx, tuck[i][0], p.lie); fy = lerp(fy, tuck[i][1], p.lie);
+    const o = i < 2 ? hip : sh;
+    set(el, { x1: o[0] + (i % 2 ? 2 : -1), y1: o[1].toFixed(2), x2: fx.toFixed(2), y2: fy.toFixed(2) });
+  });
+
+  // 頭
+  const hx = 10 + 3 * p.stretch - 1 * p.lie, hy = by - 6.5 + 1.5 * p.crouch + 2.5 * p.lie;
+  C.head.setAttribute('transform', `translate(${hx.toFixed(2)},${hy.toFixed(2)}) rotate(${p.tilt.toFixed(1)})`);
+  const d = p.droop * 38;
+  C.earL.setAttribute('points', '-5.6,-3 -4.6,-11 0.2,-5.8');
+  C.earL.setAttribute('transform', `rotate(${-d} -3 -4)`);
+  C.earR.setAttribute('points', '1.4,-6.2 5.8,-10.6 6.4,-2.4');
+  C.earR.setAttribute('transform', `rotate(${d} 4 -4)`);
+  const blinkScale = Math.max(.08, 1 - p.blink);
+  C.eyes.setAttribute('transform', `translate(0,-1) scale(1,${blinkScale}) translate(0,1)`);
+  const sleeping = p.lie > .6;
+  C.eyes.style.display = sleeping ? 'none' : '';
+  C.sleepy.style.display = sleeping ? '' : 'none';
+
+  // しっぽ：普段は立てて揺らす／跳ぶときは後ろへ伸ばす／寝るときは体に巻く
+  const base = [-9, by - 1];
+  let ang = lerp(-2.1 + p.sway, Math.PI - .2, p.straight);
+  let len = lerp(14, 15, p.straight);
+  ang = lerp(ang, 2.75 + p.sway, p.lie); len = lerp(len, 12, p.lie);
+  const tip = [base[0] + Math.cos(ang) * len, base[1] + Math.sin(ang) * len];
+  C.tail.setAttribute('d', `M${base[0]},${base[1].toFixed(2)} Q${(base[0] - 9).toFixed(2)},${(base[1] + 2).toFixed(2)} ${tip[0].toFixed(2)},${tip[1].toFixed(2)}`);
+
+  // 吹き出し
+  let text = '', op = 1, bob = 0;
+  if (motion.caughtAt !== null && now - motion.caughtAt > 700) {
+    const z = (now - motion.caughtAt) / 1400;
+    text = 'z z'; op = .4 + .6 * Math.abs(Math.sin(z * Math.PI)); bob = -(z % 1) * 5;
+  } else if (motion.bubble && now < motion.bubble.until) {
+    text = motion.bubble.text; bob = -Math.abs(Math.sin(now / 120)) * 3;
+  }
+  C.bubble.textContent = text;
+  C.bubble.setAttribute('opacity', op);
+  C.bubble.setAttribute('transform', `translate(${(p.face * 6).toFixed(1)},${(bob - p.lift + 14 * p.lie).toFixed(1)})`);
+}
+
+function loop(now) { drawCat(now); requestAnimationFrame(loop); }
+
+/* ---------- 盤面 ---------- */
+
+function hexPoints(cx, cy) {
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 180 * (60 * i - 30);
+    pts.push(`${(cx + (R - 1) * Math.cos(a)).toFixed(1)},${(cy + (R - 1) * Math.sin(a)).toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+let cellEls = [];
+function buildBoard() {
+  const vw = N * W + W / 2 + 8, vh = TOP + (N - 1) * H + 2 * R + 8;
+  svg.setAttribute('viewBox', `0 0 ${vw.toFixed(1)} ${vh.toFixed(1)}`);
+  let html = '<g id="cells">';
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const [x, y] = center(r, c);
+    html += `<polygon class="cell" data-r="${r}" data-c="${c}" points="${hexPoints(x, y)}"/>`;
+  }
+  svg.innerHTML = html + '</g>' + catSVG;
+  cellEls = [...svg.querySelectorAll('.cell')];
+  C = {
+    cat: svg.querySelector('#cat'), shadow: svg.querySelector('#shadow'),
+    lift: svg.querySelector('#catLift'), flip: svg.querySelector('#catFlip'),
+    body: svg.querySelector('#cbody'), head: svg.querySelector('#head'),
+    earL: svg.querySelector('#earL'), earR: svg.querySelector('#earR'),
+    eyes: svg.querySelector('#eyes'),
+    sleepy: svg.querySelector('#sleepy'), tail: svg.querySelector('#tail'),
+    lb1: svg.querySelector('#lb1'), lb2: svg.querySelector('#lb2'),
+    lf1: svg.querySelector('#lf1'), lf2: svg.querySelector('#lf2'),
+    bubble: svg.querySelector('#bubble'),
+  };
+}
+
+function updateCells() {
+  cellEls.forEach((el, k) => {
+    const r = Math.floor(k / N), c = k % N;
+    el.classList.toggle('wall', walls.has(k));
+    el.classList.toggle('edge', isEdge(r, c));
+  });
+  const best = loadBest();
+  infoEl.textContent = daily
+    ? `${daily.short}の一問・${brainShort()} ／ 壁${moves}手` + (best ? ` ／ 今日の記録${best}手` : '')
+    : `置いた壁：${moves}手` + (best ? ` ／ 最少記録：${best}手` : '');
+}
+
+function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = cls || ''; }
+
+// 最初の壁の数　やさしい=20〜24個／ふつう=元のゲームと同じ置き方(15個前後)／むずかしい=8〜13個
+const LEVELS = {
+  easy:   { name: 'やさしい' },
+  normal: { name: 'ふつう' },
+  hard:   { name: 'むずかしい' },
+};
+let level = 'normal';
+try { if (LEVELS[localStorage.getItem('cattrap-level')]) level = localStorage.getItem('cattrap-level'); } catch {}
+
+function randomWalls(rnd = Math.random) {
+  const s = new Set();
+  if (level === 'normal') {
+    // 元のゲームは盤の外側2マスを含む15×15に30回ばらまき、盤に落ちたものだけ壁にする
+    for (let i = 0; i < 30; i++) {
+      const r = Math.floor(rnd() * 15) - 2, c = Math.floor(rnd() * 15) - 2;
+      if (inside(r, c) && !(r === 5 && c === 5)) s.add(key(r, c));
+    }
+    return s;
+  }
+  const count = level === 'easy' ? 20 + Math.floor(rnd() * 5) : 8 + Math.floor(rnd() * 6);
+  while (s.size < count) {
+    const r = Math.floor(rnd() * N), c = Math.floor(rnd() * N);
+    if (r === 5 && c === 5) continue;
+    s.add(key(r, c));
+  }
+  return s;
+}
+
+try { if (localStorage.getItem('cattrap-brain') === 'smart') brain = 'smart'; } catch {}
+const brainName = () => brain === 'smart' ? 'かしこいネコ' : 'のんびりネコ';
+const brainShort = () => brain === 'smart' ? 'かしこい' : 'のんびり';
+
+function syncButtons() {
+  document.querySelectorAll('#level button').forEach(b =>
+    b.setAttribute('aria-pressed', String(!daily && b.dataset.level === level)));
+  document.querySelectorAll('#brain button').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.brain === brain)));
+  document.getElementById('modes').classList.toggle('daily', !!daily);
+  document.getElementById('dailyBtn').classList.toggle('on', !!daily);
+}
+
+function setLevel(lv) {
+  level = lv;
+  daily = null;
+  try { localStorage.setItem('cattrap-level', lv); } catch {}
+  syncButtons();
+  start(true);
+}
+
+function setBrain(b) {
+  brain = b;
+  try { localStorage.setItem('cattrap-brain', b); } catch {}
+  syncButtons();
+  start(!daily);   // ふだんは新しい盤面、今日の一問なら同じ盤面でネコだけ替える
+}
+
+// 今日の一問：壁の置き方は「ふつう」と同じ。日付が同じなら誰でも同じ盤面
+function startDaily() {
+  const d = new Date();
+  daily = {
+    seed: d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(),
+    label: `${d.getMonth() + 1}月${d.getDate()}日の一問`,
+    short: `${d.getMonth() + 1}/${d.getDate()}`,
+  };
+  const keep = level;
+  level = 'normal';
+  initialWalls = randomWalls(mulberry32(daily.seed));
+  level = keep;
+  syncButtons();
+  start(false);
+}
+
+function resetMotion() {
+  clearTimeout(timer);
+  motion.queue = [];
+  motion.caughtAt = null;
+  motion.bubble = null;
+  motion.rest = feet(...cat);
+  svg.querySelector('#cells').classList.remove('faded');
+}
+
+function start(fresh) {
+  if (fresh) initialWalls = randomWalls();
+  walls = new Set(initialWalls);
+  cat = [5, 5];
+  history = [];
+  moves = 0;
+  over = false; busy = false; enclosedShown = false;
+  resetMotion();
+  setStatus('');
+  shareBtn.hidden = true;
+  updateCells();
+}
+
+function play(r, c) {
+  if (over || busy) return;
+  const k = key(r, c);
+  if (walls.has(k) || (r === cat[0] && c === cat[1])) return;
+  history.push({ walls: new Set(walls), cat: [...cat], moves, enclosedShown });
+  walls.add(k);
+  moves++;
+  busy = true;
+  const el = cellEls[k];
+  el.classList.remove('pop'); void el.getBBox(); el.classList.add('pop');
+  motion.twitchAt = performance.now();
+  updateCells();
+  timer = setTimeout(() => {
+    const next = catMove();
+    if (!next) {
+      over = true; busy = false;
+      motion.caughtAt = performance.now();
+      setStatus(`捕まえました！ ${moves}手`, 'win');
+      shareBtn.hidden = !daily;
+      saveBest();
+      updateCells();
+      return;
+    }
+    const from = cat;
+    cat = next;
+    hop(feet(...from), feet(...next), 380, 12, afterLand);
+  }, 160);
+}
+
+function afterLand() {
+  if (isEdge(...cat)) {
+    over = true;
+    setStatus('ネコが端に着きました…', 'lose');
+    timer = setTimeout(runAway, 300);
+    return;
+  }
+  busy = false;
+  if (distToEdge()[key(...cat)] === Infinity) {
+    if (!enclosedShown) {
+      enclosedShown = true;
+      motion.bubble = { text: '!?', until: performance.now() + 1300 };
+    }
+    setStatus('もう逃げ道はありません。囲いを閉じましょう', 'win');
+  } else {
+    setStatus('');
+  }
+  updateCells();
+}
+
+// 盤の外へ向かって走り去る
+function runAway() {
+  const [r, c] = cat;
+  const outs = deltas(r).filter(([dr, dc]) => !inside(r + dr, c + dc));
+  const [dr, dc] = outs[Math.floor(Math.random() * outs.length)];
+  const [x0, y0] = center(r, c), [x1, y1] = center(r + dr, c + dc);
+  const step = [x1 - x0, y1 - y0];
+  let pos = feet(r, c);
+  for (let i = 0; i < 5; i++) {
+    const next = [pos[0] + step[0] * 1.1, pos[1] + step[1] * 1.1];
+    hop(pos, next, 230, 8, i === 4 ? () => {
+      svg.querySelector('#cells').classList.add('faded');
+      setStatus('逃げられました', 'lose');
+      busy = false;
+    } : null);
+    pos = next;
+  }
+}
+
+function undo() {
+  const h = history.pop();
+  if (!h) return;
+  walls = h.walls; cat = h.cat; moves = h.moves; enclosedShown = h.enclosedShown;
+  over = false; busy = false;
+  resetMotion();
+  setStatus('');
+  shareBtn.hidden = true;
+  updateCells();
+}
+
+// 記録は難易度×ネコの強さごと。以前の記録（壁8〜13個の盤）は「むずかしい×のんびり」として引き継ぐ
+function bestKey() {
+  if (daily) return `cattrap-daily-${daily.seed}-${brain}`;
+  const base = level === 'hard' ? 'cattrap-best' : `cattrap-best-${level}`;
+  return brain === 'smart' ? `${base}-smart` : base;
+}
+function loadBest() { try { return Number(localStorage.getItem(bestKey())) || null; } catch { return null; } }
+function saveBest() {
+  const b = loadBest();
+  if (!b || moves < b) { try { localStorage.setItem(bestKey(), String(moves)); } catch {} }
+}
+
+svg.addEventListener('click', e => {
+  const t = e.target.closest('.cell');
+  if (t) play(Number(t.dataset.r), Number(t.dataset.c));
+});
+document.querySelectorAll('#level button').forEach(b => b.onclick = () => setLevel(b.dataset.level));
+document.querySelectorAll('#brain button').forEach(b => b.onclick = () => setBrain(b.dataset.brain));
+document.getElementById('newBtn').onclick = () => { if (daily) { daily = null; syncButtons(); } start(true); };
+document.getElementById('retryBtn').onclick = () => start(false);
+document.getElementById('undoBtn').onclick = undo;
+document.getElementById('dailyBtn').onclick = startDaily;
+const shareBtn = document.getElementById('shareBtn');
+shareBtn.onclick = () => {
+  const text = `ネコを囲め ${daily.label}（${brainName()}）を${moves}手で捕まえました`;
+  const done = () => { shareBtn.textContent = 'コピーしました'; setTimeout(() => shareBtn.textContent = '結果をコピー', 1600); };
+  const fallback = () => { setStatus(text, 'win'); shareBtn.textContent = '上の文を長押しでコピー'; };
+  try { navigator.clipboard.writeText(text).then(done, fallback); } catch { fallback(); }
+};
+
+buildBoard();
+setLevel(level);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
