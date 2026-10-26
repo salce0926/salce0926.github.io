@@ -319,22 +319,22 @@ async function executeEnemyTurn() {
             return;
         case 'gira':
             damage = mitigateMagic(randRange(3, 10));
-            player.hp -= damage;
+            player.hp = Math.max(0, player.hp - damage);   // 本家の表示は0どまり
             await showMessage([`${enemy.name}は ギラを となえた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
             break;
         case 'begirama':
             damage = mitigateMagic(randRange(30, 45));
-            player.hp -= damage;
+            player.hp = Math.max(0, player.hp - damage);   // 本家の表示は0どまり
             await showMessage([`${enemy.name}は ベギラマを となえた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
             break;
         case 'fire':
             damage = mitigateFire(randRange(16, 23));
-            player.hp -= damage;
+            player.hp = Math.max(0, player.hp - damage);   // 本家の表示は0どまり
             await showMessage([`${enemy.name}は ほのおを はいた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
             break;
         case 'firestrong':
             damage = mitigateFire(randRange(65, 72));
-            player.hp -= damage;
+            player.hp = Math.max(0, player.hp - damage);   // 本家の表示は0どまり
             await showMessage([`${enemy.name}は はげしい ほのおを はいた！`, `${player.name}に ${damage}ポイントの`, `ダメージを あたえた！`]);
             break;
         case 'behoimi': {
@@ -368,7 +368,7 @@ async function executeEnemyTurn() {
             break;
         default:
             damage = calcEnemyDamage(enemy.attack, player.defense);
-            player.hp -= damage;
+            player.hp = Math.max(0, player.hp - damage);   // 本家の表示は0どまり
             if (damage === 0) {
                 await showMessage([`${enemy.name}の こうげき！`, `しかし ${player.name}は`, `ダメージを うけなかった！`]);
             } else {

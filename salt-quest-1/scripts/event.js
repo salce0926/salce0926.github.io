@@ -1634,6 +1634,14 @@ function expectedHit(attack, defense) {
     return (Math.floor(base / 4) + Math.floor(base / 2)) / 2;
 }
 
+// 処理待ちに入る前に足を止める。押しっぱなしのまま待ちに入ると、
+// 同じフレームの移動処理がそのキーで1歩進み、呪文や買い物の最中に
+// エンカウントして処理が二重に走る（戦闘ウィンドウが出たまま歩ける形）
+function autoStand() {
+    for (const k of ARROW_KEYS) Input.release(k);
+    autoPilot.dir = null;
+}
+
 // いま「目的地へ移動している最中」か。本家の攻略どおり、移動中は割に合わない
 // 相手からは逃げて先へ進む（粘って削られると全滅して余計に時間がかかる）
 const TRAVEL_GOALS = ['もくてきちへ', 'やどやへ', 'かいものへ', 'みせへ', 'かりばへ もどる'];
@@ -2204,7 +2212,7 @@ function autoTourStep() {
         autoShopping = { tries: 0 };
         if (leg.act === 'inn') { autoPilot.rests++; autoPilot.battlesAtRest = autoPilot.battles; }
     }
-    autoBusy = true;
+    autoStand(); autoBusy = true;
     Promise.resolve(interactField()).then(() => {
         autoBusy = false; autoShopping = null; t.at++; autoPilot.lastLine = '';
     });
@@ -2292,7 +2300,7 @@ function autoTick(now) {
                 if (near) {
                     if (near.path.length === 0) {
                         if (startTownVisit(near.shop, false)) return;
-                        autoBusy = true;
+                        autoStand(); autoBusy = true;
                         Promise.resolve(autoShop(near.shop)).then(() => { autoBusy = false; });
                         return;
                     }
@@ -2314,7 +2322,7 @@ function autoTick(now) {
                     return;
                 }
                 if (startTownVisit(buy.town.shop, false)) return;
-                autoBusy = true;
+                autoStand(); autoBusy = true;
                 autoPilot.shoppedGold = player.gold;
                 autoPilot.grindUntil = 0;      // 装備が変わるので必要レベルを測り直す
                 Promise.resolve(autoShop(buy.town.shop)).then(() => { autoBusy = false; });
@@ -2383,7 +2391,7 @@ function autoTick(now) {
                     }
                     if (startRoraErrand()) return;
                 }
-                autoBusy = true;
+                autoStand(); autoBusy = true;
                 Promise.resolve(interactField()).then(() => {
                     autoBusy = false;
                     if (!q.done()) {                  // まだ達成できていない
@@ -2493,7 +2501,7 @@ function autoTick(now) {
                     : player.spells.includes('ホイミ')   ? 'ホイミ' : null;
     const healCost = healSpell === 'ベホイミ' ? 10 : 4;
     if (healSpell && player.hp < player.maxHp * 0.8 && player.mp >= healCost * 3) {
-        autoBusy = true;
+        autoStand(); autoBusy = true;
         Promise.resolve(castFieldSpell(healSpell)).then(() => { autoBusy = false; });
         return;
     }
@@ -2501,14 +2509,14 @@ function autoTick(now) {
     // 回復に要るぶんのMPは残す
     if (repelSteps <= 0 && !inCave() && autoTravelling() && player.spells.includes('トヘロス') && !player.sealed
         && player.mp >= 2 + (healSpell ? healCost * 2 : 0)) {
-        autoBusy = true;
+        autoStand(); autoBusy = true;
         Promise.resolve(castFieldSpell('トヘロス')).then(() => { autoBusy = false; });
         return;
     }
     // ダンジョンでは呪文が尽きてもやくそうで粘る（外に宿は無い）
     if (autoPilot.tour && player.hp < player.maxHp * 0.5 && player.herb > 0
         && !(healSpell && player.mp >= healCost)) {
-        autoBusy = true;
+        autoStand(); autoBusy = true;
         Promise.resolve(useFieldItem('やくそう')).then(() => { autoBusy = false; });
         return;
     }
@@ -2618,14 +2626,14 @@ function tripSurvivable(path) {
             // 買うものがあるときだけ町の中まで入る。泊まるだけのために
             // 毎回町を往復すると、狩りの時間がほとんど無くなる
             if (townVisitWorth(autoPilot.inn.shop) && startTownVisit(autoPilot.inn.shop, true)) return;
-            autoBusy = true;
+            autoStand(); autoBusy = true;
             autoCheckIn(autoPilot.inn).then(() => { autoBusy = false; });
             return;
         }
         if (autoPilot.goal === 'かいものへ') {
             autoPilot.goal = null;
             if (startTownVisit(autoPilot.shopKey, false)) return;
-            autoBusy = true;
+            autoStand(); autoBusy = true;
             autoPilot.shoppedGold = player.gold;
             autoPilot.grindUntil = 0;      // 装備が変わるので必要レベルを測り直す
             Promise.resolve(autoShop(autoPilot.shopKey)).then(() => { autoBusy = false; });
