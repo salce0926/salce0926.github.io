@@ -16,6 +16,10 @@
     --cell-hover: #b9d67c;
     --edge: #c2d894;
     --wall: #55603f;
+    --mine: #7a6a4a;
+    --cage: #e3d9b8;
+    --trail: #e9f2cf;
+    --mark: #c0573e;
     --cat: #2a2622;
     --eye: #f3cd4e;
     --pupil: #2a2622;
@@ -27,18 +31,19 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #1a1e16; --ink: #e4e8d8; --sub: #98a083;
-      --cell: #3e4c2c; --cell-hover: #52653a; --edge: #46572f; --wall: #10130c;
+      --cell: #3e4c2c; --cell-hover: #52653a; --edge: #46572f; --wall: #10130c; --mine: #3a2f1f; --cage: #59553a; --trail: #63783f; --mark: #ef8a6f;
       --cat: #ded7ca; --eye: #e2a53c; --pupil: #2a2622; --nose: #d98a8a; --win: #8fcf6a; --lose: #ef8a6f;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --bg: #1a1e16; --ink: #e4e8d8; --sub: #98a083;
-    --cell: #3e4c2c; --cell-hover: #52653a; --edge: #46572f; --wall: #10130c;
+    --cell: #3e4c2c; --cell-hover: #52653a; --edge: #46572f; --wall: #10130c; --mine: #3a2f1f; --cage: #59553a; --trail: #63783f; --mark: #ef8a6f;
     --cat: #ded7ca; --eye: #e2a53c; --pupil: #2a2622; --nose: #d98a8a; --win: #8fcf6a; --lose: #ef8a6f;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; margin: 0; }
   body {
     background: var(--bg);
@@ -55,7 +60,7 @@
   header { text-align: center; display: grid; gap: 2px; }
   h1 { font-size: 22px; margin: 0; letter-spacing: .12em; font-weight: 700; }
   .rule { font-size: 13px; color: var(--sub); margin: 0; }
-  #wrap { flex: 1; min-height: 0; width: 100%; max-width: 600px; display: flex; align-items: center; }
+  #wrap { flex: 1; min-height: 240px; width: 100%; max-width: 600px; display: flex; align-items: center; }
   svg { width: 100%; height: 100%; display: block; touch-action: manipulation; }
   #cells { transition: opacity .8s; }
   #cells.faded { opacity: .45; }
@@ -63,6 +68,11 @@
   .cell.edge { fill: var(--edge); }
   @media (hover: hover) { .cell:not(.wall):hover { fill: var(--cell-hover); } }
   .cell.wall { fill: var(--wall); cursor: default; }
+  .cell.wall.mine { fill: var(--mine); }
+  .cell.cage { fill: var(--cage); }
+  .cell.trail { fill: var(--trail); }
+  .cell.last { stroke: var(--mark); stroke-width: 3; }
+  .playing .cell.wall, .replay .cell { cursor: default; }
   .cell.pop { animation: pop .28s ease-out; }
   @keyframes pop { 0% { transform: scale(.4); } 70% { transform: scale(1.12); } 100% { transform: scale(1); } }
   .cat-fill { fill: var(--cat); }
@@ -75,7 +85,8 @@
   #statusRow { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
   #statusRow #status { margin-top: 0; }
   #status { user-select: text; -webkit-user-select: text; }
-  #shareBtn { min-height: 32px; padding: 4px 12px; font-size: 13px; }
+  #statusRow button { min-height: 32px; padding: 4px 12px; font-size: 13px; }
+  #replayBar { display: grid; grid-template-columns: repeat(3, auto); gap: 8px; justify-content: center; margin-top: 10px; }
   #info { font-size: 13px; color: var(--sub); text-align: center; font-variant-numeric: tabular-nums; }
   #bar { display: grid; grid-template-columns: repeat(4, auto); gap: 8px; justify-content: center; margin-top: 10px; }
   button {
@@ -116,13 +127,23 @@
   </div>
 </header>
 <div id="wrap"><svg id="board" preserveAspectRatio="xMidYMid meet"></svg></div>
-<div id="statusRow"><div id="status"></div><button id="shareBtn" hidden>結果をコピー</button></div>
+<div id="statusRow">
+  <div id="status"></div>
+  <button id="reviewBtn" hidden>振り返る</button>
+  <button id="answerBtn" hidden>Claudeの解答</button>
+  <button id="shareBtn" hidden>結果をコピー</button>
+</div>
 <div id="info"></div>
 <div id="bar">
   <button id="newBtn">新しい盤面</button>
   <button id="retryBtn">やり直す</button>
   <button id="undoBtn">1手戻す</button>
   <button id="dailyBtn">今日の一問</button>
+</div>
+<div id="replayBar" hidden>
+  <button id="prevBtn">◀ 1手戻る</button>
+  <button id="nextBtn">1手進む ▶</button>
+  <button id="closeBtn">閉じる</button>
 </div>
 
 <script>
@@ -136,9 +157,10 @@ const statusEl = document.getElementById('status');
 const infoEl = document.getElementById('info');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-let walls, initialWalls, cat, history, moves, over, busy, enclosedShown;
-let brain = 'normal';      // ネコの強さ
-let daily = null;          // 今日の一問なら { seed, label }
+let walls, initialWalls, cat, history, moves, over, busy;
+let log = [];              // この対局の手順 [{ wall, cat }]（catは手のあとのネコの位置）
+let replay = null;         // 振り返り中なら { steps, i, title }
+let daily = null;          // 今日の一問なら { seed, date, label, short, answers }
 let timer = null;
 
 const key = (r, c) => r * N + c;
@@ -160,50 +182,18 @@ function center(r, c) {
 // ネコの足元の位置（六角形の中心より少し下に立たせる）
 function feet(r, c) { const [x, y] = center(r, c); return [x, y + 9]; }
 
-/* ---------- ネコの思考 ---------- */
+/* ---------- ネコの思考 ----------
+   盤は「壁なら1」の配列 wa、ネコの位置はマス番号 c で扱う。
+   どちらのネコも同じ盤・同じ乱数なら必ず同じ手を選ぶので、今日の一問を裏で解いて確かめられる */
 
-function distToEdge() {
-  const dist = new Array(N * N).fill(Infinity);
-  const q = [];
-  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
-    if (isEdge(r, c) && !walls.has(key(r, c))) { dist[key(r, c)] = 0; q.push([r, c]); }
-  }
-  for (let i = 0; i < q.length; i++) {
-    const [r, c] = q[i];
-    for (const [a, b] of neighbors(r, c)) {
-      const k = key(a, b);
-      if (walls.has(k) || dist[k] !== Infinity) continue;
-      dist[k] = dist[key(r, c)] + 1;
-      q.push([a, b]);
-    }
-  }
-  return dist;
-}
-
-/* 乱数。今日の一問では盤面とネコの迷い方を日付から決め、誰がやっても同じになるようにする */
-function mulberry32(a) {
-  return () => {
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-function catRandom() {
-  if (!daily) return Math.random();
-  let h = daily.seed ^ (key(...cat) * 7919);
-  for (const k of walls) h = Math.imul(h ^ (k + 1), 2654435761);
-  return mulberry32(h)();
-}
-const pick = arr => arr[Math.floor(catRandom() * arr.length)];
-
-/* かしこいネコ用：壁を配列で持ち、距離を速く数える */
 const NBK = [], EDGEK = [];
 for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
   NBK.push(neighbors(r, c).map(([a, b]) => key(a, b)));
   EDGEK.push(isEdge(r, c));
 }
 const FAR = 999;
+const toArr = set => { const wa = new Uint8Array(N * N); for (const k of set) wa[k] = 1; return wa; };
+
 // 出口までの普通の距離
 function oneDistArr(wa) {
   const d = new Int16Array(N * N).fill(FAR), q = [];
@@ -232,63 +222,109 @@ function twoDistArr(wa) {
   }
   return d;
 }
+// ネコから歩いて行けるマスと、その歩数
+function reach(wa, c) {
+  const d = new Int16Array(N * N).fill(-1), q = [c];
+  d[c] = 0;
+  for (let i = 0; i < q.length; i++) for (const y of NBK[q[i]])
+    if (!wa[y] && d[y] < 0) { d[y] = d[q[i]] + 1; q.push(y); }
+  return { d, cells: q };
+}
+const enclosed = (wa, c) => !reach(wa, c).cells.some(k => EDGEK[k]);
 
-function catMove() { return brain === 'smart' ? smartMove() : greedyMove(); }
-
-// かしこいネコ：行き先ごとに「相手が一番いやな所を塞いだら」を全部試し、
-// それでも一番逃げやすいマスへ進む。囲まれたら広い方へ粘る
-function smartMove() {
-  const opts = neighbors(...cat).filter(([a, b]) => !walls.has(key(a, b)));
-  if (opts.length === 0) return null;
-  const exit = opts.find(([a, b]) => isEdge(a, b));
-  if (exit) return exit;
-  const wa = new Uint8Array(N * N);
-  for (const k of walls) wa[k] = 1;
-  const dist = oneDistArr(wa);
-  if (!opts.some(([a, b]) => dist[key(a, b)] < FAR)) {
-    const room = ([a, b]) => neighbors(a, b).filter(([x, y]) => !walls.has(key(x, y))).length;
-    const most = Math.max(...opts.map(room));
-    return pick(opts.filter(p => room(p) === most));
-  }
-  // 塞がれうるマス＝ネコがいる囲いの中
-  const region = [], seen = new Uint8Array(N * N), here = key(...cat);
-  seen[here] = 1;
-  for (const q = [here]; q.length;) {
-    const x = q.pop();
-    for (const y of NBK[x]) if (!wa[y] && !seen[y]) { seen[y] = 1; region.push(y); q.push(y); }
-  }
-  const score = n => {
-    let worst = -1;
-    for (const b of region) {
-      if (b === n) continue;
-      wa[b] = 1;
-      const v = Math.min(twoDistArr(wa)[n], 99) * 1000 + Math.min(oneDistArr(wa)[n], 99);
-      wa[b] = 0;
-      if (v > worst) worst = v;
-    }
-    return worst;
+/* 乱数。今日の一問では盤面とネコの迷い方を日付と盤の状態から決める */
+function mulberry32(a) {
+  return () => {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
-  const scored = opts.map(p => [p, score(key(...p))]);
-  const best = Math.min(...scored.map(([, v]) => v));
-  return pick(scored.filter(([, v]) => v === best).map(([p]) => p));
+}
+function stateRandom(seed, wa, c) {
+  let h = seed ^ (c * 7919);
+  for (let k = 0; k < N * N; k++) if (wa[k]) h = Math.imul(h ^ (k + 1), 2654435761);
+  return mulberry32(h)();
 }
 
-// のんびりネコ：一番近い出口へ。同じ近さなら、その先の逃げ道が多い方へ
-function greedyMove() {
-  const dist = distToEdge();
-  const opts = neighbors(...cat).filter(([a, b]) => !walls.has(key(a, b)));
-  if (opts.length === 0) return null;
-  const reachable = opts.filter(([a, b]) => dist[key(a, b)] !== Infinity);
-  if (reachable.length) {
-    const best = Math.min(...reachable.map(([a, b]) => dist[key(a, b)]));
-    let cands = reachable.filter(([a, b]) => dist[key(a, b)] === best);
-    const freedom = ([a, b]) => neighbors(a, b).filter(([x, y]) =>
-      !walls.has(key(x, y)) && dist[key(x, y)] < dist[key(a, b)]).length;
-    const maxF = Math.max(...cands.map(freedom));
-    cands = cands.filter(p => freedom(p) === maxF);
-    return pick(cands);
+// 次にネコが行くマス。動けなければ -1
+function moveCat(wa, c, br, rnd) {
+  const opts = NBK[c].filter(k => !wa[k]);
+  if (opts.length === 0) return -1;
+  const pick = arr => arr[Math.floor(rnd() * arr.length)];
+  const dist = oneDistArr(wa);
+  if (!opts.some(k => dist[k] < FAR)) {
+    // 出口なし：囲いの中で広い方へ
+    const room = k => NBK[k].filter(y => !wa[y]).length;
+    const most = Math.max(...opts.map(room));
+    return pick(opts.filter(k => room(k) === most));
   }
-  return pick(opts);   // 出口なし：囲いの中をうろうろ
+  if (br === 'smart') {
+    // かしこいネコ：行き先ごとに「近くのどこを塞がれたら一番困るか」を全部試し、
+    // それでも一番逃げやすいマスへ進む
+    const exit = opts.find(k => EDGEK[k]);
+    if (exit !== undefined) return exit;
+    const near = reach(wa, c);
+    const blocks = near.cells.filter(k => k !== c && near.d[k] <= 4);
+    const score = n => {
+      let worst = -1;
+      for (const b of blocks) {
+        if (b === n) continue;
+        wa[b] = 1;
+        const v = Math.min(twoDistArr(wa)[n], 99) * 1000 + Math.min(oneDistArr(wa)[n], 99);
+        wa[b] = 0;
+        if (v > worst) worst = v;
+      }
+      return worst;
+    };
+    const scored = opts.map(k => [k, score(k)]);
+    const best = Math.min(...scored.map(([, v]) => v));
+    return pick(scored.filter(([, v]) => v === best).map(([k]) => k));
+  }
+  // のんびりネコ：一番近い出口へ。同じ近さなら、その先の逃げ道が多い方へ
+  const reachable = opts.filter(k => dist[k] < FAR);
+  const best = Math.min(...reachable.map(k => dist[k]));
+  let cands = reachable.filter(k => dist[k] === best);
+  const freedom = k => NBK[k].filter(y => !wa[y] && dist[y] < dist[k]).length;
+  const maxF = Math.max(...cands.map(freedom));
+  cands = cands.filter(k => freedom(k) === maxF);
+  return pick(cands);
+}
+
+/* 今日の一問を裏で解く。ネコの手は決まっているので、壁の置き方だけを探せばよい。
+   見つかった手順はそのまま「Claudeの解答」になる */
+async function solve(initial, br, seed, deadline) {
+  const BEAM = 4, WIDTH = 20;
+  let beam = [{ wa: toArr(initial), c: key(5, 5), seq: [] }];
+  for (let depth = 0; depth < 40 && beam.length; depth++) {
+    if (performance.now() > deadline) return null;
+    await new Promise(r => setTimeout(r, 0));   // 画面を止めない
+    const next = [], seen = new Set();
+    for (const st of beam) {
+      const near = reach(st.wa, st.c);
+      const td0 = twoDistArr(st.wa), od0 = oneDistArr(st.wa);
+      // 置く候補：ネコから出口への近道の上にあるマスから WIDTH 個
+      const cands = near.cells.filter(k => k !== st.c && near.d[k] <= 3)
+        .sort((a, b) => (near.d[a] + od0[a] - near.d[b] - od0[b]) || (td0[a] - td0[b])).slice(0, WIDTH);
+      for (const w of cands) {
+        const wa = st.wa.slice(); wa[w] = 1;
+        if (enclosed(wa, st.c)) return [...st.seq, { wall: w, cat: st.c }];
+        const n = moveCat(wa, st.c, br, () => stateRandom(seed, wa, st.c));
+        if (n < 0) return [...st.seq, { wall: w, cat: st.c }];
+        if (EDGEK[n]) continue;
+        const td = twoDistArr(wa), od = oneDistArr(wa);
+        const h = Array.from(wa).join('') + n;
+        if (seen.has(h)) continue;
+        seen.add(h);
+        const room = reach(wa, n).cells.length;
+        next.push({ wa, c: n, seq: [...st.seq, { wall: w, cat: n }],
+          v: Math.min(td[n], 30) * 1000 + Math.min(od[n], 30) * 40 - room });
+      }
+    }
+    next.sort((a, b) => b.v - a.v);
+    beam = next.slice(0, BEAM);
+  }
+  return null;
 }
 
 /* ---------- ネコの体と動き ---------- */
@@ -317,6 +353,8 @@ function pose(now) {
     crouch: 0, stretch: 0, lie: 0, tilt: 0, droop: 0, blink: 0,
     sway: Math.sin(now / 420) * .35, straight: 0,
   };
+  // 焦っているときはしっぽを大きく速く振る
+  if (motion.nervous) p.sway = Math.sin(now / 150) * .55;
   // 呼吸
   p.crouch = .1 * (Math.sin(now / 520) + 1) / 2;
   // まばたき
@@ -497,11 +535,21 @@ function buildBoard() {
 }
 
 function updateCells() {
+  const show = replay ? replayState() : { walls, cat, mine: new Set(log.map(m => m.wall)), trail: new Set(), last: -1 };
+  const cage = over && !replay && motion.caughtAt !== null ? new Set(reach(toArr(walls), key(...cat)).cells) : new Set();
   cellEls.forEach((el, k) => {
     const r = Math.floor(k / N), c = k % N;
-    el.classList.toggle('wall', walls.has(k));
+    el.classList.toggle('wall', show.walls.has(k));
+    el.classList.toggle('mine', show.mine.has(k));
     el.classList.toggle('edge', isEdge(r, c));
+    el.classList.toggle('cage', cage.has(k) && k !== key(...cat));
+    el.classList.toggle('trail', show.trail.has(k));
+    el.classList.toggle('last', k === show.last);
   });
+  if (replay) {
+    infoEl.textContent = `${replay.title} ${replay.i}/${replay.steps.length}手目`;
+    return;
+  }
   const best = loadBest();
   infoEl.textContent = daily
     ? `${daily.short}の一問・${brainShort()} ／ 壁${moves}手` + (best ? ` ／ 今日の記録${best}手` : '')
@@ -519,9 +567,9 @@ const LEVELS = {
 let level = 'normal';
 try { if (LEVELS[localStorage.getItem('cattrap-level')]) level = localStorage.getItem('cattrap-level'); } catch {}
 
-function randomWalls(rnd = Math.random) {
+function randomWalls(rnd = Math.random, lv = level) {
   const s = new Set();
-  if (level === 'normal') {
+  if (lv === 'normal') {
     // 元のゲームは盤の外側2マスを含む15×15に30回ばらまき、盤に落ちたものだけ壁にする
     for (let i = 0; i < 30; i++) {
       const r = Math.floor(rnd() * 15) - 2, c = Math.floor(rnd() * 15) - 2;
@@ -529,7 +577,7 @@ function randomWalls(rnd = Math.random) {
     }
     return s;
   }
-  const count = level === 'easy' ? 20 + Math.floor(rnd() * 5) : 8 + Math.floor(rnd() * 6);
+  const count = lv === 'easy' ? 20 + Math.floor(rnd() * 5) : 8 + Math.floor(rnd() * 6);
   while (s.size < count) {
     const r = Math.floor(rnd() * N), c = Math.floor(rnd() * N);
     if (r === 5 && c === 5) continue;
@@ -538,6 +586,7 @@ function randomWalls(rnd = Math.random) {
   return s;
 }
 
+let brain = 'normal';      // ネコの強さ
 try { if (localStorage.getItem('cattrap-brain') === 'smart') brain = 'smart'; } catch {}
 const brainName = () => brain === 'smart' ? 'かしこいネコ' : 'のんびりネコ';
 const brainShort = () => brain === 'smart' ? 'かしこい' : 'のんびり';
@@ -566,18 +615,34 @@ function setBrain(b) {
   start(!daily);   // ふだんは新しい盤面、今日の一問なら同じ盤面でネコだけ替える
 }
 
-// 今日の一問：壁の置き方は「ふつう」と同じ。日付が同じなら誰でも同じ盤面
-function startDaily() {
+/* 今日の一問：壁の置き方は「ふつう」と同じ。日付が同じなら誰でも同じ盤面。
+   どちらのネコにも勝てる手順が見つかった盤面だけを出す。見つからなければ次の候補へ */
+let preparing = false;
+async function startDaily() {
+  if (preparing) return;
   const d = new Date();
-  daily = {
-    seed: d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(),
-    label: `${d.getMonth() + 1}月${d.getDate()}日の一問`,
-    short: `${d.getMonth() + 1}/${d.getDate()}`,
-  };
-  const keep = level;
-  level = 'normal';
-  initialWalls = randomWalls(mulberry32(daily.seed));
-  level = keep;
+  const date = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  const label = `${d.getMonth() + 1}月${d.getDate()}日の一問`, short = `${d.getMonth() + 1}/${d.getDate()}`;
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem('cattrap-daily-puzzle') || 'null'); } catch {}
+  if (!cached || cached.date !== date || cached.v !== 2) {
+    preparing = true; busy = true;
+    setStatus('今日の一問を用意しています…', '');
+    cached = null;
+    for (let attempt = 0; attempt < 8 && !cached; attempt++) {
+      const seed = date * 10 + attempt;
+      const initial = randomWalls(mulberry32(seed), 'normal');
+      const deadline = performance.now() + 4000;
+      const lazy = await solve(initial, 'normal', seed, deadline);
+      const smart = lazy && await solve(initial, 'smart', seed, deadline + 4000);
+      if (lazy && smart) cached = { v: 2, date, seed, walls: [...initial], answers: { normal: lazy, smart } };
+    }
+    preparing = false; busy = false;
+    if (!cached) { setStatus('今日の一問を用意できませんでした。もう一度押してください', 'lose'); return; }
+    try { localStorage.setItem('cattrap-daily-puzzle', JSON.stringify(cached)); } catch {}
+  }
+  daily = { seed: cached.seed, date, label, short, answers: cached.answers };
+  initialWalls = new Set(cached.walls);
   syncButtons();
   start(false);
 }
@@ -587,8 +652,18 @@ function resetMotion() {
   motion.queue = [];
   motion.caughtAt = null;
   motion.bubble = null;
+  motion.nervous = false;
   motion.rest = feet(...cat);
   svg.querySelector('#cells').classList.remove('faded');
+}
+
+function hideEndButtons() {
+  for (const id of ['shareBtn', 'reviewBtn', 'answerBtn']) document.getElementById(id).hidden = true;
+}
+function showEndButtons(won) {
+  document.getElementById('reviewBtn').hidden = log.length === 0;
+  document.getElementById('answerBtn').hidden = !daily;
+  document.getElementById('shareBtn').hidden = !(daily && won);
 }
 
 function start(fresh) {
@@ -596,41 +671,65 @@ function start(fresh) {
   walls = new Set(initialWalls);
   cat = [5, 5];
   history = [];
+  log = [];
   moves = 0;
-  over = false; busy = false; enclosedShown = false;
+  over = false; busy = false;
+  if (replay) closeReplay();
   resetMotion();
   setStatus('');
-  shareBtn.hidden = true;
+  hideEndButtons();
   updateCells();
 }
 
+function say(text, ms = 1100) { motion.bubble = { text, until: performance.now() + ms }; }
+const rc = k => [Math.floor(k / N), k % N];
+
 function play(r, c) {
-  if (over || busy) return;
+  if (over || busy || replay) return;
   const k = key(r, c);
   if (walls.has(k) || (r === cat[0] && c === cat[1])) return;
-  history.push({ walls: new Set(walls), cat: [...cat], moves, enclosedShown });
+  history.push({ walls: new Set(walls), cat: [...cat], moves, log: log.slice() });
   walls.add(k);
   moves++;
   busy = true;
   const el = cellEls[k];
   el.classList.remove('pop'); void el.getBBox(); el.classList.add('pop');
   motion.twitchAt = performance.now();
+
+  // ネコの反応：近くに置かれたらそっちを見る。真横なら飛び上がる
+  const wa = toArr(walls), here = key(...cat);
+  const step = reach(toArr(new Set()), here).d[k];
+  if (step <= 3) {
+    const dx = center(r, c)[0] - center(...cat)[0];
+    if (Math.abs(dx) > 1) motion.face = dx > 0 ? 1 : -1;
+  }
+  if (step === 1) { hop(motion.rest, motion.rest, 220, 7); say('!', 500); }
+
+  // 出口への道が全部なくなった時点で勝ち
+  if (enclosed(wa, here)) {
+    log.push({ wall: k, cat: here });
+    over = true;
+    setStatus(`閉じ込めました！ ${moves}手`, 'win');
+    say('!?', 1000);
+    timer = setTimeout(() => {
+      busy = false;
+      motion.caughtAt = performance.now();
+      saveBest();
+      showEndButtons(true);
+      updateCells();
+    }, 900);
+    updateCells();
+    return;
+  }
   updateCells();
   timer = setTimeout(() => {
-    const next = catMove();
-    if (!next) {
-      over = true; busy = false;
-      motion.caughtAt = performance.now();
-      setStatus(`捕まえました！ ${moves}手`, 'win');
-      shareBtn.hidden = !daily;
-      saveBest();
-      updateCells();
-      return;
-    }
+    const rnd = daily ? () => stateRandom(daily.seed, wa, here) : Math.random;
+    const next = rc(moveCat(wa, here, brain, rnd));
+    log.push({ wall: k, cat: key(...next) });
     const from = cat;
     cat = next;
     hop(feet(...from), feet(...next), 380, 12, afterLand);
-  }, 160);
+  }, step === 1 ? 300 : 160);
 }
 
 function afterLand() {
@@ -641,15 +740,14 @@ function afterLand() {
     return;
   }
   busy = false;
-  if (distToEdge()[key(...cat)] === Infinity) {
-    if (!enclosedShown) {
-      enclosedShown = true;
-      motion.bubble = { text: '!?', until: performance.now() + 1300 };
-    }
-    setStatus('もう逃げ道はありません。囲いを閉じましょう', 'win');
-  } else {
-    setStatus('');
-  }
+  // ネコの反応：出口の目の前なら得意げに、逃げ道が細ったら焦る
+  const wa = toArr(walls), here = key(...cat);
+  const od = oneDistArr(wa)[here], td = twoDistArr(wa)[here];
+  const nervous = td >= FAR || td >= od + 4;
+  if (od === 1) say('♪');
+  else if (nervous && !motion.nervous) say('💦', 1300);
+  motion.nervous = nervous;
+  setStatus('');
   updateCells();
 }
 
@@ -667,25 +765,73 @@ function runAway() {
       svg.querySelector('#cells').classList.add('faded');
       setStatus('逃げられました', 'lose');
       busy = false;
+      showEndButtons(false);
     } : null);
     pos = next;
   }
 }
 
 function undo() {
+  if (replay || preparing) return;
   const h = history.pop();
   if (!h) return;
-  walls = h.walls; cat = h.cat; moves = h.moves; enclosedShown = h.enclosedShown;
+  walls = h.walls; cat = h.cat; moves = h.moves; log = h.log;
   over = false; busy = false;
   resetMotion();
   setStatus('');
-  shareBtn.hidden = true;
+  hideEndButtons();
+  updateCells();
+}
+
+/* ---------- 振り返り ---------- */
+
+function replayState() {
+  const w = new Set(initialWalls), mine = new Set(), trail = new Set([key(5, 5)]);
+  let c = key(5, 5), last = -1;
+  for (let i = 0; i < replay.i; i++) {
+    const m = replay.steps[i];
+    w.add(m.wall); mine.add(m.wall); last = m.wall;
+    c = m.cat; trail.add(c);
+  }
+  trail.delete(c);
+  return { walls: w, cat: rc(c), mine, trail, last };
+}
+function showReplayStep(animate) {
+  const st = replayState();
+  const to = feet(...st.cat);
+  motion.queue = [];
+  motion.caughtAt = null;
+  if (animate && (to[0] !== motion.rest[0] || to[1] !== motion.rest[1])) hop(motion.rest.slice(), to, 300, 10);
+  else motion.rest = to;
+  document.getElementById('prevBtn').disabled = replay.i === 0;
+  document.getElementById('nextBtn').disabled = replay.i === replay.steps.length;
+  updateCells();
+}
+function openReplay(steps, title) {
+  if (busy) return;
+  replay = { steps, i: 0, title, saved: { rest: motion.rest.slice(), caughtAt: motion.caughtAt } };
+  document.getElementById('bar').hidden = true;
+  document.getElementById('replayBar').hidden = false;
+  document.getElementById('statusRow').hidden = true;
+  svg.querySelector('#cells').classList.remove('faded');
+  showReplayStep(false);
+}
+function closeReplay() {
+  const saved = replay.saved;
+  replay = null;
+  document.getElementById('bar').hidden = false;
+  document.getElementById('replayBar').hidden = true;
+  document.getElementById('statusRow').hidden = false;
+  motion.queue = [];
+  motion.rest = saved.rest;
+  motion.caughtAt = saved.caughtAt;
+  if (over && motion.caughtAt === null) svg.querySelector('#cells').classList.add('faded');
   updateCells();
 }
 
 // 記録は難易度×ネコの強さごと。以前の記録（壁8〜13個の盤）は「むずかしい×のんびり」として引き継ぐ
 function bestKey() {
-  if (daily) return `cattrap-daily-${daily.seed}-${brain}`;
+  if (daily) return `cattrap-daily-${daily.date}-${brain}`;
   const base = level === 'hard' ? 'cattrap-best' : `cattrap-best-${level}`;
   return brain === 'smart' ? `${base}-smart` : base;
 }
@@ -699,15 +845,20 @@ svg.addEventListener('click', e => {
   const t = e.target.closest('.cell');
   if (t) play(Number(t.dataset.r), Number(t.dataset.c));
 });
-document.querySelectorAll('#level button').forEach(b => b.onclick = () => setLevel(b.dataset.level));
-document.querySelectorAll('#brain button').forEach(b => b.onclick = () => setBrain(b.dataset.brain));
-document.getElementById('newBtn').onclick = () => { if (daily) { daily = null; syncButtons(); } start(true); };
-document.getElementById('retryBtn').onclick = () => start(false);
+document.querySelectorAll('#level button').forEach(b => b.onclick = () => { if (!preparing) setLevel(b.dataset.level); });
+document.querySelectorAll('#brain button').forEach(b => b.onclick = () => { if (!preparing) setBrain(b.dataset.brain); });
+document.getElementById('newBtn').onclick = () => { if (preparing) return; if (daily) { daily = null; syncButtons(); } start(true); };
+document.getElementById('retryBtn').onclick = () => { if (!preparing) start(false); };
 document.getElementById('undoBtn').onclick = undo;
 document.getElementById('dailyBtn').onclick = startDaily;
+document.getElementById('reviewBtn').onclick = () => openReplay(log, 'あなたの手順');
+document.getElementById('answerBtn').onclick = () => openReplay(daily.answers[brain], 'Claudeの解答');
+document.getElementById('prevBtn').onclick = () => { if (replay.i > 0) { replay.i--; showReplayStep(false); } };
+document.getElementById('nextBtn').onclick = () => { if (replay.i < replay.steps.length) { replay.i++; showReplayStep(true); } };
+document.getElementById('closeBtn').onclick = closeReplay;
 const shareBtn = document.getElementById('shareBtn');
 shareBtn.onclick = () => {
-  const text = `ネコを囲め ${daily.label}（${brainName()}）を${moves}手で捕まえました`;
+  const text = `ネコを囲め ${daily.label}（${brainName()}）を${moves}手で閉じ込めました`;
   const done = () => { shareBtn.textContent = 'コピーしました'; setTimeout(() => shareBtn.textContent = '結果をコピー', 1600); };
   const fallback = () => { setStatus(text, 'win'); shareBtn.textContent = '上の文を長押しでコピー'; };
   try { navigator.clipboard.writeText(text).then(done, fallback); } catch { fallback(); }
