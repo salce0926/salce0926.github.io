@@ -47,6 +47,8 @@
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { height: 100%; margin: 0; }
+  /* 連打してもダブルタップで拡大されないようにする */
+  html, body, button, svg { touch-action: manipulation; }
   body {
     background: var(--bg);
     color: var(--ink);
