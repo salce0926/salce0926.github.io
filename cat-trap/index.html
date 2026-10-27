@@ -20,6 +20,8 @@
     --cage: #e3d9b8;
     --trail: #e9f2cf;
     --mark: #c0573e;
+    --card: rgba(246, 248, 238, .94);
+    --shade: rgba(30, 34, 24, .38);
     --cat: #2a2622;
     --eye: #f3cd4e;
     --pupil: #2a2622;
@@ -31,14 +33,14 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #1a1e16; --ink: #e4e8d8; --sub: #98a083;
-      --cell: #3e4c2c; --cell-hover: #52653a; --edge: #46572f; --wall: #10130c; --mine: #3a2f1f; --cage: #59553a; --trail: #63783f; --mark: #ef8a6f;
+      --cell: #3e4c2c; --cell-hover: #52653a; --edge: #46572f; --wall: #10130c; --mine: #3a2f1f; --cage: #59553a; --trail: #63783f; --mark: #ef8a6f; --card: rgba(34, 40, 28, .95); --shade: rgba(0, 0, 0, .5);
       --cat: #ded7ca; --eye: #e2a53c; --pupil: #2a2622; --nose: #d98a8a; --win: #8fcf6a; --lose: #ef8a6f;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --bg: #1a1e16; --ink: #e4e8d8; --sub: #98a083;
-    --cell: #3e4c2c; --cell-hover: #52653a; --edge: #46572f; --wall: #10130c; --mine: #3a2f1f; --cage: #59553a; --trail: #63783f; --mark: #ef8a6f;
+    --cell: #3e4c2c; --cell-hover: #52653a; --edge: #46572f; --wall: #10130c; --mine: #3a2f1f; --cage: #59553a; --trail: #63783f; --mark: #ef8a6f; --card: rgba(34, 40, 28, .95); --shade: rgba(0, 0, 0, .5);
     --cat: #ded7ca; --eye: #e2a53c; --pupil: #2a2622; --nose: #d98a8a; --win: #8fcf6a; --lose: #ef8a6f;
     color-scheme: dark;
   }
@@ -49,7 +51,7 @@
     background: var(--bg);
     color: var(--ink);
     font-family: var(--font);
-    display: flex; flex-direction: column; align-items: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
     padding-block: 12px;
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
@@ -57,11 +59,13 @@
     -webkit-tap-highlight-color: transparent;
     overflow: hidden;
   }
-  header { text-align: center; display: grid; gap: 2px; }
+  header { text-align: center; display: grid; gap: 4px; justify-items: center; }
   h1 { font-size: 22px; margin: 0; letter-spacing: .12em; font-weight: 700; }
   .rule { font-size: 13px; color: var(--sub); margin: 0; }
-  #wrap { flex: 1; min-height: 240px; width: 100%; max-width: 600px; display: flex; align-items: center; }
-  svg { width: 100%; height: 100%; display: block; touch-action: manipulation; }
+  #modeBtn { min-height: 30px; padding: 3px 14px; font-size: 13px; border-width: 1.5px; }
+  /* 盤は画面の左右ぎりぎりまで使う（文字やボタンは余白の内側） */
+  #wrap { position: relative; flex: 0 1 auto; min-height: 0; width: calc(100% + 24px); margin-inline: -12px; max-width: 600px; display: flex; flex-direction: column; align-items: center; }
+  svg { width: 100%; height: auto; max-height: calc(100vh - 230px); min-height: 240px; display: block; touch-action: manipulation; }
   #cells { transition: opacity .8s; }
   #cells.faded { opacity: .45; }
   .cell { fill: var(--cell); stroke: var(--bg); stroke-width: 2; cursor: pointer; transition: fill .15s; transform-box: fill-box; transform-origin: center; }
@@ -79,13 +83,35 @@
   .cat-line { stroke: var(--cat); stroke-width: 3.2; stroke-linecap: round; fill: none; }
   #shadow { fill: var(--ink); opacity: .14; }
   #bubble { font: 700 13px var(--font); fill: var(--ink); text-anchor: middle; }
-  #status { font-size: 16px; min-height: 1.5em; text-align: center; font-weight: 700; margin-top: 4px; }
+  #status { font-size: 15px; min-height: 1.4em; text-align: center; font-weight: 700; margin-top: 2px; user-select: text; -webkit-user-select: text; }
   #status.win { color: var(--win); }
   #status.lose { color: var(--lose); }
-  #statusRow { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
-  #statusRow #status { margin-top: 0; }
-  #status { user-select: text; -webkit-user-select: text; }
-  #statusRow button { min-height: 32px; padding: 4px 12px; font-size: 13px; }
+  /* 終わったときの結果カード：盤のすぐ下に出し、ネコと盤は見えたままにする */
+  #result {
+    position: relative; margin-top: 4px;
+    width: min(340px, calc(100% - 32px)); padding: 12px 16px 14px;
+    background: var(--card); border: 2px solid var(--ink); border-radius: 18px;
+    display: grid; gap: 6px; justify-items: center; text-align: center;
+    box-shadow: 0 6px 24px var(--shade);
+    animation: rise .3s ease-out;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  #resTitle { font-size: 18px; font-weight: 700; }
+  #resTitle.win { color: var(--win); }
+  #resTitle.lose { color: var(--lose); }
+  #resMoves { font-size: 13px; color: var(--sub); font-variant-numeric: tabular-nums; }
+  #resNew { font-size: 13px; font-weight: 700; color: var(--mark); }
+  #resBtns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 4px; }
+  #resBtns button { min-height: 34px; padding: 4px 12px; font-size: 13px; }
+  #resClose { position: absolute; top: 4px; right: 6px; border: 0; min-height: 30px; padding: 2px 8px; font-size: 16px; }
+  /* 設定シート */
+  #sheet { position: fixed; inset: 0; z-index: 5; display: flex; align-items: flex-end; justify-content: center; background: var(--shade); }
+  #sheetPanel {
+    width: min(480px, 100%); background: var(--bg); border-radius: 18px 18px 0 0;
+    padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    display: grid; gap: 12px; justify-items: center; text-align: center;
+  }
+  .sheet-label { font-size: 12px; color: var(--sub); letter-spacing: .08em; margin-bottom: -6px; }
   #replayBar { display: grid; grid-template-columns: repeat(3, auto); gap: 8px; justify-content: center; margin-top: 10px; }
   #info { font-size: 13px; color: var(--sub); text-align: center; font-variant-numeric: tabular-nums; }
   #bar { display: grid; grid-template-columns: repeat(4, auto); gap: 8px; justify-content: center; margin-top: 10px; }
@@ -97,12 +123,10 @@
   @media (hover: hover) { button:hover { background: var(--ink); color: var(--bg); } }
   button.on { background: var(--ink); color: var(--bg); }
   @media (max-width: 520px) {
-    #bar { grid-template-columns: 1fr 1fr; width: 100%; max-width: 360px; }
-    button { font-size: 13px; padding: 6px; min-height: 36px; }
-    #bar { gap: 6px; margin-top: 8px; }
+    #bar { grid-template-columns: repeat(4, 1fr); width: 100%; gap: 6px; margin-top: 6px; }
+    #bar button { font-size: 12px; padding: 4px 2px; min-height: 40px; }
   }
-  #modes { display: flex; flex-wrap: wrap; gap: 6px 8px; justify-content: center; margin-top: 8px; }
-  #modes.daily #level { opacity: .45; }
+  #sheet.daily #level { opacity: .45; }
   .seg { display: inline-flex; border: 2px solid var(--ink); border-radius: 999px; overflow: hidden; }
   .seg button { border: 0; border-radius: 0; min-height: 32px; padding: 4px 10px; font-size: 12.5px; }
   .seg button + button { border-left: 2px solid var(--ink); }
@@ -113,32 +137,47 @@
 <body>
 <header>
   <h1>ネコを囲め</h1>
-  <p class="rule">マスを押して壁を置き、ネコを閉じ込めよう</p>
-  <div id="modes">
-    <div id="level" class="seg" role="group" aria-label="難易度">
-      <button id="lvEasy" data-level="easy">やさしい</button>
-      <button id="lvNormal" data-level="normal">ふつう</button>
-      <button id="lvHard" data-level="hard">むずかしい</button>
-    </div>
-    <div id="brain" class="seg" role="group" aria-label="ネコの強さ">
-      <button id="catNormal" data-brain="normal">のんびり</button>
-      <button id="catSmart" data-brain="smart">かしこい</button>
+  <button id="modeBtn" aria-haspopup="dialog">ふつう・のんびりネコ ▾</button>
+</header>
+<div id="wrap">
+  <svg id="board" preserveAspectRatio="xMidYMid meet"></svg>
+  <div id="result" role="status" hidden>
+    <button id="resClose" aria-label="結果を閉じる">×</button>
+    <div id="resTitle"></div>
+    <div id="resMoves"></div>
+    <div id="resNew" hidden>記録更新！</div>
+    <div id="resBtns">
+      <button id="reviewBtn">振り返る</button>
+      <button id="answerBtn">Claudeの解答</button>
+      <button id="shareBtn">結果をコピー</button>
+      <button id="againBtn">もう一回</button>
     </div>
   </div>
-</header>
-<div id="wrap"><svg id="board" preserveAspectRatio="xMidYMid meet"></svg></div>
-<div id="statusRow">
-  <div id="status"></div>
-  <button id="reviewBtn" hidden>振り返る</button>
-  <button id="answerBtn" hidden>Claudeの解答</button>
-  <button id="shareBtn" hidden>結果をコピー</button>
 </div>
+<div id="status"></div>
 <div id="info"></div>
 <div id="bar">
   <button id="newBtn">新しい盤面</button>
   <button id="retryBtn">やり直す</button>
   <button id="undoBtn">1手戻す</button>
   <button id="dailyBtn">今日の一問</button>
+</div>
+<div id="sheet" hidden>
+  <div id="sheetPanel" role="dialog" aria-label="設定">
+    <p class="rule">マスを押して壁を置き、ネコが端に着く前に閉じ込めよう</p>
+    <div class="sheet-label">最初の壁の数</div>
+    <div id="level" class="seg" role="group" aria-label="難易度">
+      <button id="lvEasy" data-level="easy">やさしい</button>
+      <button id="lvNormal" data-level="normal">ふつう</button>
+      <button id="lvHard" data-level="hard">むずかしい</button>
+    </div>
+    <div class="sheet-label">ネコの強さ</div>
+    <div id="brain" class="seg" role="group" aria-label="ネコの強さ">
+      <button id="catNormal" data-brain="normal">のんびり</button>
+      <button id="catSmart" data-brain="smart">かしこい</button>
+    </div>
+    <button id="sheetClose">閉じる</button>
+  </div>
 </div>
 <div id="replayBar" hidden>
   <button id="prevBtn">◀ 1手戻る</button>
@@ -596,8 +635,10 @@ function syncButtons() {
     b.setAttribute('aria-pressed', String(!daily && b.dataset.level === level)));
   document.querySelectorAll('#brain button').forEach(b =>
     b.setAttribute('aria-pressed', String(b.dataset.brain === brain)));
-  document.getElementById('modes').classList.toggle('daily', !!daily);
+  document.getElementById('sheet').classList.toggle('daily', !!daily);
   document.getElementById('dailyBtn').classList.toggle('on', !!daily);
+  document.getElementById('modeBtn').textContent =
+    `${daily ? '今日の一問' : LEVELS[level].name}・${brainName()} ▾`;
 }
 
 function setLevel(lv) {
@@ -657,13 +698,24 @@ function resetMotion() {
   svg.querySelector('#cells').classList.remove('faded');
 }
 
-function hideEndButtons() {
-  for (const id of ['shareBtn', 'reviewBtn', 'answerBtn']) document.getElementById(id).hidden = true;
-}
-function showEndButtons(won) {
+const resultEl = document.getElementById('result');
+let lastResult = null;
+function hideEndButtons() { resultEl.hidden = true; infoEl.hidden = false; lastResult = null; }
+function showResult(won, improved) {
+  lastResult = { won, improved };
+  const t = document.getElementById('resTitle');
+  t.textContent = won ? '閉じ込めました！' : '逃げられました';
+  t.className = won ? 'win' : 'lose';
+  const best = loadBest();
+  document.getElementById('resMoves').textContent = (daily ? `${daily.label}・${brainName()} ／ ` : '') +
+    (won ? `${moves}手` : `${moves}手目で逃げられた`) + (best && !improved ? ` ／ ${daily ? '今日の記録' : '最少記録'} ${best}手` : '');
+  document.getElementById('resNew').hidden = !improved;
   document.getElementById('reviewBtn').hidden = log.length === 0;
   document.getElementById('answerBtn').hidden = !daily;
   document.getElementById('shareBtn').hidden = !(daily && won);
+  resultEl.hidden = false;
+  infoEl.hidden = true;
+  setStatus('');
 }
 
 function start(fresh) {
@@ -709,14 +761,13 @@ function play(r, c) {
   if (enclosed(wa, here)) {
     log.push({ wall: k, cat: here });
     over = true;
-    setStatus(`閉じ込めました！ ${moves}手`, 'win');
     say('!?', 1000);
     timer = setTimeout(() => {
       busy = false;
       motion.caughtAt = performance.now();
-      saveBest();
-      showEndButtons(true);
+      const improved = saveBest();
       updateCells();
+      timer = setTimeout(() => showResult(true, improved), 700);
     }, 900);
     updateCells();
     return;
@@ -763,9 +814,8 @@ function runAway() {
     const next = [pos[0] + step[0] * 1.1, pos[1] + step[1] * 1.1];
     hop(pos, next, 230, 8, i === 4 ? () => {
       svg.querySelector('#cells').classList.add('faded');
-      setStatus('逃げられました', 'lose');
       busy = false;
-      showEndButtons(false);
+      showResult(false, false);
     } : null);
     pos = next;
   }
@@ -812,7 +862,9 @@ function openReplay(steps, title) {
   replay = { steps, i: 0, title, saved: { rest: motion.rest.slice(), caughtAt: motion.caughtAt } };
   document.getElementById('bar').hidden = true;
   document.getElementById('replayBar').hidden = false;
-  document.getElementById('statusRow').hidden = true;
+  resultEl.hidden = true;
+  infoEl.hidden = false;
+  setStatus('');
   svg.querySelector('#cells').classList.remove('faded');
   showReplayStep(false);
 }
@@ -821,7 +873,7 @@ function closeReplay() {
   replay = null;
   document.getElementById('bar').hidden = false;
   document.getElementById('replayBar').hidden = true;
-  document.getElementById('statusRow').hidden = false;
+  if (lastResult) { resultEl.hidden = false; infoEl.hidden = true; }
   motion.queue = [];
   motion.rest = saved.rest;
   motion.caughtAt = saved.caughtAt;
@@ -836,9 +888,12 @@ function bestKey() {
   return brain === 'smart' ? `${base}-smart` : base;
 }
 function loadBest() { try { return Number(localStorage.getItem(bestKey())) || null; } catch { return null; } }
+// 記録を更新したら true
 function saveBest() {
   const b = loadBest();
-  if (!b || moves < b) { try { localStorage.setItem(bestKey(), String(moves)); } catch {} }
+  if (b && moves >= b) return false;
+  try { localStorage.setItem(bestKey(), String(moves)); } catch {}
+  return true;
 }
 
 svg.addEventListener('click', e => {
@@ -856,11 +911,17 @@ document.getElementById('answerBtn').onclick = () => openReplay(daily.answers[br
 document.getElementById('prevBtn').onclick = () => { if (replay.i > 0) { replay.i--; showReplayStep(false); } };
 document.getElementById('nextBtn').onclick = () => { if (replay.i < replay.steps.length) { replay.i++; showReplayStep(true); } };
 document.getElementById('closeBtn').onclick = closeReplay;
+document.getElementById('againBtn').onclick = () => start(false);
+document.getElementById('resClose').onclick = () => { resultEl.hidden = true; infoEl.hidden = false; };
+const sheet = document.getElementById('sheet');
+document.getElementById('modeBtn').onclick = () => { if (!preparing && !replay) sheet.hidden = false; };
+document.getElementById('sheetClose').onclick = () => { sheet.hidden = true; };
+sheet.addEventListener('click', e => { if (e.target === sheet) sheet.hidden = true; });
 const shareBtn = document.getElementById('shareBtn');
 shareBtn.onclick = () => {
   const text = `ネコを囲め ${daily.label}（${brainName()}）を${moves}手で閉じ込めました`;
   const done = () => { shareBtn.textContent = 'コピーしました'; setTimeout(() => shareBtn.textContent = '結果をコピー', 1600); };
-  const fallback = () => { setStatus(text, 'win'); shareBtn.textContent = '上の文を長押しでコピー'; };
+  const fallback = () => { setStatus(text, 'win'); shareBtn.textContent = '下の文を長押しでコピー'; };
   try { navigator.clipboard.writeText(text).then(done, fallback); } catch { fallback(); }
 };
 
