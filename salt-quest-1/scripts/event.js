@@ -8,7 +8,11 @@ function isVisit(x, y) { return !inDungeon() && playerPosition.x === x && player
 // 本家どおり、冒険の始まり・全滅・ふっかつのじゅもん・ルーラの行き先は
 // ラダトーム城の玉座の間（王様の前）
 function goToThroneRoom() {
-    torchLit = false; radiantSteps = 0; openedChests = new Set();
+    // 本家はマップを離れると、開けた宝箱・開けたとびら・すがたを消した人が
+    // 元に戻る（leaveDungeon と同じ扱い）。全滅や じゅもん再開でここへ運ばれる
+    // ときだけ扉が開いたままだと、かぎを1本節約できてしまっていた
+    torchLit = false; radiantSteps = 0;
+    openedChests = new Set(); openedDoors = new Set(); hiddenNpcs = new Set();
     dungeonEnteredFrom = { x: 51, y: 51 };
     switchMap('rcastle2', 3, 4);
 }

@@ -1065,7 +1065,25 @@ function switchMap(id, x, y) {
     mapHeight = mapData.length;
     playerPosition.x = x;
     playerPosition.y = y;
+    resetTownNpcs(id);          // 本家はマップに入り直すと町の人が最初の位置に戻る
     npcMakeWayForPlayer();      // 置かれた先に人が立っていたら どいてもらう
+}
+
+// そのマップの町の人を本家の初期位置に戻す。
+// 本家は町や階を出入りするたびにマップを読み直すので、歩き回っていた人も
+// 元の位置に戻る。これをやらないと、全滅・ふっかつのじゅもん・やり直しの
+// あとも前回うろついた場所から始まってしまう
+function resetTownNpcs(id) {
+    const d = DUNGEONS[id];
+    if (!d || !Array.isArray(d.npcs)) return;
+    let moved = false;
+    for (const n of d.npcs) {
+        if (!n.home || (n.x === n.home.x && n.y === n.home.y)) continue;
+        n.x = n.home.x; n.y = n.home.y; moved = true;
+    }
+    // 索引は作り直す。1マスずつ付け替えると、ある人の元の位置に別の人が
+    // 移っていた場合に索引だけ消えてしまう
+    if (moved) { d.npcAt = {}; for (const n of d.npcs) d.npcAt[n.x + ',' + n.y] = n; }
 }
 
 // 地上へ戻る（出口・リレミト・全滅・つばさ など共通）
