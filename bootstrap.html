@@ -293,6 +293,102 @@ function lint(src){
   return {errors, tape, labels:lab, bytes: errors.length ? [] : asmTape(tape)};
 }
 
+/* ================= 見本（クリアした課題だけ「読込」で選べる） ================= */
+// [番地, 16進, メモ] の並びからバイト列とメモを作る
+function mk(parts){
+  const b = [], nt = [];
+  parts.forEach(([a, h, n]) => {
+    while (b.length < a){ b.push(0); nt.push(''); }
+    h.split(' ').forEach((x, i) => { b[a + i] = parseInt(x, 16); nt[a + i] = nt[a + i] || ''; });
+    if (n) nt[a] = n;
+  });
+  return {b, nt, notes:Object.fromEntries(nt.map((t, i) => [i, t]).filter(x => x[1]))};
+}
+const SUB = a => [[a,'40 41','部品：文字を数に直して戻る'],[a+2,'34 '+hex2(a+7),'数字なら '+hex2(a+7)+' へ'],[a+4,'22 37','英字：37 を引く'],[a+6,'36','戻る'],[a+7,'22 30','数字：30 を引く'],[a+9,'36','戻る']];
+const COUNT = (a, back) => [[a,'11 80','番地+1'],[a+2,'20 01',''],[a+4,'12 80',''],[a+6,'30 '+hex2(back),back === 8 ? '振り分けへ' : '1周目へ']];
+const S19 = [[0,'30 08','開始：振り分けへ'],
+  [8,'01','振り分け：1文字読む'],[9,'32 0C','終わりでなければ 0C へ'],[0xB,'00','終わり：停止'],[0xC,'40 21','区切り？'],[0xE,'34 08','区切りなら読み直し'],[0x10,'40 3A',': ？'],[0x12,'33 20',': なら 20 へ'],[0x14,'40 40','@ ？'],[0x16,'33 28','@ なら 28 へ'],[0x18,'30 30','それ以外（16進）は 30 へ'],
+  [0x20,'01',':x の区画：名前を読む'],[0x21,'04','X ← 名前'],[0x22,'11 80','いまの番地'],[0x24,'14','表にしまう'],[0x25,'30 08','振り分けへ'],
+  [0x28,'01','@x の区画：名前を読む'],[0x29,'04','X ← 名前'],[0x2A,'13','表から取り出す'],[0x2B,'02','出力'],[0x2C,'30 48','番地+1 へ'],
+  [0x30,'35 50','16進の区画：上の桁を数に'],[0x32,'24 24 24 24','×16'],[0x36,'12 81','81 にしまう'],[0x38,'01','下の桁を読む'],[0x39,'35 50','数に'],[0x3B,'21 81','上の桁を足す'],[0x3D,'02','出力'],[0x3E,'30 48','番地+1 へ'],
+  ...COUNT(0x48, 8), ...SUB(0x50)];
+const SAMPLES = {
+  '1-1': mk([[0,'10 48','A に H'],[2,'02','出力'],[3,'10 49','A に I'],[5,'02','出力'],[6,'00','停止']]),
+  '1-2': mk([[0,'01','1文字読む'],[1,'31 06','終わり（00）なら 06 へ'],[3,'02','出力'],[4,'30 00','最初へ'],[6,'00','停止']]),
+  '1-3': mk([[0,'01','1つ目を読む'],[1,'31 0B','終わりなら 0B へ'],[3,'12 80','80 にしまう'],[5,'01','2つ目を読む'],[6,'21 80','80 を足す'],[8,'02','出力'],[9,'30 00','最初へ'],[0xB,'00','停止']]),
+  '1-4': mk([[0,'01','n を読む'],[1,'12 80','80 にしまう'],[3,'11 80','ループ：n を取り出す'],[5,'31 13','0 なら 13 へ'],[7,'02','出力'],[8,'10 2C','「,」'],[0xA,'02','出力'],[0xB,'11 80','n を取り戻す'],[0xD,'22 01','n − 1'],[0xF,'12 80','しまう'],[0x11,'30 03','ループへ'],[0x13,'10 21','「!」'],[0x15,'02','出力'],[0x16,'00','停止']]),
+  '1-5': mk([[0,'01','1文字読む'],[1,'31 10','終わりなら 10 へ'],[3,'40 41','A と比べる'],[5,'34 0B','小さければ数字 → 0B'],[7,'22 37','英字：37 を引く'],[9,'30 0D','出力へ'],[0xB,'22 30','数字：30 を引く'],[0xD,'02','出力'],[0xE,'30 00','最初へ'],[0x10,'00','停止']]),
+  '1-6': mk([[0,'01','上の桁を読む'],[1,'31 13','終わりなら 13 へ'],[3,'35 20','部品で数に'],[5,'24 24 24 24','×16'],[9,'12 80','80 にしまう'],[0xB,'01','下の桁を読む'],[0xC,'35 20','部品で数に'],[0xE,'21 80','上の桁を足す'],[0x10,'02','出力'],[0x11,'30 00','最初へ'],[0x13,'00','停止'], ...SUB(0x20)]),
+  '1-7': mk([[0,'01','上の桁を読む'],[1,'31 17','終わりなら 17 へ'],[3,'40 21','区切り？'],[5,'34 00','区切りなら読み直し'],[7,'35 20','部品で数に'],[9,'24 24 24 24','×16'],[0xD,'12 80','80 にしまう'],[0xF,'01','下の桁を読む'],[0x10,'35 20','部品で数に'],[0x12,'21 80','上の桁を足す'],[0x14,'02','出力'],[0x15,'30 00','最初へ'],[0x17,'00','停止'], ...SUB(0x20)]),
+  '1-8': mk([[0,'30 08','開始：振り分けへ'],
+    [8,'01','振り分け：1文字読む'],[9,'32 0C','終わりでなければ 0C へ'],[0xB,'00','終わり：停止'],[0xC,'40 21','区切り？'],[0xE,'34 08','区切りなら読み直し'],[0x10,'40 3A',': ？'],[0x12,'33 20',': なら 20 へ'],[0x14,'30 30','それ以外は 30 へ'],
+    [0x20,'01',':x の区画：名前を読み捨て'],[0x21,'11 80','いまの番地'],[0x23,'02','出力'],[0x24,'30 08','振り分けへ'],
+    [0x30,'01','それ以外の区画：2文字目を読み捨て'],[0x31,'30 48','番地+1 へ'],
+    ...COUNT(0x48, 8)]),
+  '1-9': mk(S19),
+  '1-10': mk([[0,'30 90','開始：1周目へ（1-9 から書き換え）'], ...S19.slice(1),
+    [0x90,'01','1周目：1文字読む'],[0x91,'31 A8','終わりなら A8 へ'],[0x93,'40 21','区切り？'],[0x95,'34 90','区切りなら読み直し'],[0x97,'40 3A',': ？'],[0x99,'33 A0',': なら A0 へ'],[0x9B,'01','それ以外：2文字目を読み捨て'],[0x9C,'30 B0','1周目の番地+1 へ'],
+    [0xA0,'01','1周目の :x：名前を読む'],[0xA1,'04','X ← 名前'],[0xA2,'11 80','いまの番地'],[0xA4,'14','表にしまう'],[0xA5,'30 90','1周目へ'],
+    [0xA8,'03','巻き戻す'],[0xA9,'10 00','番地を 00 に戻す'],[0xAB,'12 80',''],[0xAD,'30 08','2周目（振り分け）へ'],
+    ...COUNT(0xB0, 0x90)]),
+  '2-1': `# 掛け算：a を b 回足す（80=a, 81=b, 82=合計）
+:s 01 31 @e 12 80   # a を読む。終わりなら e へ
+01 12 81            # b を読む
+10 00 12 82         # 合計 = 0
+:l 11 81 31 @o      # b が 0 なら o へ
+11 82 21 80 12 82   # 合計 += a
+11 81 22 01 12 81   # b -= 1
+30 @l
+:o 11 82 02 30 @s   # 合計を出力して最初へ
+:e 00
+`,
+  '2-2': `# 逆さま：A0 番地から順にしまい、逆から出す
+10 A0 04                  # X = A0
+:r 01 31 @b 14 06 30 @r   # 読んで、しまって、X+1
+:b 05 40 A0 33 @e         # X が A0 に戻ったら終わり
+07 13 02 30 @b            # X-1 して出力
+:e 00
+`,
+  '2-3': `# 大文字：61〜7A なら 20 引く
+:l 01 31 @e
+40 61 34 @o     # a より前ならそのまま
+40 7B 34 @u     # z 以下なら大文字に
+30 @o
+:u 22 20
+:o 02 30 @l
+:e 00
+`,
+  '2-4': `# 名前で呼ぶ：1文字目で分け、J なら2文字目で分ける
+:l 01 31 @z 40 21 34 @l    # 区切りは読み直し
+40 48 33 @h                # H
+40 49 33 @i                # I
+40 4F 33 @o                # O
+01 40 4D 33 @m 40 5A 33 @j # J の次が M か Z
+01 10 32 30 @w             # JNZ：Z を読み捨て
+:h 01 01 10 00 30 @w       # HLT
+:i 01 10 01 30 @w          # IN
+:o 01 01 10 02 30 @w       # OUT
+:m 01 10 30 30 @w          # JMP
+:j 10 31                   # JZ
+:w 02 30 @l
+:z 00
+`,
+};
+// 1-8〜1-10 で使うメモリ地図
+const MAP = `<table><tr><th>番地</th><th>区画</th></tr>
+   <tr><td>00〜07</td><td>開始（00 に「振り分けへ跳ぶ」）</td></tr>
+   <tr><td>08〜1F</td><td>振り分け</td></tr>
+   <tr><td>20〜27</td><td><code>:x</code> の区画</td></tr>
+   <tr><td>28〜2F</td><td><code>@x</code> の区画（1-9 から）</td></tr>
+   <tr><td>30〜47</td><td>それ以外（16進）の区画</td></tr>
+   <tr><td>48〜4F</td><td>番地+1 して振り分けへ</td></tr>
+   <tr><td>50〜5F</td><td>部品（1-9 から）</td></tr>
+   <tr><td>60〜7F</td><td>名前の表（61〜7A）</td></tr>
+   <tr><td>80〜8F</td><td>変数（80 = 番地、81 = 上の桁）</td></tr>
+   <tr><td>90〜BF</td><td>1周目（1-10 で）</td></tr></table>`;
+// 1-8 の初期状態：区画の位置だけメモした骨組み
+const SKEL8 = mk([[0,'30 08','開始：振り分けへ跳ぶ'],[8,'00','08〜1F 振り分け：区切り・:・それ以外'],[0x20,'00','20〜 :x の区画：番地を出力'],[0x30,'00','30〜 それ以外の区画'],[0x48,'00','48〜 番地+1 して振り分けへ'],[0x4F,'00','']]);
+
 /* ================= 課題 ================= */
 const W = s => ({tape:str(s)});
 const P = [
@@ -326,7 +422,7 @@ const P = [
   hint:'「挿入」で 00 を差し込める。OUT のあとで「LDI 2C, OUT, LD 80」を差し込むと、A を取り戻せる。差し込んだ後ろを指していた飛び先（JZ の行き先）を数え直すのを忘れずに。',
   prefill:[0x01,0x12,0x80,0x11,0x80,0x31,0x0E,0x02,0x22,0x01,0x12,0x80,0x30,0x03,0x00],
   tests:[3,1,5].map(n => { const o = []; for (let i = n; i > 0; i--) o.push(i, 0x2C); o.push(0x21); return {tape:[n], out:o}; }),
-  after:'番地を数え直すのは、人間の仕事ではない。……そう思ったなら、もう半分は分かっている。'},
+  after:'番地を数え直すのは、人間の仕事ではない。……そう思ったなら、もう半分は分かっている。<br>それまでの知恵もある。昔のプログラマは、処理ごとに置き場所（区画）を先に決め、後で差し込めるよう間に余白を残しておいた。'},
  {id:'1-5', st:1, mode:'hex', title:'数字を読む',
   story:'16進を手で打ち込むのはもう限界だ。機械自身に「文字で書いた16進」を読ませたい。まずは1文字から。',
   task:'テープには文字 <code>0</code>〜<code>9</code>, <code>A</code>〜<code>F</code> が並ぶ。それぞれの値（00〜0F）を出力する。',
@@ -364,6 +460,7 @@ const P = [
     …               │
 26: 36      RET ────┘</pre>
    <p><b>20 番地には、1-5 の変換を部品にしたものを用意してある</b>（A に入った文字を数に直して戻る）。00〜1F 番地に本体を<b>上書きで</b>打とう。「挿入」を使うと部品の位置がずれる。</p>
+   <p><b>区画と余白</b>：「本体は 00 から、部品は 20 から」と、置き場所を先に決めておく。この置き場所を<b>区画</b>、間の 00 の並びを<b>余白</b>と呼ぶ。本体が育っても余白が残っているうちは部品の番地が変わらないので、<code>CALL 20</code> を直さずに済む。</p>
    <p>マスをタップすると、跳ぶ命令の行き先や、読み書きする番地が青い点線で光る。「メモ」で各バイトに注釈を残せる。</p>`,
   hint:'流れ：IN → 00 なら終わりへ → <code>CALL 20</code> → <code>SHL</code> を4回 → <code>ST 80</code> でしまう → IN → <code>CALL 20</code> → <code>ADD 80</code> → OUT → 先頭へ。',
   prefill:[...Array(0x20).fill(0), 0x40,0x41,0x34,0x27,0x22,0x37,0x36,0x22,0x30,0x36],
@@ -385,7 +482,7 @@ const P = [
    <ul>
    <li>差し込んだ位置より<b>後ろ</b>を指す行き先（JMP・JZ・JNZ・CALL など）は、差し込んだバイト数だけずれる。直す。</li>
    <li>差し込んだ位置<b>そのもの、または前</b>を指す行き先は、そのままでいい（差し込んだ CMP や、その前の命令を指すことになる）。</li>
-   <li>後ろにある部品も一緒にずれる。部品の手前の 00 を、差し込んだのと同じ数だけ「削除」すれば元の番地に戻る。昔のプログラマもよく使った手。</li>
+   <li>後ろにある部品も一緒にずれる。ここで<b>余白</b>（1-6 の区画の話）が効く。部品の手前の 00 を、差し込んだのと同じ数だけ「削除」すれば、部品は 20 番地の区画に戻る。</li>
    </ul>
    <p>跳ぶ命令のマスを1つずつタップしよう。行き先が青い点線で光る（空きなら赤）。光ったマスが本当に跳びたい命令か確かめる。</p>`,
   hint:'1-6 のコードを「読込」で持ってくる。上の桁の IN と終わりの判定の後、CALL の前に <code>40 21 34 xx</code>（xx はその IN の番地）を「挿入」で差し込む。そのあと跳ぶ命令を全部タップして、行き先がずれていないか確かめる。部品の手前の 00 を4つ削除すれば、部品は 20 番地に戻る。',
@@ -409,9 +506,12 @@ const P = [
    <tr><td><code>4F</code>（2桁の16進）</td><td>2</td><td>1</td></tr>
    <tr><td><code>@x</code></td><td>2</td><td>1</td></tr>
    <tr><td><code>:x</code></td><td>2</td><td>0</td></tr></table>
-   <p>2桁の16進も <code>@x</code> も「2文字で1バイト」なので、<b>この課題では区別しなくていい</b>。1文字目を見て、<code>:</code>（<code>3A</code>）かどうかだけ分ければいい。</p>
-   <p>番地は A に置いたままだとすぐ上書きされる。メモリ（たとえば 80 番地）に置いて、<code>LD</code> → <code>ADI 01</code> → <code>ST</code> で1増やす。最初に 00 を入れておくこと。</p>`,
-  hint:'1文字読む → 終わりなら停止 → 区切りなら読み直し → <code>:</code>（3A）なら、次の1文字（名前）を読み捨てて、いまの番地を <code>LD</code> して出力 → それ以外なら、もう1文字読み捨てて番地を1増やす → 最初へ。',
+   <p>2桁の16進も <code>@x</code> も「2文字で1バイト」なので、この課題では区別しなくていい。<code>:</code>（<code>3A</code>）かどうかだけ分ければいい。番地は 80 番地に置いて数える（プログラムを置いていないメモリは最初から 00）。</p>
+   <p><b>メモリ地図</b>：ここから 1-10 までは、同じ地図の上で翻訳機を育てる。最初から区画に分けておけば、1-9・1-10 は空いている区画を埋めるだけで済む。初期状態には、区画の位置をメモした骨組みが入っている。</p>
+   ` + MAP + `
+   <p>どの区画も、終わったら「振り分けへ（08）」か「番地+1 へ（48）」のどちらかに跳ぶ。番地を数えるのは 48 の1か所だけ。00 の「開始」は機械が最初に動かす番地で、いまは振り分けへ跳ぶだけ（1-10 でここを書き換える）。</p>`,
+  hint:'08 振り分け：IN → 終わりなら停止 → 区切りなら 08 へ → <code>:</code> なら 20 へ → それ以外は 30 へ。<br>20：名前を読み捨て、番地を <code>LD 80</code> して出力し、08 へ。<br>30：2文字目を読み捨てて 48 へ。<br>48：<code>LD 80</code> → <code>ADI 01</code> → <code>ST 80</code> → 08 へ。',
+  prefill:SKEL8.b, prefillNotes:SKEL8.notes,
   tests:['01 31 :a 02 :b 00', ':s 10 48 02 :e 00', '30 @x 00 00 :x 10 @y :y 00', '10 48\n02 00', ':b :c 05 @c @b :d']
     .map(s => ({tape:str(s), out:labelPos(s)})), table:false},
  {id:'1-9', st:1, mode:'hex', title:'名前を覚える',
@@ -437,9 +537,17 @@ const P = [
   TAX    X = 61
   LDX    A = メモリ[61] = 05
   OUT    05 を出力</pre>
-   <p>番地の数え方は 1-8 と同じ。<code>@x</code> も1バイト出すので、番地を1増やすのを忘れずに。2桁の16進は 1-7 と同じく変換して出力する。今度は <code>:</code>・<code>@</code>・16進の3つに分ける。</p>
-   <p>表は 61〜7A 番地を使う。プログラムがそこに重ならないよう、手前で終わらせるか、その範囲を跳び越えて置くこと。下の「機械」欄に名前の表の中身が出る。</p>`,
-  hint:'1-8 のコードを「読込」で持ってきて足していく。1-7 の部品は、カーソルを空いた番地に置いて「読込」→ 1-7 → 部品の範囲を選んで「上書き」で貼れる（部品の中の跳び先は、貼った番地に合わせて直すこと）。<code>:</code> のときは出力の代わりに <code>TAX</code> → <code>LD 番地</code> → <code>STX</code>。<code>@</code>（40）のときは名前を読んで <code>TAX</code> → <code>LDX</code> → <code>OUT</code>、番地+1。それ以外は 1-7 の変換で1バイト出力して、番地+1。部品（CALL 先）が名前の表と重ならないかも確かめよう。',
+   <p><b>1-8 の地図に区画を足していく</b>（1-8 を区画で書いていないときは、「読込」で 1-8 の見本を持ってくるといい）：</p>
+   <ul>
+   <li><b>振り分け</b>：「<code>@</code> なら 28 へ」を足す。振り分けの後ろの余白に上書きすれば、何もずれない。それ以外は 30 へ。</li>
+   <li><b>20</b>：出力の代わりに、表にしまう（<code>TAX</code> → <code>LD 80</code> → <code>STX</code>）。</li>
+   <li><b>28</b>（新しい区画）：名前を読んで <code>TAX</code> → <code>LDX</code> → <code>OUT</code> → 48 へ。</li>
+   <li><b>30</b>：2桁の16進を1バイトにして出力（1-7 と同じ流れ）→ 48 へ。</li>
+   <li><b>50</b>：部品。1-7 の部品を「読込」で範囲を選んで 50 番地に上書きで貼り、中の <code>JLT</code> の行き先を 50 番地に合わせて直す（27 → 57）。</li>
+   </ul>
+   ` + MAP + `
+   <p>下の「機械」欄に名前の表の中身が出る。</p>`,
+  hint:'振り分けの「それ以外は 30 へ」の手前に <code>40 40 33 28</code>（@ なら 28 へ）を上書き。20 は <code>01 04 11 80 14</code> + 08 へ。28 は <code>01 04 13 02</code> + 48 へ。30 は 1-7 の「上の桁を変換して ×16 → しまう → 下の桁を変換 → 足す → 出力」を、CALL 先を 50、しまう先を 81 にして書き、48 へ。',
   tests:['10 48 02 00', ':a 01 02 30 @a', '01 :l 02 30 @l', ':a 00 :b 00 :c @c @b @a', ':s 01 31 0A\n12 80 :t 01\n21 80 30 @t\n30 @s']
     .map(s => ({tape:str(s), out:asmTape(s)})), table:true},
  {id:'1-10', st:1, mode:'hex', big:true, title:'ラベル翻訳機',
@@ -452,17 +560,22 @@ const P = [
    <li>それ以外は2桁の16進 → 1バイト</li></ul>
    ただし今度は、<code>@x</code> が<b>後ろで</b> <code>:x</code> される名前を指すこともある。<br>
    例：<code>:a 01 31 @e 02 30 @a :e 00</code> → <code>01 31 07 02 30 00 00</code>`,
-  learn:`<p><code>31 @e … :e 00</code> のように、<code>@e</code> を読んだ時点では e がまだ表にない。だから<b>テープを2回読む</b>。</p>
-   <pre>1周目：数えて、表にしまうだけ（何も出力しない）
-        ＝ 1-8 の「:x で番地を出力」を「表にしまう」に替えたもの
-        テープが終わったら RWD で巻き戻し、2周目へ
-2周目：出力する
-        ＝ 1-9 から「表にしまう」と「番地を数える」を外したもの
-        （:x は名前を読み捨てるだけ。表はもう全部そろっている）
-        テープが終わったら停止</pre>
-   <p>1周目の「テープの終わり」は停止ではなく 2周目へ跳ぶ。<code>RWD</code> は巻き戻すだけなので、そのあと 2周目の先頭の IN へ進めばいい。</p>
-   <p>1-9 のコードの前に1周目を差し込むと、後ろがすべてずれる。跳ぶ命令を1つずつタップして行き先を確かめよう。部品が名前の表（61〜7A）に重ならないかにも注意。</p>`,
-  hint:'近道：1-9 を「読込」で持ってきて、先頭に1周目（1-8 の形で、<code>:</code> のところを <code>TAX</code>/<code>LD</code>/<code>STX</code> にしたもの。終わりで <code>RWD</code> して 2周目へ跳ぶ）を差し込む。2周目では、番地を数える部分と <code>STX</code> の部分は使わなくなる（残しても動くが、:x の名前は読み捨てるだけでいい）。',
+  learn:`<p><code>31 @e … :e 00</code> のように、<code>@e</code> を読んだ時点では e がまだ表にない。だから<b>テープを2回読む</b>。1周目で表を完成させ、2周目で出力する。</p>
+   <p><b>1-9 はそのまま2周目になる。</b>足すのは 90 番地からの1周目の区画と、開始の書き換えだけ。</p>
+   <pre>00     開始：30 90（1周目へ）に書き換える
+
+90〜   1周目：1-8 と同じ形の振り分け
+       区切り → 読み直し
+       :x    → 表にしまう（1-9 の 20 と同じ）→ 1周目へ
+       それ以外 → 2文字目を読み捨てて、番地+1 → 1周目へ
+       テープの終わり → 下へ
+
+       終わったら：RWD で巻き戻す
+                   番地（80）を 00 に戻す
+                   08（2周目＝1-9 の振り分け）へ</pre>
+   <p>2周目でも <code>:x</code> は表にしまい直すが、番地を 00 から数え直すので同じ値になり、問題ない。1周目の番地+1 は、48 の区画を使うと 08 へ戻ってしまうので、1周目用にもう1つ用意する（1周目へ戻るもの）。</p>
+   ` + MAP,
+  hint:'1-9 を「読込」→「全部置き換える」で持ってきて、90 番地から1周目を書く。90：IN → 終わりなら巻き戻しへ → 区切りなら 90 へ → <code>:</code> なら「表にしまって 90 へ」→ それ以外は IN で読み捨て、番地+1 して 90 へ。巻き戻し：<code>03</code>（RWD）→ <code>10 00 12 80</code>（番地を 00 に）→ <code>30 08</code>。最後に 00 番地を <code>30 90</code> にする。',
   tests:['10 48 02 00', ':a 01 31 @e 02 30 @a :e 00', '@z :z', ':s 01 31 @e\n12 80 01\n21 80 02 30 @s\n:e 00', ':b :c 05 @c @b', '30 @x 00 00 :x 10 @y :y 00']
     .map(s => ({tape:str(s), out:asmTape(s)})), table:true},
 
@@ -870,6 +983,8 @@ function manual(){
   2バイト命令は「命令 nn」の順に並べる。例：<code>10 48</code> = A に 48 を入れる。</p>
   <table class="ops"><tr><th>番号</th><th>名前</th><th>働き</th></tr>
   ${OPS.map(o => `<tr><td>${hex2(o[0])}${o[2] ? ' nn' : ''}</td><td>${o[1]}</td><td>${o[3]}</td></tr>`).join('')}</table>
+  <h3 style="color:var(--acc);font-size:15px;margin:14px 0 4px">メモリ地図（1-8〜1-10）</h3>
+  <p style="font-size:14px;margin:0">00 開始 ／ 08 振り分け ／ 20 :x ／ 28 @x ／ 30 16進 ／ 48 番地+1 ／ 50 部品 ／ 61〜7A 名前の表 ／ 80 番地・81 上の桁 ／ 90 1周目</p>
   <h3 style="color:var(--acc);font-size:15px;margin:14px 0 4px">テープ</h3>
   <p style="font-size:14px;margin:0">入力用の紙で、メモリとは別の装置。<code>IN</code> で1文字読むたびに読み取り位置が自動で進む。後戻りは <code>RWD</code>（先頭へ巻き戻し）だけ。読み終わると <code>IN</code> は 00 を返す。</p>
   <h3 style="color:var(--acc);font-size:15px;margin:14px 0 4px">文字コード</h3>
@@ -932,23 +1047,26 @@ function memoEdit(){
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') save(inp.value.trim()); });
 }
 function importCode(){
-  const p = S.p;
-  const list = P.filter(q => q.mode === p.mode && q.id !== p.id && unlocked(q) && getCode(q).length);
-  if (!list.length){ modal('<h2>読込</h2><p>読み込めるコードがまだありません。</p><div class="row"><button class="pri" data-close>閉じる</button></div>'); return; }
-  const d = modal(`<h2>読込</h2><p style="font-size:14px">どの課題のコードを持ってきますか？</p>
-    <div style="display:flex;flex-direction:column;gap:6px">${list.map(q => `<button data-id="${q.id}" style="text-align:left">${q.id} ${q.title} ${SAVE.solved[q.id] ? '✓' : ''}</button>`).join('')}</div>
+  const p = S.p, items = [];
+  P.filter(q => q.mode === p.mode && q.id !== p.id && unlocked(q) && getCode(q).length).reverse()
+    .forEach(q => items.push({label:`${q.id} ${q.title}`, sub:SAVE.solved[q.id] ? '✓ 自分のコード' : '自分のコード（未クリア）', q}));
+  P.filter(q => q.mode === p.mode && q.id !== p.id && SAVE.solved[q.id] && SAMPLES[q.id]).reverse()
+    .forEach(q => items.push({label:`${q.id} ${q.title}`, sub:'見本（一例）', sample:SAMPLES[q.id]}));
+  if (!items.length){ modal('<h2>読込</h2><p>読み込めるコードがまだありません。</p><div class="row"><button class="pri" data-close>閉じる</button></div>'); return; }
+  const d = modal(`<h2>読込</h2><p style="font-size:14px">どのコードを持ってきますか？ 見本はクリアした課題のものだけ選べます。見本は解き方の一例で、説明やヒントと同じ区画の並べ方で書いてあります。</p>
+    <div style="display:flex;flex-direction:column;gap:6px">${items.map((it, i) => `<button data-k="${i}" style="text-align:left">${it.label} <span class="dim" style="font-size:12px">${it.sub}</span></button>`).join('')}</div>
     <div class="row"><button data-close>やめる</button></div>`);
-  d.querySelectorAll('[data-id]').forEach(btn => btn.onclick = () => {
+  d.querySelectorAll('[data-k]').forEach(btn => btn.onclick = () => {
     d.remove();
-    const q = PZ[btn.dataset.id];
-    if (p.mode === 'hex') importRange(q);
-    else importText(q);
+    const it = items[+btn.dataset.k], title = `${it.label}（${it.sample ? '見本' : '自分のコード'}）`;
+    if (p.mode === 'hex') importRange(title, it.sample ? it.sample.b : getCode(it.q), it.sample ? it.sample.nt : getNotes(it.q));
+    else importText(title, it.sample || getCode(it.q));
   });
 }
 // 第2段階：置き換えるか、末尾に足すか
-function importText(q){
-  const p = S.p, c = getCode(q);
-  const d = modal(`<h2>${q.id} ${q.title} から読込</h2>
+function importText(title, c){
+  const p = S.p;
+  const d = modal(`<h2>${esc(title)}</h2>
     <pre class="src" style="white-space:pre-wrap;max-height:40vh;overflow:auto;font:13px/1.5 var(--mono);background:#0e150f;padding:8px;border-radius:8px">${esc(c)}</pre>
     <p class="dim" style="font-size:13px">一部だけ使いたいときは、ここから文字を選んでコピーし、ソース欄に貼り付けてください。</p>
     <div class="row"><button data-close>やめる</button><button id="iapp">末尾に足す</button><button class="amb" id="irep">全部置き換える</button></div>`);
@@ -957,8 +1075,7 @@ function importText(q){
   d.querySelector('#iapp').onclick = () => { const cur = getCode(p); put(cur + (cur.endsWith('\n') || !cur ? '' : '\n') + c); };
 }
 // 16進：範囲を選んで、カーソル位置に上書き／挿入、または全部置き換え
-function importRange(q){
-  const src = getCode(q), snt = getNotes(q);
+function importRange(title, src, snt){
   // 行の区切り：メモのあるバイト、空き（00 が4つ以上続くところ）の始まりと終わり、16 バイトごと
   const pad = src.map(() => false);
   for (let i = 0; i < src.length;){ let j = i; while (j < src.length && src[j] === 0) j++; if (j - i >= 4) for (let k = i; k < j; k++) pad[k] = true; i = j > i ? j : i + 1; }
@@ -967,7 +1084,7 @@ function importRange(q){
     if (!cur || snt[i] || pad[i] !== pad[i - 1] || cur.b.length >= 16){ cur = {at:i, b:[], note:snt[i] || '', pad:pad[i]}; lines.push(cur); }
     cur.b.push(hex2(x));
   });
-  const d = modal(`<h2>${q.id} ${q.title} から読込</h2>
+  const d = modal(`<h2>${esc(title)}</h2>
     <div style="max-height:34vh;overflow:auto;font:13px/1.6 var(--mono);background:#0e150f;border-radius:8px;padding:6px 8px">
     ${lines.map(l => `<div class="iline" data-a="${l.at}" data-e="${l.at + l.b.length - 1}" style="cursor:pointer;border-radius:4px;padding:1px 4px"><span style="color:var(--dim)">${hex2(l.at)}:</span> ${l.pad ? `<span class="dim">00 の並び（空き ${l.b.length}バイト）</span>` : l.b.join(' ')}${l.note ? ` <span style="color:var(--amber)"># ${esc(l.note)}</span>` : ''}</div>`).join('')}</div>
     <p style="font-size:13px;margin:8px 0 4px">行をタップすると範囲の始めに、もう一度別の行をタップすると終わりになります。</p>
@@ -1097,7 +1214,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'Enter'){ e.preventDefault(); check(); }
 });
 
-window.__boot = {P, PZ, runVM, asmTape, lint, build, SAVE: () => SAVE};
+window.__boot = {SAMPLES, P, PZ, runVM, asmTape, lint, build, SAVE: () => SAVE};
 render();
 </script>
 </body>
