@@ -439,7 +439,7 @@ const P = [
   OUT    05 を出力</pre>
    <p>番地の数え方は 1-8 と同じ。<code>@x</code> も1バイト出すので、番地を1増やすのを忘れずに。2桁の16進は 1-7 と同じく変換して出力する。今度は <code>:</code>・<code>@</code>・16進の3つに分ける。</p>
    <p>表は 61〜7A 番地を使う。プログラムがそこに重ならないよう、手前で終わらせるか、その範囲を跳び越えて置くこと。下の「機械」欄に名前の表の中身が出る。</p>`,
-  hint:'1-8 のコードを「読込」で持ってきて足していく。<code>:</code> のときは出力の代わりに <code>TAX</code> → <code>LD 番地</code> → <code>STX</code>。<code>@</code>（40）のときは名前を読んで <code>TAX</code> → <code>LDX</code> → <code>OUT</code>、番地+1。それ以外は 1-7 の変換で1バイト出力して、番地+1。部品（CALL 先）が名前の表と重ならないかも確かめよう。',
+  hint:'1-8 のコードを「読込」で持ってきて足していく。1-7 の部品は、カーソルを空いた番地に置いて「読込」→ 1-7 → 部品の範囲を選んで「上書き」で貼れる（部品の中の跳び先は、貼った番地に合わせて直すこと）。<code>:</code> のときは出力の代わりに <code>TAX</code> → <code>LD 番地</code> → <code>STX</code>。<code>@</code>（40）のときは名前を読んで <code>TAX</code> → <code>LDX</code> → <code>OUT</code>、番地+1。それ以外は 1-7 の変換で1バイト出力して、番地+1。部品（CALL 先）が名前の表と重ならないかも確かめよう。',
   tests:['10 48 02 00', ':a 01 02 30 @a', '01 :l 02 30 @l', ':a 00 :b 00 :c @c @b @a', ':s 01 31 0A\n12 80 :t 01\n21 80 30 @t\n30 @s']
     .map(s => ({tape:str(s), out:asmTape(s)})), table:true},
  {id:'1-10', st:1, mode:'hex', big:true, title:'ラベル翻訳機',
@@ -933,17 +933,86 @@ function memoEdit(){
 }
 function importCode(){
   const p = S.p;
-  const list = P.filter(q => q.mode === p.mode && q.id !== p.id && q.id in SAVE.code && unlocked(q));
+  const list = P.filter(q => q.mode === p.mode && q.id !== p.id && unlocked(q) && getCode(q).length);
   if (!list.length){ modal('<h2>読込</h2><p>読み込めるコードがまだありません。</p><div class="row"><button class="pri" data-close>閉じる</button></div>'); return; }
-  const d = modal(`<h2>読込</h2><p style="font-size:14px">他の課題のコードで、いまのコードを置き換えます（「戻す」で取り消せます）。</p>
+  const d = modal(`<h2>読込</h2><p style="font-size:14px">どの課題のコードを持ってきますか？</p>
     <div style="display:flex;flex-direction:column;gap:6px">${list.map(q => `<button data-id="${q.id}" style="text-align:left">${q.id} ${q.title} ${SAVE.solved[q.id] ? '✓' : ''}</button>`).join('')}</div>
     <div class="row"><button data-close>やめる</button></div>`);
   d.querySelectorAll('[data-id]').forEach(btn => btn.onclick = () => {
-    const c = SAVE.code[btn.dataset.id];
-    if (p.mode === 'hex'){ pushUndo(); setCode(c.slice(), getNotes(PZ[btn.dataset.id])); S.cur = 0; drawAll(); }
-    else { SAVE.code[p.id] = c; persist(); renderPuzzle(); }
     d.remove();
+    const q = PZ[btn.dataset.id];
+    if (p.mode === 'hex') importRange(q);
+    else importText(q);
   });
+}
+// 第2段階：置き換えるか、末尾に足すか
+function importText(q){
+  const p = S.p, c = getCode(q);
+  const d = modal(`<h2>${q.id} ${q.title} から読込</h2>
+    <pre class="src" style="white-space:pre-wrap;max-height:40vh;overflow:auto;font:13px/1.5 var(--mono);background:#0e150f;padding:8px;border-radius:8px">${esc(c)}</pre>
+    <p class="dim" style="font-size:13px">一部だけ使いたいときは、ここから文字を選んでコピーし、ソース欄に貼り付けてください。</p>
+    <div class="row"><button data-close>やめる</button><button id="iapp">末尾に足す</button><button class="amb" id="irep">全部置き換える</button></div>`);
+  const put = v => { SAVE.code[p.id] = v; persist(); d.remove(); renderPuzzle(); };
+  d.querySelector('#irep').onclick = () => put(c);
+  d.querySelector('#iapp').onclick = () => { const cur = getCode(p); put(cur + (cur.endsWith('\n') || !cur ? '' : '\n') + c); };
+}
+// 16進：範囲を選んで、カーソル位置に上書き／挿入、または全部置き換え
+function importRange(q){
+  const src = getCode(q), snt = getNotes(q);
+  // 行の区切り：メモのあるバイト、空き（00 が4つ以上続くところ）の始まりと終わり、16 バイトごと
+  const pad = src.map(() => false);
+  for (let i = 0; i < src.length;){ let j = i; while (j < src.length && src[j] === 0) j++; if (j - i >= 4) for (let k = i; k < j; k++) pad[k] = true; i = j > i ? j : i + 1; }
+  const lines = []; let cur = null;
+  src.forEach((x, i) => {
+    if (!cur || snt[i] || pad[i] !== pad[i - 1] || cur.b.length >= 16){ cur = {at:i, b:[], note:snt[i] || '', pad:pad[i]}; lines.push(cur); }
+    cur.b.push(hex2(x));
+  });
+  const d = modal(`<h2>${q.id} ${q.title} から読込</h2>
+    <div style="max-height:34vh;overflow:auto;font:13px/1.6 var(--mono);background:#0e150f;border-radius:8px;padding:6px 8px">
+    ${lines.map(l => `<div class="iline" data-a="${l.at}" data-e="${l.at + l.b.length - 1}" style="cursor:pointer;border-radius:4px;padding:1px 4px"><span style="color:var(--dim)">${hex2(l.at)}:</span> ${l.pad ? `<span class="dim">00 の並び（空き ${l.b.length}バイト）</span>` : l.b.join(' ')}${l.note ? ` <span style="color:var(--amber)"># ${esc(l.note)}</span>` : ''}</div>`).join('')}</div>
+    <p style="font-size:13px;margin:8px 0 4px">行をタップすると範囲の始めに、もう一度別の行をタップすると終わりになります。</p>
+    <div style="display:flex;gap:8px;align-items:center;font-family:var(--mono)">
+      <label>から <input id="ia" value="00" maxlength="2" style="width:3.2em;font:16px var(--mono);padding:4px;background:#0e150f;color:var(--fg);border:1px solid var(--line);border-radius:6px;text-transform:uppercase"></label>
+      <label>まで <input id="ie" value="${hex2(src.length - 1)}" maxlength="2" style="width:3.2em;font:16px var(--mono);padding:4px;background:#0e150f;color:var(--fg);border:1px solid var(--line);border-radius:6px;text-transform:uppercase"></label>
+      <span id="isz" class="dim" style="font-size:13px"></span>
+    </div>
+    <p class="dim" style="font-size:13px">貼る先：いまのカーソル <b class="mono" style="color:var(--amber)">${hex2(S.cur)}</b>番地から。別の番地に貼ると、持ってきた中の跳び先（JMP・JLT・CALL など）はずれます。貼った後に、跳ぶ命令をタップして確かめてください。</p>
+    <div class="msg err" id="ierr"></div>
+    <div class="row"><button data-close>やめる</button><button id="iover">${hex2(S.cur)}番地に上書き</button><button id="iins">${hex2(S.cur)}番地に挿入</button><button class="amb" id="irep">全部置き換える</button></div>`);
+  const ia = d.querySelector('#ia'), ie = d.querySelector('#ie'), err = d.querySelector('#ierr');
+  let pickStart = true;
+  const range = () => {
+    const a = parseInt(ia.value, 16), e = parseInt(ie.value, 16);
+    if (!/^[0-9a-fA-F]{1,2}$/.test(ia.value) || !/^[0-9a-fA-F]{1,2}$/.test(ie.value) || a > e || e >= src.length){ return null; }
+    return [a, e];
+  };
+  const show = () => {
+    const r = range();
+    d.querySelector('#isz').textContent = r ? `${r[1] - r[0] + 1} バイト` : '範囲が正しくありません';
+    d.querySelectorAll('.iline').forEach(el => { const on = r && +el.dataset.a <= r[1] && +el.dataset.e >= r[0]; el.style.background = on ? '#2a2210' : ''; });
+  };
+  d.querySelectorAll('.iline').forEach(el => el.onclick = () => {
+    if (pickStart){ ia.value = hex2(+el.dataset.a); ie.value = hex2(+el.dataset.e); }
+    else { const a = parseInt(ia.value, 16); if (+el.dataset.a < a) ia.value = hex2(+el.dataset.a); else ie.value = hex2(+el.dataset.e); }
+    pickStart = !pickStart; show();
+  });
+  ia.oninput = ie.oninput = show; show();
+  const apply = mode => {
+    const r = range(); if (!r){ err.textContent = '範囲を 00〜' + hex2(src.length - 1) + ' の中で、始め ≦ 終わり になるように入れてください'; return; }
+    const pb = src.slice(r[0], r[1] + 1), pn = snt.slice(r[0], r[1] + 1);
+    let b = getCode(S.p).slice(), nt = getNotes(S.p);
+    if (mode === 'rep'){ b = src.slice(); nt = snt.slice(); }
+    else {
+      while (b.length < S.cur){ b.push(0); nt.push(''); }
+      if (mode === 'ins'){ b.splice(S.cur, 0, ...pb); nt.splice(S.cur, 0, ...pn); }
+      else pb.forEach((x, k) => { b[S.cur + k] = x; nt[S.cur + k] = pn[k] || nt[S.cur + k] || ''; });
+    }
+    if (b.length > 256){ err.textContent = `貼ると ${b.length} バイトになり、メモリ（256 バイト）に入りません`; return; }
+    pushUndo(); setCode(b, nt); if (mode === 'rep') S.cur = 0; d.remove(); drawAll();
+  };
+  d.querySelector('#iover').onclick = () => apply('over');
+  d.querySelector('#iins').onclick = () => apply('ins');
+  d.querySelector('#irep').onclick = () => apply('rep');
 }
 function clearModal(p, size, steps, first){
   const next = P[P.indexOf(p) + 1];
