@@ -53,6 +53,27 @@ small,.dim{color:var(--dim)}
 .prose p{margin:0 0 12px}
 .cursor{display:inline-block;width:.6em;height:1.1em;background:var(--acc);vertical-align:-3px;animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:0}}
+/* ラベル翻訳機の完成図 */
+.bp{border:1px solid var(--line);border-radius:10px;padding:10px;background:#0e150f;font-size:13px;margin:8px 0}
+.bp summary{cursor:pointer;color:var(--amber);font-weight:700;list-style:none;display:flex;justify-content:space-between;gap:8px}
+.bp summary::-webkit-details-marker{display:none}
+.bp .bpt::before{content:"▸ "}
+.bp[open] .bpt::before{content:"▾ "}
+.bp-body{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.bp-io{font-family:var(--mono);color:var(--dim);font-size:12px;word-break:break-all}
+.bp-io b{color:var(--fg);font-weight:400}
+.bp-ar{text-align:center;color:var(--dim);line-height:1;font-size:12px}
+.bp-p{border:1px dashed #2a3b2c;border-radius:7px;padding:5px 8px;color:#5d7a62;line-height:1.4}
+.bp-p .n{font-family:var(--mono);font-size:11px;margin-right:4px}
+.bp-p.on{border:1px solid #3d8a47;color:var(--fg);background:#13261a}
+.bp-p.on .n::after{content:" ✓";color:var(--acc)}
+.bp-p.new{border-color:var(--amber);box-shadow:0 0 0 2px #ffb84d55;animation:bpop .7s ease-out}
+.bp-2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.bp-col{display:flex;flex-direction:column;gap:6px;min-width:0}
+.bp-base{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.bp-lbl{color:var(--dim);font-size:12px;margin-top:6px}
+@keyframes bpop{0%{transform:scale(.92)}60%{transform:scale(1.04)}100%{transform:none}}
+@media (prefers-reduced-motion: reduce){.bp-p.new{animation:none}}
 /* map */
 .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0}
 .stage.locked{opacity:.55}
@@ -783,6 +804,31 @@ function render(){
   else renderPuzzle();
 }
 
+/* ---------- ラベル翻訳機の完成図：第1段階の各課題が部品になる ---------- */
+const PARTS = {
+  '1-1':'出力する', '1-2':'テープを読む', '1-3':'メモリに覚える', '1-4':'ループと番地ずれ',
+  '1-5':'文字 → 数', '1-6':'2文字 → 1バイト', '1-7':'区切りを読み飛ばす',
+  '1-8':'見分けて番地を数える', '1-9':'名前を覚え、番地に置き換える', '1-10':'2回読む（まだ出てこない名前も）'};
+function blueprint(newId, open){
+  const part = id => `<div class="bp-p ${SAVE.solved[id] ? 'on' : ''} ${id === newId ? 'new' : ''}"><span class="n">${id}</span>${PARTS[id]}</div>`;
+  const done = Object.keys(PARTS).filter(id => SAVE.solved[id]).length, all = Object.keys(PARTS).length;
+  return `<details class="bp" ${open ? 'open' : ''}><summary><span class="bpt">ラベル翻訳機の完成図</span><span class="mono">${done} / ${all}</span></summary>
+  <div class="bp-body">
+    <div class="bp-io">入：ラベルで書いたソース<br><b>01 12 80 :l 11 80 31 @e …</b></div>
+    <div class="bp-ar">↓</div>
+    ${part('1-7')}
+    <div class="bp-ar">↓</div>
+    ${part('1-8')}
+    <div class="bp-2"><div class="bp-ar">↓ 16進</div><div class="bp-ar">↓ :x と @x</div></div>
+    <div class="bp-2"><div class="bp-col">${part('1-5')}${part('1-6')}</div><div class="bp-col">${part('1-9')}</div></div>
+    <div class="bp-ar">↓</div>
+    ${part('1-10')}
+    <div class="bp-ar">↓</div>
+    <div class="bp-io">出：番地を数え終えた機械語<br><b>01 12 80 11 80 31 13 …</b></div>
+    <div class="bp-lbl">土台（機械の使い方）</div>
+    <div class="bp-base">${part('1-1')}${part('1-2')}${part('1-3')}${part('1-4')}</div>
+  </div></details>`;
+}
 function renderTitle(){
   const started = Object.keys(SAVE.solved).length > 0;
   app.innerHTML = `<div class="title">
@@ -792,6 +838,7 @@ function renderTitle(){
       <p>実行ファイルも、ソースも、ツールチェーンも。コンパイラを作るためのコンパイラさえ残っていない。</p>
       <p>残ったのは古い機械 <b class="mono">SEED-8</b> が1台と、そのメモリを直接書き換える16進エディタだけ。</p>
       <p>手で書けるものを書き、それを使って次の道具を書く。自分の靴ひもを引いて自分を持ち上げるように——<b>ブートストラップ</b>だ。</p>
+      <p>最初の目標は、飛び先の番地を自分で数えなくて済む道具——<b>ラベル翻訳機</b>だ。</p>
       <p class="mono" style="color:var(--acc)">&gt; _<span class="cursor"></span></p>
     </div>
     <button class="pri" data-act="map" style="font-size:17px;padding:12px 28px">${started ? 'つづきから' : 'はじめる'}</button>
@@ -806,6 +853,7 @@ function renderMap(){
     const open = !s.locked && (s.n === 1 || SAVE.translator);
     return `<div class="stage ${open ? '' : 'locked'}">
       <h2>${open ? '' : '🔒 '}${s.name}</h2><div class="lang">${esc(s.lang)}</div><p>${s.desc}</p>
+      ${open && s.n === 1 ? blueprint(null, !SAVE.solved[TR_ID]) : ''}
       ${open ? `<div class="plist">${ps.map(p => {
         const ok = unlocked(p);
         return `<button data-act="open" data-id="${p.id}" class="${SAVE.solved[p.id] ? 'done' : ''} ${p.big ? 'big' : ''}" ${ok ? '' : 'disabled'}>
@@ -1227,6 +1275,10 @@ function clearModal(p, size, steps, first){
   const next = P[P.indexOf(p) + 1];
   let body = `<h2>課題クリア</h2><p class="stats">${p.id} ${p.title}<br>${size} バイト ／ 合計 ${steps} 歩</p>`;
   if (p.after) body += `<div class="story">${p.after}</div>`;
+  if (p.st === 1 && PARTS[p.id]){
+    const left = Object.keys(PARTS).filter(id => !SAVE.solved[id]).length;
+    body += `<p style="margin:10px 0 0">${first ? 'ラベル翻訳機に部品がはまった。' : ''}${left ? `完成まで、あと <b class="mono" style="color:var(--amber)">${left}</b> 個。` : '部品がすべてそろった。'}</p>` + blueprint(p.id, true);
+  }
   if (p.id === TR_ID){
     body += `<div class="unlock">▼ 段階解放 ▼<br>ラベル付き16進</div>
     <p>あなたが一字一字、番地を数えて書いた ${size} バイト。これがあなたの最初の本格的な翻訳機だ。</p>
