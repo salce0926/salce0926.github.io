@@ -111,6 +111,18 @@ small,.dim{color:var(--dim)}
 .info{font-family:var(--mono);font-size:13px;color:var(--blue);margin-top:8px;min-height:1.6em;word-break:break-all}
 .tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .tools button{font-size:13px;padding:6px 9px}
+.ed{position:relative;background:#0e150f;border:1px solid var(--line);border-radius:8px}
+.ed-bg{position:absolute;inset:0;margin:0;padding:10px;font:15px/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;color:transparent;pointer-events:none;overflow:hidden}
+.ed-bg .xl{background:#173520;border-radius:3px}
+.ed-bg .xo{background:#2f7a3a;border-radius:3px}
+.ed-bg .xa{background:#245a2e;border-radius:3px}
+.ed textarea.src{position:relative;background:transparent;border:0;white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;resize:none;display:block;caret-color:var(--amber)}
+.lkeys{display:grid;grid-template-columns:repeat(8,1fr);gap:5px}
+.lkeys button{padding:9px 0;font:600 16px var(--mono)}
+.lkeys.abc{grid-template-columns:repeat(7,1fr)}
+.lrow{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-top:5px}
+.lrow button{padding:9px 0;font:600 15px var(--mono)}
+.iline.sel{background:#2a2210}
 textarea.src{width:100%;min-height:260px;background:#0e150f;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:10px;font:15px/1.5 var(--mono);resize:vertical}
 /* tests */
 .tests{display:flex;flex-direction:column;gap:6px}
@@ -280,8 +292,9 @@ function labelPos(s){
 // 第2段階のソースを点検し、翻訳機に通すテープを作る
 function lint(src){
   const errors = [], toks = [];
+  let off = 0;
   src.split('\n').forEach((line, li) => {
-    const ln = li + 1;
+    const ln = li + 1, base = off; off += line.length + 1;
     const h = line.indexOf('#'); if (h >= 0) line = line.slice(0, h);
     for (let i = 0; i < line.length; i++){
       const c = line[i];
@@ -290,18 +303,19 @@ function lint(src){
         const l = line[i + 1];
         if (!l || !/[a-z]/.test(l)){ errors.push(`${ln}行目: '${c}' の直後にラベル名（a〜z の小文字1文字）が必要です`); continue; }
         if (line[i + 2] && /[0-9a-zA-Z]/.test(line[i + 2])) errors.push(`${ln}行目: ラベル名は1文字だけです（'${c}${l}${line[i+2]}…' の後に空白を）`);
-        toks.push({t:c, l, ln}); i++; continue;
+        toks.push({t:c, l, ln, s:base + i, e:base + i + 2}); i++; continue;
       }
       if (/[0-9a-fA-F]/.test(c)){
         const d = line[i + 1];
         if (!d || !/[0-9a-fA-F]/.test(d)){ errors.push(`${ln}行目: 16進数は2桁ずつ書きます（'${c}' が1桁だけ）`); continue; }
-        toks.push({t:'b', v:parseInt(c + d, 16), ln}); i++; continue;
+        toks.push({t:'b', v:parseInt(c + d, 16), ln, s:base + i, e:base + i + 2}); i++; continue;
       }
       errors.push(`${ln}行目: 使えない文字 '${c}'`);
     }
   });
   const lab = {}; let pos = 0;
   toks.forEach(k => {
+    k.addr = pos;
     if (k.t === ':'){ if (k.l in lab) errors.push(`${k.ln}行目: ラベル '${k.l}' が二度つけられています`); lab[k.l] = pos; }
     else pos++;
   });
@@ -311,7 +325,7 @@ function lint(src){
   toks.forEach(k => { if (k.ln !== curLn){ lines.push(cur.join(' ')); cur = []; curLn = k.ln; } cur.push(k.t === 'b' ? hex2(k.v) : k.t + k.l); });
   if (cur.length) lines.push(cur.join(' '));
   const tape = lines.join('\n');
-  return {errors, tape, labels:lab, bytes: errors.length ? [] : asmTape(tape)};
+  return {errors, tape, labels:lab, toks, bytes: errors.length ? [] : asmTape(tape)};
 }
 
 /* ================= 見本（クリアした課題だけ「読込」で選べる） ================= */
@@ -809,7 +823,7 @@ const S = {screen:'title', p:null, cur:0, pend:null, undo:[], vm:null, ti:0, tim
 function go(screen, id){
   stopPlay();
   S.screen = screen;
-  if (id){ S.p = PZ[id]; S.cur = 0; S.pend = null; S.undo = []; S.vm = null; S.ti = 0; S.results = null; S.msg = null; S.built = null; }
+  if (id){ S.caret = null; S.lpage = 'hex'; S.selAddr = -1; S.p = PZ[id]; S.cur = 0; S.pend = null; S.undo = []; S.vm = null; S.ti = 0; S.results = null; S.msg = null; S.built = null; }
   render(); window.scrollTo(0, 0);
 }
 function render(){
@@ -887,12 +901,12 @@ function curBytes(){
 // 第2段階：プレイヤーの翻訳機で翻訳する
 function build(src){
   const L = lint(src);
-  if (L.errors.length) return {errors:L.errors};
+  if (L.errors.length) return {errors:L.errors, L};
   const v = runVM(SAVE.translator, str(L.tape), TR_LIMIT);
   if (v.err) return {errors:['あなたの翻訳機（1-10）が失敗しました：' + v.err]};
   const bytes = v.out.slice(0, 256);
   const diff = bytes.length !== L.bytes.length || bytes.some((b, i) => b !== L.bytes[i]);
-  return {bytes, steps:v.steps, tape:L.tape, labels:L.labels,
+  return {bytes, steps:v.steps, tape:L.tape, labels:L.labels, L,
     warn: diff ? 'あなたの翻訳機の出力が、仕様どおりの翻訳と食い違っています。このまま動かしますが、1-10 を見直した方がいいかもしれません。' : null};
 }
 
@@ -911,7 +925,8 @@ function renderPuzzle(){
     ${hexMode ? `<div id="grid"></div><div class="info" id="info"></div>
       <div id="notes" class="notes"></div>
       <div class="tools"><button data-act="memo">メモ</button><button data-act="text">テキストで編集</button><button data-act="import">読込</button><button data-act="reset">初期状態に戻す</button></div>`
-    : `<textarea class="src" id="src" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off">${esc(getCode(p))}</textarea>
+    : `<div class="ed"><pre class="ed-bg" id="srcbg" aria-hidden="true"></pre><textarea class="src" id="src" inputmode="${S.nativeKb ? 'text' : 'none'}" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off">${esc(getCode(p))}</textarea></div>
+      <div class="info" id="sinfo"></div>
       <div class="tools"><button data-act="import">読込</button><button data-act="reset">初期状態に戻す</button></div>`}
   </div>
   ${hexMode ? '' : `<div class="card"><h3>翻訳結果 <small>（あなたの翻訳機による）</small></h3><div id="built"></div></div>`}
@@ -924,10 +939,14 @@ function renderPuzzle(){
     <div class="keys">${'0123456789ABCDEF'.split('').map(k => `<button data-act="k" data-k="${k}">${k}</button>`).join('')}</div>
     <div class="keys2"><button data-act="left">◀</button><button data-act="right">▶</button><button data-act="ins">挿入</button><button data-act="del">削除</button><button data-act="undo">↶ 戻す</button></div>
     <div class="ktool" style="margin-top:5px"><button class="pri" data-act="check">検証する</button></div>`
-  : `<div class="ktool">${[':', '@', '#', '␣', '↵'].map(k => `<button data-act="ins-t" data-k="${k}">${k}</button>`).join('')}<button class="pri" data-act="check">検証する</button></div>`}</div>`;
+  : `<div id="lpad"></div><div class="ktool" style="margin-top:5px"><button class="pri" data-act="check">検証する</button></div>`}</div>`;
   if (!hexMode){
     const ta = document.getElementById('src');
-    ta.addEventListener('input', () => { SAVE.code[p.id] = ta.value; persist(); S.built = null; S.vm = null; S.results = null; stopPlay(); drawBuilt(); drawMach(); drawTests(); });
+    ta.addEventListener('input', () => { SAVE.code[p.id] = ta.value; persist(); S.built = null; S.vm = null; S.results = null; stopPlay(); fitSrc(); drawBuilt(); drawMach(); drawTests(); srcCaret(); });
+    ['click', 'keyup', 'select', 'focus'].forEach(ev => ta.addEventListener(ev, srcCaret));
+    S.caret = Math.min(S.caret ?? ta.value.length, ta.value.length);
+    try { ta.setSelectionRange(S.caret, S.caret); } catch(e){}
+    drawLpad(); requestAnimationFrame(fitSrc);
   }
   drawAll();
 }
@@ -1008,12 +1027,102 @@ function drawInfo(){
   if (note) h += `<br><span style="color:var(--amber)">メモ：${esc(note)}</span>`;
   el.innerHTML = h;
 }
+/* ---------- 第2段階のソース編集：光る行・タップで中身・キーパッド ---------- */
+function fitSrc(){ const ta = document.getElementById('src'); if (!ta) return; ta.style.height = 'auto'; ta.style.height = Math.max(260, ta.scrollHeight) + 'px'; drawSrcBg(); }
+function curLint(){ if (!S.built) S.built = build(getCode(S.p)); return S.built.L; }
+// ソースの背景に、実行中の行と命令を描く
+function drawSrcBg(){
+  const bg = document.getElementById('srcbg'), ta = document.getElementById('src'); if (!bg || !ta) return;
+  const src = ta.value, marks = [];
+  const v = S.vm, L = curLint();
+  if (v && v.steps && L && !L.errors.length){
+    const op = L.toks.find(k => k.t !== ':' && k.addr === v.pc);
+    if (op){
+      const o = OP[v.mem[v.pc]];
+      const arg = o && o.arg ? L.toks.find(k => k.t !== ':' && k.addr === ((v.pc + 1) & 255)) : null;
+      const ls = src.lastIndexOf('\n', op.s - 1) + 1, le = src.indexOf('\n', op.s);
+      marks.push({s:ls, e:le < 0 ? src.length : le, c:'xl'});
+      marks.push({s:op.s, e:op.e, c:'xo'});
+      if (arg) marks.push({s:arg.s, e:arg.e, c:'xa'});
+    }
+  }
+  // 区切り位置ごとに、いちばん内側の印で塗る
+  const cuts = [...new Set([0, src.length, ...marks.flatMap(m => [m.s, m.e])])].sort((a, b) => a - b);
+  let h = '';
+  for (let i = 0; i < cuts.length - 1; i++){
+    const a = cuts[i], b = cuts[i + 1], m = marks.filter(m => m.s <= a && b <= m.e).pop();
+    const t = esc(src.slice(a, b));
+    h += m ? `<span class="${m.c}">${t}</span>` : t;
+  }
+  bg.innerHTML = h + '\n';
+}
+// カーソル（タップした所）の中身を説明する
+function srcCaret(){
+  const ta = document.getElementById('src'), el = document.getElementById('sinfo'); if (!ta || !el) return;
+  S.caret = ta.selectionStart;
+  const L = curLint(), c = S.caret;
+  S.selAddr = -1;
+  if (!L || L.errors.length){ el.innerHTML = '<span class="dim">翻訳できない状態なので、中身は表示できません。</span>'; drawBuilt(); return; }
+  const k = L.toks.find(k => k.s <= c && c < k.e) || L.toks.find(k => k.e === c);
+  if (!k){ el.innerHTML = '<span class="dim">数やラベルをタップすると、ここに中身が出ます。</span>'; drawBuilt(); return; }
+  const b = L.bytes, at = labs => { const n = Object.keys(L.labels).filter(x => L.labels[x] === labs); return n.length ? `（<span style="color:var(--blue)">:${n.join(' :')}</span> の場所）` : ''; };
+  let h = '';
+  if (k.t === ':') h = `<b>:${k.l}</b>　ここに名前 ${k.l} をつける ＝ ${hex2(k.addr)}番地。バイトにはならない`;
+  else {
+    S.selAddr = k.addr;
+    const r = decode(b)[k.addr], v = b[k.addr], o = OP[v], tg = target(b, k.addr);
+    h = `[${hex2(k.addr)}] = ${hex2(v)}　`;
+    if (k.t === '@') h += `<b>@${k.l}</b> → 名前 ${k.l} の番地 ${hex2(v)}　`;
+    if (r && r.k === 'arg') h += `<b>${OP[b[r.at]].m}</b> の引数`;
+    else if (k.t === 'b') h += o ? `<b>${o.m}${o.arg ? ' nn' : ''}</b>：${o.d}` : '<span class="dim">命令ではない数</span>';
+    if (tg) h += `<br><span style="color:var(--acc)">${tg.text}</span>${JUMPS.includes(b[r.at]) ? at(tg.at) : ''}`;
+  }
+  el.innerHTML = h;
+  drawBuilt();
+}
+// キーパッド：0〜F と記号。: や @ を押すと名前（a〜z）の面に切り替わる
+function drawLpad(){
+  const el = document.getElementById('lpad'); if (!el) return;
+  if (S.lpage === 'abc'){
+    el.innerHTML = `<div class="lkeys abc">${'abcdefghijklmnopqrstuvwxyz'.split('').map(k => `<button data-act="lk" data-k="${k}">${k}</button>`).join('')}<button data-act="lk" data-k="hex" style="grid-column:span 2;font-size:13px">0〜F に戻る</button></div>`;
+  } else {
+    el.innerHTML = `<div class="lkeys">${'0123456789ABCDEF'.split('').map(k => `<button data-act="lk" data-k="${k}">${k}</button>`).join('')}</div>
+      <div class="lrow"><button data-act="lk" data-k=":">:</button><button data-act="lk" data-k="@">@</button><button data-act="lk" data-k=" ">␣</button><button data-act="lk" data-k="\n">↵</button><button data-act="lk" data-k="bs">⌫</button><button data-act="lk" data-k="#">#</button></div>
+      <div class="lrow" style="grid-template-columns:1fr 1fr 2fr"><button data-act="lk" data-k="left">◀</button><button data-act="lk" data-k="right">▶</button><button data-act="lk" data-k="kb" style="font:13px system-ui,sans-serif">${S.nativeKb ? '⌨ キーパッドに戻す' : '⌨ 文字キーボード'}</button></div>`;
+  }
+}
+function lkey(k){
+  const ta = document.getElementById('src'); if (!ta) return;
+  let a = ta.selectionStart, b = ta.selectionEnd;
+  const put = t => { ta.setRangeText(t, a, b, 'end'); a = b = ta.selectionStart; };
+  if (k === 'hex'){ S.lpage = 'hex'; drawLpad(); return; }
+  if (k === 'kb'){ S.nativeKb = !S.nativeKb; ta.inputMode = S.nativeKb ? 'text' : 'none'; drawLpad(); ta.blur(); ta.focus(); return; }
+  if (k === 'left' || k === 'right'){ const n = Math.max(0, Math.min(ta.value.length, (k === 'left' ? a - 1 : b + 1))); ta.setSelectionRange(n, n); ta.focus(); srcCaret(); return; }
+  if (k === 'bs'){ if (a === b && a > 0) a--; put(''); }
+  else if (/^[0-9A-F]$/.test(k)){
+    // 直前に2桁や名前がそろっていたら、先に空白を入れる
+    if (a === b && /(^|\s)([0-9A-Fa-f]{2}|[:@][a-z])$/.test(ta.value.slice(0, a))) put(' ');
+    put(k);
+    const v = ta.value;
+    // 2桁そろったら空白を入れる（すぐ後ろが空白・改行なら入れない）
+    if (/[0-9A-F]{2}$/.test(v.slice(0, a)) && !/[0-9A-Fa-f:@]/.test(v[a - 3] || ' ') && !/[0-9A-Fa-f \n]/.test(v[a] || '')) put(' ');
+  } else if (/^[a-z]$/.test(k)){
+    put(k);
+    if (/[:@]/.test(ta.value[a - 2] || '') && !/[ \n]/.test(ta.value[a] || '')) put(' ');
+    S.lpage = 'hex'; drawLpad();
+  } else if (k === ':' || k === '@'){ put(k); S.lpage = 'abc'; drawLpad(); }
+  else if (k === '#'){ put('# '); if (!S.nativeKb) lkey('kb'); }
+  else if (k === '\n'){ if (a === b && ta.value[a - 1] === ' ') a--; put('\n'); }
+  else put(k);
+  ta.focus({preventScroll:true});
+  ta.dispatchEvent(new Event('input'));
+}
 function drawBuilt(){
   const el = document.getElementById('built'); if (!el) return;
   if (!S.built) S.built = build(getCode(S.p));
   const B = S.built;
   if (B.errors){ el.innerHTML = B.errors.slice(0, 6).map(e => `<div class="msg err">✗ ${esc(e)}</div>`).join(''); return; }
-  el.innerHTML = gridHTML(B.bytes, {cur:-1, vm:S.vm && S.vm.steps ? S.vm : null, edit:false, labels:B.labels}) +
+  el.innerHTML = gridHTML(B.bytes, {cur:S.selAddr ?? -1, vm:S.vm && S.vm.steps ? S.vm : null, edit:false, labels:B.labels}) +
     (B.labels && Object.keys(B.labels).length ? `<div class="msg dim">名前：${Object.keys(B.labels).sort().map(k => `<span class="mono" style="color:var(--blue)">${k}</span>=${hex2(B.labels[k])}`).join('　')}</div>` : '') +
     `<div class="msg dim">${B.bytes.length} バイト　/ 翻訳機は ${B.steps} 歩で翻訳</div>` +
     (B.warn ? `<div class="msg warn">⚠ ${B.warn}</div>` : '');
@@ -1047,7 +1156,7 @@ function drawMach(){
     <div class="strip"><span class="lbl">テープ #${S.ti + 1}</span>${tape}</div>${tableHTML(v, t)}
     <div class="strip"><span class="lbl">出力</span>${outs || '<span class="dim">（なし）</span>'}${textOf(v.out, OUT_TEXT.has(S.p.id))}</div>
     ${v.err ? `<div class="msg err">✗ ${esc(v.err)}</div>` : ''}`;
-  const g = S.p.mode === 'hex' ? drawGrid : drawBuilt; g();
+  if (S.p.mode === 'hex') drawGrid(); else { drawBuilt(); drawSrcBg(); }
 }
 function drawResult(){
   const el = document.getElementById('result'); if (!el) return;
@@ -1217,15 +1326,63 @@ function importCode(){
   });
 }
 // 第2段階：置き換えるか、末尾に足すか
+// 第2段階：行の範囲を選んで、カーソル位置に差し込む（ぶつかるラベル名は付け替えられる）
 function importText(title, c){
-  const p = S.p;
+  const p = S.p, lines = c.split('\n');
+  while (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+  let a0 = 0, a1 = lines.length - 1, pickStart = true;
   const d = modal(`<h2>${esc(title)}</h2>
-    <pre class="src" style="white-space:pre-wrap;max-height:40vh;overflow:auto;font:13px/1.5 var(--mono);background:#0e150f;padding:8px;border-radius:8px">${esc(c)}</pre>
-    <p class="dim" style="font-size:13px">一部だけ使いたいときは、ここから文字を選んでコピーし、ソース欄に貼り付けてください。</p>
-    <div class="row"><button data-close>やめる</button><button id="iapp">末尾に足す</button><button class="amb" id="irep">全部置き換える</button></div>`);
-  const put = v => { SAVE.code[p.id] = v; persist(); d.remove(); renderPuzzle(); };
-  d.querySelector('#irep').onclick = () => put(c);
-  d.querySelector('#iapp').onclick = () => { const cur = getCode(p); put(cur + (cur.endsWith('\n') || !cur ? '' : '\n') + c); };
+    <div id="tl" style="max-height:36vh;overflow:auto;font:13px/1.6 var(--mono);background:#0e150f;border-radius:8px;padding:6px 8px">
+    ${lines.map((l, i) => `<div class="iline" data-i="${i}" style="cursor:pointer;border-radius:4px;padding:1px 4px;white-space:pre-wrap;overflow-wrap:anywhere"><span style="color:var(--dim)">${String(i + 1).padStart(2, ' ')}</span> ${esc(l) || ' '}</div>`).join('')}</div>
+    <p style="font-size:13px;margin:8px 0 4px">行をタップすると範囲の始めに、もう一度別の行をタップすると終わりになります。</p>
+    <div id="tsel" class="mono" style="font-size:13px"></div>
+    <div id="tcol" style="font-size:13px;margin-top:6px"></div>
+    <div class="row"><button data-close>やめる</button><button class="pri" id="tins">カーソル位置に差し込む</button><button id="tapp">末尾に足す</button><button class="amb" id="trep">全部置き換える</button></div>`);
+  const cur = getCode(p);
+  const defs = t => new Set([...t.split('\n').map(l => l.split('#')[0]).join('\n').matchAll(/:([a-z])(?![0-9a-zA-Z])/g)].map(m => m[1]));
+  const refs = t => new Set([...t.split('\n').map(l => l.split('#')[0]).join('\n').matchAll(/@([a-z])(?![0-9a-zA-Z])/g)].map(m => m[1]));
+  const snippet = () => lines.slice(a0, a1 + 1).join('\n');
+  let rename = true;
+  // 付け替え：貼る部分の中で、ぶつかる名前を空いている名前にそろえて変える
+  const renamed = t => {
+    const clash = [...defs(t)].filter(x => defs(cur).has(x));
+    if (!rename || !clash.length) return t;
+    const used = new Set([...defs(cur), ...refs(cur), ...defs(t), ...refs(t)]);
+    const free = 'abcdefghijklmnopqrstuvwxyz'.split('').filter(x => !used.has(x));
+    const map = {}; clash.forEach((x, i) => { if (free[i]) map[x] = free[i]; });
+    return t.split('\n').map(l => { const h = l.indexOf('#'); const code = h >= 0 ? l.slice(0, h) : l, note = h >= 0 ? l.slice(h) : '';
+      return code.replace(/([:@])([a-z])(?![0-9a-zA-Z])/g, (m, q, x) => q + (map[x] || x)) + note; }).join('\n');
+  };
+  const show = () => {
+    d.querySelectorAll('.iline').forEach(el => el.classList.toggle('sel', +el.dataset.i >= a0 && +el.dataset.i <= a1));
+    d.querySelector('#tsel').textContent = `${a0 + 1}〜${a1 + 1} 行目（${a1 - a0 + 1} 行）`;
+    const t = snippet(), clash = [...defs(t)].filter(x => defs(cur).has(x));
+    const outside = [...refs(t)].filter(x => !defs(t).has(x));
+    let h = '';
+    if (clash.length) h += `<label style="display:flex;gap:6px;align-items:flex-start"><input type="checkbox" id="tren" ${rename ? 'checked' : ''}> <span>名前 <b class="mono">${clash.join(' ')}</b> がいまのソースとぶつかります。差し込むとき、空いている名前に付け替える</span></label>`;
+    if (outside.length) h += `<div class="dim">範囲の外の名前 <b class="mono">${outside.join(' ')}</b> を使っています。貼った先にも同じ名前が要ります。</div>`;
+    d.querySelector('#tcol').innerHTML = h;
+    const cb = d.querySelector('#tren'); if (cb) cb.onchange = () => { rename = cb.checked; };
+  };
+  d.querySelectorAll('.iline').forEach(el => el.onclick = () => {
+    const i = +el.dataset.i;
+    if (pickStart){ a0 = a1 = i; } else { if (i < a0) a0 = i; else a1 = i; }
+    pickStart = !pickStart; show();
+  });
+  show();
+  const put = v => { SAVE.code[p.id] = v; persist(); d.remove(); S.built = null; S.vm = null; renderPuzzle(); };
+  d.querySelector('#trep').onclick = () => put(c);
+  d.querySelector('#tapp').onclick = () => put(cur + (cur.endsWith('\n') || !cur ? '' : '\n') + renamed(snippet()) + '\n');
+  d.querySelector('#tins').onclick = () => {
+    let at = Math.min(S.caret ?? cur.length, cur.length);
+    const ls = cur.lastIndexOf('\n', at - 1) + 1;
+    if (at !== ls){ const le = cur.indexOf('\n', at); at = le < 0 ? cur.length : le + 1; }  // 行の途中なら次の行の頭へ
+    let t = renamed(snippet()) + '\n';
+    const before = cur.slice(0, at);
+    if (before && !before.endsWith('\n')) t = '\n' + t;
+    S.caret = at + t.length;
+    put(before + t + cur.slice(at));
+  };
 }
 // 16進：範囲を選んで、カーソル位置に上書き／挿入、または全部置き換え
 function importRange(title, src, snt){
@@ -1313,6 +1470,8 @@ function clearModal(p, size, steps, first){
 }
 
 /* ---------- 入力 ---------- */
+// キーパッドを押してもソース欄からカーソルが外れないようにする
+app.addEventListener('pointerdown', e => { if (e.target.closest('#lpad button')) e.preventDefault(); });
 app.addEventListener('click', e => {
   const t = e.target.closest('[data-act]'); if (!t) return;
   const a = t.dataset.act;
@@ -1338,11 +1497,7 @@ app.addEventListener('click', e => {
         else { delete SAVE.code[S.p.id]; persist(); S.built = null; S.vm = null; renderPuzzle(); }
       });
       break;
-    case 'ins-t': {
-      const ta = document.getElementById('src'); const ch = {'␣':' ', '↵':'\n'}[t.dataset.k] || t.dataset.k;
-      const s = ta.selectionStart, en = ta.selectionEnd;
-      ta.setRangeText(ch, s, en, 'end'); ta.dispatchEvent(new Event('input')); ta.focus();
-      break; }
+    case 'lk': lkey(t.dataset.k); break;
     case 'pick': stopPlay(); S.ti = +t.dataset.i; S.vm = null; drawTests(); drawMach(); break;
     case 'rst': stopPlay(); S.vm = null; drawMach(); break;
     case 'step': stopPlay(); doStep(1); break;
