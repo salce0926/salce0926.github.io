@@ -4,11 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0f0b">
-<title>BOOTSTRAP — 16進からの再建</title>
+<title>BOOTSTRAP</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <style>
 :root{
   --bg:#0b0f0b; --panel:#121a13; --panel2:#18231a; --line:#2a3b2c;
   --fg:#cfeccb; --dim:#7f9c80; --acc:#7dff8a; --amber:#ffb84d; --red:#ff6b6b; --blue:#7cc4ff;
+  color-scheme: dark;
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono", monospace;
 }
 *{box-sizing:border-box}
@@ -19,8 +21,9 @@ button:disabled{opacity:.4;cursor:default}
 button.pri{background:#1f4a25;border-color:#3d8a47;color:#eaffea;font-weight:700}
 button.amb{background:#4a3410;border-color:#8a6420;color:#ffe7bf}
 code,.mono{font-family:var(--mono)}
-#app{max-width:780px;margin:0 auto;padding:0 12px calc(16px + env(safe-area-inset-bottom))}
-.bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:10px 0;background:var(--bg);border-bottom:1px solid var(--line)}
+#app{max-width:780px;margin:0 auto;padding-block:0 calc(16px + env(safe-area-inset-bottom, 0px));padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top, 0px);z-index:10;background:var(--bg)}
+.bar{position:sticky;top:env(safe-area-inset-top, 0px);z-index:5;display:flex;align-items:center;gap:8px;padding:10px 0;background:var(--bg);border-bottom:1px solid var(--line)}
 .bar .ttl{flex:1;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar button{padding:6px 10px;font-size:14px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0}
@@ -612,6 +615,10 @@ function modal(html){
   d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.remove(); });
   document.body.appendChild(d); return d;
 }
+function ask(text, yes, onYes){
+  const d = modal(`<p>${esc(text)}</p><div class="row"><button data-close>やめる</button><button class="amb" id="askyes">${esc(yes)}</button></div>`);
+  d.querySelector('#askyes').onclick = () => { d.remove(); onYes(); };
+}
 function manual(){
   modal(`<h2>SEED-8 命令表</h2>
   <p style="font-size:14px">メモリ 256 バイト（00〜FF 番地）。プログラムは 00 番地から置かれ、00 番地から動き出す。レジスタは <b>A</b>（計算用）と <b>X</b>（しおり用）。数はすべて 00〜FF で、あふれると下2桁だけ残る。<br>
@@ -683,7 +690,7 @@ app.addEventListener('click', e => {
     case 'manual': manual(); break;
     case 'open': go('puzzle', t.dataset.id); break;
     case 'wipe':
-      if (confirm('すべての進み具合とコードを消して最初からにしますか？')){ SAVE = {code:{}, solved:{}, translator:null}; persist(); go('title'); }
+      ask('すべての進み具合とコードを消して、最初からにしますか？', '消して最初から', () => { SAVE = {code:{}, solved:{}, translator:null}; persist(); go('title'); });
       break;
     case 'k': key(t.dataset.k); break;
     case 'left': case 'right': case 'ins': case 'del': case 'undo': editOp(a); break;
@@ -691,10 +698,10 @@ app.addEventListener('click', e => {
     case 'text': textEdit(); break;
     case 'import': importCode(); break;
     case 'reset':
-      if (confirm('この課題のコードを初期状態に戻しますか？')){
+      ask('この課題のコードを初期状態に戻しますか？', '初期状態に戻す', () => {
         if (S.p.mode === 'hex'){ pushUndo(); setCode((S.p.prefill || []).slice()); S.cur = 0; drawAll(); }
         else { delete SAVE.code[S.p.id]; persist(); S.built = null; S.vm = null; renderPuzzle(); }
-      }
+      });
       break;
     case 'ins-t': {
       const ta = document.getElementById('src'); const ch = {'␣':' ', '↵':'\n'}[t.dataset.k] || t.dataset.k;
