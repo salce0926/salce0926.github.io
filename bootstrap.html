@@ -77,6 +77,9 @@ small,.dim{color:var(--dim)}
 .grid.ro .c{cursor:default}
 .grid .c{position:relative}
 .grid .c.tgt{outline:2px dashed var(--blue);outline-offset:-2px}
+.grid .c.miss{outline:2px dashed var(--red);outline-offset:-2px;color:var(--red)}
+.grid .gap{grid-column:1/-1;text-align:center;color:var(--dim);font-size:12px;border:1px dashed #1f2c21;border-radius:5px;padding:3px;cursor:pointer}
+.grid.ro .gap{cursor:default}
 .grid .c.nt::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--amber)}
 .notes{margin-top:8px;font-size:13px}
 .notes .nhead{color:var(--dim);font-size:12px}
@@ -429,7 +432,7 @@ if (SAVE.ver !== 2){
   const c = SAVE.code, d = SAVE.solved;
   if ('1-7' in c){ c['1-8'] = c['1-7']; delete c['1-7']; }
   if (d['1-7']){ d['1-8'] = d['1-7']; delete d['1-7']; }
-  if ('1-6' in c) c['1-7'] = c['1-6'].slice();
+  if ('1-6' in c){ c['1-7'] = c['1-6'].slice(); if (!d['1-6']) delete c['1-6']; }
   if (d['1-6']) d['1-7'] = d['1-6'];
   SAVE.ver = 2;
   try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch(e){}
@@ -583,26 +586,43 @@ function drawTests(){
       <span class="k">#${i + 1} テープ:</span> ${fmtBytes(t.tape)}${asciiOf(t.tape)}<br><span class="k">　 期待:</span> ${fmtBytes(t.out)}${asciiOf(t.out)}</div>`;
   }).join('');
 }
+// メモリ全体（00〜FF）を8バイトずつの行で描く。何もない行が続くところは1行に畳む
 function gridHTML(bytes, opt){
   const len = bytes.length;
-  let hi = len;
-  if (opt.vm) for (let i = 255; i >= len; i--) if (opt.vm.mem[i]){ hi = i + 1; break; }
-  const n = Math.min(256, Math.max(32, Math.ceil((Math.max(len + 1, hi) + 8) / 8) * 8));
-  let h = '';
   const pc = opt.vm ? opt.vm.pc : -1;
   const pcArg = opt.vm && OP[opt.vm.mem[pc]] && OP[opt.vm.mem[pc]].arg ? (pc + 1) & 255 : -1;
   const tg = opt.edit && opt.cur >= 0 ? target(bytes, opt.cur) : null;
   const nt = opt.notes || [];
-  for (let i = 0; i < n; i++){
-    if (i % 8 === 0) h += `<div class="ad">${hex2(i)}</div>`;
+  // コード中の命令が指している番地（跳び先・読み書き先）
+  const refs = new Set(), miss = new Set(), dec = decode(bytes);
+  dec.forEach((r, i) => { if (r && r.k === 'op' && i + 1 < len){
+    const op = bytes[i], n = bytes[i + 1];
+    if (JUMPS.includes(op)){ refs.add(n); if (n >= len) miss.add(n); }
+    else if (op in MEMS) refs.add(n);
+  }});
+  const cell = i => {
     const v = opt.vm ? opt.vm.mem[i] : bytes[i];
-    let txt = i < len || opt.vm ? hex2(v) : '··';
-    let cls = 'c' + (i >= len && !(opt.vm && v) ? ' e' : '');
+    const filled = i < len || (opt.vm && v);
+    let txt = filled || opt.vm ? hex2(v) : '··';
+    let cls = 'c' + (filled ? '' : ' e');
     if (i === opt.cur){ cls += ' cur'; if (S.pend !== null) txt = S.pend + '_'; }
     if (tg && i === tg.at) cls += ' tgt';
+    if (miss.has(i)) cls += ' miss';
     if (nt[i]) cls += ' nt';
-    if (i === pc && !opt.vm.halted) cls += ' pc'; else if (i === pcArg && !opt.vm.halted) cls += ' arg';
-    h += `<div class="${cls}" ${opt.edit ? `data-act="cell" data-i="${i}"` : ''}>${txt}</div>`;
+    if (opt.vm && !opt.vm.halted){ if (i === pc) cls += ' pc'; else if (i === pcArg) cls += ' arg'; }
+    return `<div class="${cls}" ${opt.edit ? `data-act="cell" data-i="${i}"` : ''}>${txt}</div>`;
+  };
+  const shown = r => {
+    if (r < 4) return true;
+    for (let i = r * 8; i < r * 8 + 8; i++)
+      if (i <= len || i === opt.cur || refs.has(i) || nt[i] || (opt.vm && (opt.vm.mem[i] || i === pc))) return true;
+    return false;
+  };
+  let h = '', r = 0;
+  while (r < 32){
+    if (shown(r)){ h += `<div class="ad">${hex2(r * 8)}</div>`; for (let i = r * 8; i < r * 8 + 8; i++) h += cell(i); r++; continue; }
+    const a = r; while (r < 32 && !shown(r)) r++;
+    h += `<div class="gap" ${opt.edit ? `data-act="cell" data-i="${a * 8}"` : ''}>${hex2(a * 8)}〜${hex2(r * 8 - 1)}　空き（${(r - a) * 8}バイト）${opt.edit ? '　タップで開く' : ''}</div>`;
   }
   return `<div class="grid ${opt.edit ? '' : 'ro'}">${h}</div>`;
 }
@@ -616,12 +636,12 @@ function drawGrid(){
 function drawInfo(){
   const el = document.getElementById('info'); if (!el) return;
   const b = getCode(S.p), v = b[S.cur];
-  if (v === undefined){ el.innerHTML = `[${hex2(S.cur)}] 空き　<span class="dim">（数を打つとここに書かれる）</span>`; return; }
+  if (v === undefined){ el.innerHTML = `[${hex2(S.cur)}] 空き　<span class="dim">（数を打つとここに書かれる。間の空きは 00 で埋まる）</span>`; return; }
   const r = decode(b)[S.cur], o = OP[v], tg = target(b, S.cur), note = getNotes(S.p)[S.cur];
   let h = `[${hex2(S.cur)}] = ${hex2(v)}　`;
   if (r && r.k === 'arg') h += `<b>${OP[b[r.at]].m}</b> の引数`;
   else h += o ? `<b>${o.m}${o.arg ? ' nn' : ''}</b>：${o.d}` : '<span class="dim">命令ではない数（データなら可）</span>';
-  if (tg) h += `<br><span style="color:var(--acc)">${tg.text}</span>`;
+  if (tg) h += `<br><span style="color:var(--acc)">${tg.text}</span>` + (JUMPS.includes(b[r.at]) && tg.at >= b.length ? ' <span style="color:var(--red)">（空き！ここには何も書かれていない）</span>' : '');
   if (note) h += `<br><span style="color:var(--amber)">メモ：${esc(note)}</span>`;
   el.innerHTML = h;
 }
@@ -704,9 +724,12 @@ function setCode(b, notes){ SAVE.code[S.p.id] = b; if (notes) SAVE.notes[S.p.id]
 function pushUndo(){ S.undo.push({b:getCode(S.p).slice(), n:getNotes(S.p)}); if (S.undo.length > 200) S.undo.shift(); }
 function key(d){
   const b = getCode(S.p).slice();
-  if (S.cur > b.length || S.cur > 255) return;
+  if (S.cur > 255) return;
   if (S.pend === null){ S.pend = d; drawGrid(); return; }
   pushUndo();
+  const nt0 = getNotes(S.p);
+  while (b.length < S.cur){ b.push(0); nt0.push(''); }
+  SAVE.notes[S.p.id] = nt0;
   b[S.cur] = parseInt(S.pend + d, 16); S.pend = null;
   const nt = getNotes(S.p); if (nt.length < b.length) nt.push('');
   setCode(b, nt); S.cur = Math.min(S.cur + 1, 255);
@@ -716,7 +739,7 @@ function editOp(act){
   S.pend = null;
   const b = getCode(S.p).slice(), nt = getNotes(S.p);
   if (act === 'left') S.cur = Math.max(0, S.cur - 1);
-  else if (act === 'right') S.cur = Math.min(b.length, S.cur + 1, 255);
+  else if (act === 'right') S.cur = Math.min(S.cur + 1, 255);
   else if (act === 'ins'){ if (S.cur > b.length || b.length >= 256) return; pushUndo(); b.splice(S.cur, 0, 0); nt.splice(S.cur, 0, ''); setCode(b, nt); }
   else if (act === 'del'){ if (S.cur >= b.length) { if (S.cur > 0 && S.cur === b.length){ pushUndo(); b.pop(); nt.pop(); setCode(b, nt); S.cur--; } } else { pushUndo(); b.splice(S.cur, 1); nt.splice(S.cur, 1); setCode(b, nt); } }
   else if (act === 'bs'){ if (S.cur === 0) return; pushUndo(); b.splice(S.cur - 1, 1); nt.splice(S.cur - 1, 1); setCode(b, nt); S.cur--; }
@@ -854,7 +877,7 @@ app.addEventListener('click', e => {
       break;
     case 'k': key(t.dataset.k); break;
     case 'left': case 'right': case 'ins': case 'del': case 'undo': editOp(a); break;
-    case 'cell': S.pend = null; S.cur = Math.min(+t.dataset.i, getCode(S.p).length); drawGrid(); drawInfo(); break;
+    case 'cell': S.pend = null; S.cur = +t.dataset.i; drawGrid(); drawInfo(); break;
     case 'text': textEdit(); break;
     case 'memo': memoEdit(); break;
     case 'import': importCode(); break;
@@ -892,7 +915,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'ArrowLeft'){ e.preventDefault(); editOp('left'); }
   else if (k === 'ArrowRight' || k === ' '){ e.preventDefault(); editOp('right'); }
   else if (k === 'ArrowUp'){ e.preventDefault(); S.pend = null; S.cur = Math.max(0, S.cur - 8); drawGrid(); drawInfo(); }
-  else if (k === 'ArrowDown'){ e.preventDefault(); S.pend = null; S.cur = Math.min(getCode(S.p).length, S.cur + 8); drawGrid(); drawInfo(); }
+  else if (k === 'ArrowDown'){ e.preventDefault(); S.pend = null; S.cur = Math.min(255, S.cur + 8); drawGrid(); drawInfo(); }
   else if (k === 'Backspace'){ e.preventDefault(); if (S.pend !== null){ S.pend = null; drawGrid(); } else editOp('bs'); }
   else if (k === 'Delete'){ e.preventDefault(); editOp('del'); }
   else if (k === 'Insert'){ e.preventDefault(); editOp('ins'); }
