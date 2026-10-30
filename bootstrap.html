@@ -377,7 +377,7 @@ function build3(src){
   return {bytes, steps:a.steps + v.steps, tape:L.tape, labels:L.labels, L, mid, warn};
 }
 const buildCur = () => S.p.mode === 'asm' ? build3(getCode(S.p)) : build(getCode(S.p));
-// 2-7 の初期状態：名前の数 → 命令番号 の表
+// 2-6 の初期状態：名前の数 → 命令番号 の表
 const TABLE_SRC = '# 名前の数 → 命令番号 の表\n# 2バイトずつ：名前の数（2-5 の決まりで計算したもの）、命令番号\n# 表の終わりの印はない（テープには表にある名前しか来ない）\n:t\n' +
   OPS.map(o => `${hex2(HASH(o[1]))} ${hex2(o[0])}   # ${o[1]}`).join('\n') + '\n';
 
@@ -472,7 +472,7 @@ const SAMPLES = {
 11 81 31 @z 30 @w            # 区切りが 00 なら停止
 :z 00
 `,
-  '2-6': `# 数を2文字に：n（80）、上の桁（81）
+  '2-7': `# 数を2文字に：n（80）、上の桁（81）
 :r 01 31 @z 12 80 10 00 12 81
 :h 11 80 40 10 34 @l         # n < 10 なら l へ
 22 10 12 80                  # n -= 10
@@ -483,7 +483,7 @@ const SAMPLES = {
 :n 20 30 02 36               # 0〜9 は 30 を足す
 :z 00
 `,
-  '2-7': `# 表を引く：名前を数にして（2-5）、表で命令番号を引く
+  '2-6': `# 表を引く：名前を数にして（2-5）、表で命令番号を引く
 :w 01 31 @z 40 21 34 @w
 12 81 10 00 12 80
 :c 11 80 12 82 24 21 82
@@ -851,11 +851,11 @@ A0 読み捨て（新しい区画。1-8 の 30 をそのまま貼れる）
    <p><b>必要な機能</b>：</p>
    <ul>
    <li><b>2-5 名前を数に</b>：<code>JZ</code> のような文字の並びを1つの数にまとめる。数1つなら、表と1回の比較で探せる（いまの課題）</li>
-   <li><b>2-6 数を2文字に</b>：表から出てくるのは <code>31</code> という1バイト。ラベル翻訳機は文字を読むので、「3」「1」の2文字にして渡す</li>
-   <li><b>2-7 表を引く</b>：名前の数から命令番号を探す</li>
+   <li><b>2-6 表を引く</b>：名前の数から命令番号を探す</li>
+   <li><b>2-7 数を2文字に</b>：表から出てくるのは <code>31</code> という1バイト。ラベル翻訳機は文字を読むので、「3」「1」の2文字にして渡す</li>
    <li><b>2-8 組み立てる</b>：単語が命令名か、16進2桁か、ラベルかを見分け、命令名だけを番号の文字に直す。残りはそのまま写す</li>
    </ul>
-   <p class="mono" style="font-size:12px;color:var(--dim)">アセンブラまでの道のり：<b style="color:var(--amber)">2-5 名前を数に</b>　→　2-6 数を2文字に　→　2-7 表を引く　→　2-8 組み立てる</p>
+   <p class="mono" style="font-size:12px;color:var(--dim)">アセンブラまでの道のり：<b style="color:var(--amber)">2-5 名前を数に</b>　→　2-6 表を引く　→　2-7 数を2文字に　→　2-8 組み立てる</p>
    <p><b>なぜ ×24 なのか</b>：「前の数を何倍かして、次の文字を足す」を繰り返すと、文字の並び順も数に効いてくる（TAX と TXA が別の数になる）。何倍にするかをいろいろ試すと、24 倍なら 26 個の命令名がちょうど全部ちがう数になる。</p>
    <p><b>×24 の作り方</b>：掛け算命令はないが、24 = 3 × 8。</p>
    <pre>LD h → ST t     t = h
@@ -866,21 +866,10 @@ ADD c           24h + 文字</pre>
    <p>1文字読むたびにこれを繰り返し、区切り（21 未満）が来たら、そこまでの数を出力する。</p>`,
   hint:'h（80）と文字 c（81）をメモリに置く。1文字目を探す → c にしまって h = 0 → 「h = h×24 + c」→ 次の文字を読んで c にしまう → 区切りでなければ「h = h×24 + c」へ戻る → 区切りなら h を出力。区切りが 00（テープの終わり）なら停止、それ以外なら次の単語へ。',
   tests:['IN', 'HLT OUT', 'TAX TXA\nINX', 'HLT IN OUT RWD TAX TXA INX DEX LDI LD ST LDX STX ADI ADD SBI SUB SHL JMP JZ JNZ JEQ JLT CALL RET CMP'].map(w => ({tape:str(w), out:w.split(/\s+/).map(HASH)}))},
- {id:'2-6', st:2, mode:'label', title:'数を2文字に',
-  story:'表で引いた命令番号は、次の翻訳機（ラベル翻訳機）に「文字」で渡したい。1-6 の逆、1バイトを2文字の16進にする。',
-  task:'テープの各バイトを、2文字の16進と空白にして出力する。例：<code>4F</code> → <code>"4F␣"</code>（34 46 20）',
-  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">アセンブラまでの道のり：2-5 名前を数に　→　<b style="color:var(--amber)">2-6 数を2文字に</b>　→　2-7 表を引く　→　2-8 組み立てる</p><p><b>この部品の役目</b>：アセンブラは、表で引いた命令番号（たとえば <code>31</code> という1バイト）を、ラベル翻訳機が読める文字（「3」「1」）にして書き出す。そのための部品。</p>
-   <p><b>上の桁</b>は「16（16進で書くと <code>10</code>）を何回引けるか」。右にずらす命令はないので、引き算で数える。下の手順の <code>10</code> は16進の 10、つまり 16 のこと。</p>
-   <pre>n が 10 より小さくなるまで
-   n から 10 を引き、上の桁を 1 増やす
-残った n が下の桁</pre>
-   <p><b>数を文字に</b>（1-5 の逆）：0〜9 は 30 を足し、A〜F（0A〜0F）は 37 を足す。上の桁と下の桁で2回使うので、部品（CALL）にするといい。</p>`,
-  hint:'n（80）と上の桁（81）をメモリに置く。<code>LD 80 → CMP 10 → JLT</code> で「10 より小さい」を見分ける。部品：<code>CMP 0A → JLT 数字へ → ADI 37 → OUT → RET</code>、数字：<code>ADI 30 → OUT → RET</code>。',
-  tests:[[0x4F], [0x01, 0x10, 0xFF], [0x9A, 0x3C, 0xE0, 0x07]].map(t => ({tape:t, out:str(t.map(x => hex2(x) + ' ').join(''))}))},
- {id:'2-7', st:2, mode:'label', title:'表を引く',
+ {id:'2-6', st:2, mode:'label', title:'表を引く',
   story:'名前を数にできた。あとは「数 → 命令番号」の表を引くだけだ。表のデータは用意してある。',
   task:'テープには命令名が空白や改行で区切られて並ぶ（26 個のどれか）。それぞれの命令番号を出力する。<br>例：<code>IN JZ CALL</code> → <code>01 31 35</code>',
-  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">アセンブラまでの道のり：2-5 名前を数に　→　2-6 数を2文字に　→　<b style="color:var(--amber)">2-7 表を引く</b>　→　2-8 組み立てる</p><p><b>この部品の役目</b>：2-5 で作った「名前の数」から、命令番号を探す。</p>
+  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">アセンブラまでの道のり：2-5 名前を数に　→　<b style="color:var(--amber)">2-6 表を引く</b>　→　2-7 数を2文字に　→　2-8 組み立てる</p><p><b>この部品の役目</b>：2-5 で作った「名前の数」から、命令番号を探す。</p>
    <p>初期状態に、<code>:t</code> から始まる表が入っている。2バイトずつ「名前の数、命令番号」が並ぶ。</p>
    <pre>X を表の先頭に（LDI @t → TAX）
 くり返し：
@@ -895,6 +884,17 @@ ADD c           24h + 文字</pre>
   hint:'名前を数にする部分は 2-5 から「読込」で持ってくる。出力の代わりに表を引く。表は初期状態の最後にある（ソースの後ろに置いたままでいい）。',
   prefill:TABLE_SRC,
   tests:['IN JZ CALL', 'HLT', 'LDX STX\nTAX TXA', 'HLT IN OUT RWD TAX TXA INX DEX LDI LD ST LDX STX ADI ADD SBI SUB SHL JMP JZ JNZ JEQ JLT CALL RET CMP'].map(w => ({tape:str(w), out:w.split(/\s+/).map(x => OPNAME[x])}))},
+ {id:'2-7', st:2, mode:'label', title:'数を2文字に',
+  story:'表で引いた命令番号は、次の翻訳機（ラベル翻訳機）に「文字」で渡したい。1-6 の逆、1バイトを2文字の16進にする。',
+  task:'テープの各バイトを、2文字の16進と空白にして出力する。例：<code>4F</code> → <code>"4F␣"</code>（34 46 20）',
+  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">アセンブラまでの道のり：2-5 名前を数に　→　2-6 表を引く　→　<b style="color:var(--amber)">2-7 数を2文字に</b>　→　2-8 組み立てる</p><p><b>この部品の役目</b>：アセンブラは、表で引いた命令番号（たとえば <code>31</code> という1バイト）を、ラベル翻訳機が読める文字（「3」「1」）にして書き出す。そのための部品。</p>
+   <p><b>上の桁</b>は「16（16進で書くと <code>10</code>）を何回引けるか」。右にずらす命令はないので、引き算で数える。下の手順の <code>10</code> は16進の 10、つまり 16 のこと。</p>
+   <pre>n が 10 より小さくなるまで
+   n から 10 を引き、上の桁を 1 増やす
+残った n が下の桁</pre>
+   <p><b>数を文字に</b>（1-5 の逆）：0〜9 は 30 を足し、A〜F（0A〜0F）は 37 を足す。上の桁と下の桁で2回使うので、部品（CALL）にするといい。</p>`,
+  hint:'n（80）と上の桁（81）をメモリに置く。<code>LD 80 → CMP 10 → JLT</code> で「10 より小さい」を見分ける。部品：<code>CMP 0A → JLT 数字へ → ADI 37 → OUT → RET</code>、数字：<code>ADI 30 → OUT → RET</code>。',
+  tests:[[0x4F], [0x01, 0x10, 0xFF], [0x9A, 0x3C, 0xE0, 0x07]].map(t => ({tape:t, out:str(t.map(x => hex2(x) + ' ').join(''))}))},
  {id:'2-8', st:2, mode:'label', big:true, title:'アセンブラ',
   story:'部品はそろった。命令名を番号に直し、ラベル付き16進のテキストとして書き出す翻訳機——アセンブラを組み立てる。これができれば、もう命令番号を覚えておかなくていい。',
   task:`テープには、命令名・16進2桁・<code>:x</code>・<code>@x</code> が空白や改行で区切られて並ぶ。<br>
@@ -902,17 +902,17 @@ ADD c           24h + 文字</pre>
    それぞれの後に空白（20）を1つ付けて出力する。改行は出さない。<br>
    例：<code>:l IN JZ @e OUT JMP @l</code> → <code>":l␣01␣31␣@e␣02␣30␣@l␣"</code><br>
    この出力が、そのまま 1-10 のラベル翻訳機のテープになる。`,
-  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">アセンブラまでの道のり：2-5 名前を数に　→　2-6 数を2文字に　→　2-7 表を引く　→　<b style="color:var(--amber)">2-8 組み立てる</b></p><p><b>いよいよ組み立て</b>：2-5〜2-7 の部品をつなげ、テープの単語ごとに「命令名なら番号の文字に、それ以外はそのまま」書き出す。</p>
+  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">アセンブラまでの道のり：2-5 名前を数に　→　2-6 表を引く　→　2-7 数を2文字に　→　<b style="color:var(--amber)">2-8 組み立てる</b></p><p><b>いよいよ組み立て</b>：2-5〜2-6 の部品をつなげ、テープの単語ごとに「命令名なら番号の文字に、それ以外はそのまま」書き出す。</p>
    <p><b>見分け方</b>（1文字目から）：</p>
    <ul>
    <li><code>:</code> か <code>@</code> → ラベル。その文字と次の1文字をそのまま出して、空白</li>
    <li>それ以外は3文字目まで読む。<b>3文字目が区切り</b>（2文字の語）で、<b>1文字目が G（47）より前</b>なら16進2桁。2文字をそのまま出して、空白</li>
-   <li>そうでなければ命令名。読んだ文字から 2-5 の数を計算し、2-7 の表を引き、2-6 で2文字にして出す</li>
+   <li>そうでなければ命令名。読んだ文字から 2-5 の数を計算し、2-6 の表を引き、2-7 で2文字にして出す</li>
    </ul>
    <p><b>なぜ「G より前」で分かるのか</b>：16進2桁の1文字目は 0〜9 か A〜F。2文字の命令名は IN・LD・ST・JZ で、1文字目の I・L・S・J はどれも G より後ろ。ADD・DEX・CALL のように16進の文字で始まる命令名もあるが、どれも3文字以上なので、3文字目で区別がつく。</p>
    <p>名前の数は、16進2桁かどうか決まる前から計算しておいていい（16進2桁だったら使わないだけ）。そうすると1文字目と2文字目の計算を1回書くだけで済む。</p>
-   <p><b>部品にすると楽</b>：「文字を数に足す（×24 して足す）」「16進の文字か調べる」「1バイトを2文字に」をそれぞれ CALL で呼ぶ。変数はプログラムと重ならないよう、F0〜F7 あたりに置くといい（プログラムは 2-7 より長くなる）。</p>`,
-  hint:'2-7 を「読込」で全部持ってきて、部品を足していく。2-6 の「1バイトを2文字に」は範囲を選んで差し込む（名前がぶつかったら付け替え）。区切りの文字（単語の終わり）を変数に覚えておき、空白を出した後で 00 なら停止。メモリが足りなくなったら、同じ計算を2回書いていないか見直す。',
+   <p><b>部品にすると楽</b>：「文字を数に足す（×24 して足す）」「16進の文字か調べる」「1バイトを2文字に」をそれぞれ CALL で呼ぶ。変数はプログラムと重ならないよう、F0〜F7 あたりに置くといい（プログラムは 2-6 より長くなる）。</p>`,
+  hint:'2-6 を「読込」で全部持ってきて、部品を足していく。2-7 の「1バイトを2文字に」は範囲を選んで差し込む（名前がぶつかったら付け替え）。区切りの文字（単語の終わり）を変数に覚えておき、空白を出した後で 00 なら停止。メモリが足りなくなったら、同じ計算を2回書いていないか見直す。',
   tests:['IN OUT HLT', ':l IN JZ @e OUT JMP @l\n:e HLT', 'LDI 48 OUT LDI 49 OUT HLT', 'ADD 80 ADI 01 DEX\nCALL @s CMP 3A\n:s RET', 'AD DE 0F', 'HLT IN OUT RWD TAX TXA INX DEX LDI LD ST LDX STX ADI ADD SBI SUB SHL JMP JZ JNZ JEQ JLT CALL RET CMP']
     .map(w => ({tape:str(w), out:str(refAsmText(w))}))},
 
@@ -970,7 +970,7 @@ const stageOpen = n => n === 1 || (n === 2 && !!SAVE.translator) || (n === 3 && 
 
 /* ================= 保存 ================= */
 const KEY = 'bootstrap-proto-v1';
-let SAVE = {ver:3, code:{}, solved:{}, notes:{}, translator:null, assembler:null};
+let SAVE = {ver:4, code:{}, solved:{}, notes:{}, translator:null, assembler:null};
 try { const j = JSON.parse(localStorage.getItem(KEY)); if (j && j.code) SAVE = Object.assign({code:{}, solved:{}, notes:{}, translator:null}, j); } catch(e){}
 // 古い形のセーブを今の課題番号に合わせる
 function migrate(sv){
@@ -992,6 +992,11 @@ if (sv.ver === 2){
   if ('1-8' in n){ n['1-10'] = n['1-8']; delete n['1-8']; }
   if (d['1-8']){ d['1-10'] = d['1-8']; delete d['1-8']; d['1-8'] = {size:0, steps:0}; d['1-9'] = {size:0, steps:0}; c['1-9'] = c['1-10'].slice(); }
   sv.ver = 3;
+}
+if (sv.ver === 3){
+  // 2-6（数を2文字に）と 2-7（表を引く）を入れ替えた
+  for (const k of ['code', 'notes', 'solved']){ const o = sv[k] || {}; const a = o['2-6'], b = o['2-7']; delete o['2-6']; delete o['2-7']; if (b !== undefined) o['2-6'] = b; if (a !== undefined) o['2-7'] = a; }
+  sv.ver = 4;
 }
   return sv;
 }
@@ -1117,7 +1122,7 @@ const PARTS = {
   '1-8':'見分けて番地を数える', '1-9':'名前を覚え、番地に置き換える', '1-10':'2回読む（まだ出てこない名前も）'};
 const PARTS2 = {
   '2-1':'ループで計算する', '2-2':'X でメモリに並べる', '2-3':'文字の範囲を見分ける', '2-4':'名前で枝分かれする',
-  '2-5':'名前を数に（×24 して足す）', '2-6':'数を2文字に', '2-7':'表を引く', '2-8':'見分けて組み立てる'};
+  '2-5':'名前を数に（×24 して足す）', '2-7':'数を2文字に', '2-6':'表を引く', '2-8':'見分けて組み立てる'};
 function blueprint2(newId, open){
   const part = id => `<div class="bp-p ${SAVE.solved[id] ? 'on' : ''} ${id === newId ? 'new' : ''}"><span class="n">${id}</span>${PARTS2[id]}</div>`;
   const done = Object.keys(PARTS2).filter(id => SAVE.solved[id]).length, all = Object.keys(PARTS2).length;
@@ -1127,7 +1132,7 @@ function blueprint2(newId, open){
     <div class="bp-ar">↓</div>
     ${part('2-8')}
     <div class="bp-2"><div class="bp-ar">↓ 命令名</div><div class="bp-ar">↓ 16進・ラベル</div></div>
-    <div class="bp-2"><div class="bp-col">${part('2-5')}${part('2-7')}${part('2-6')}</div><div class="bp-col"><div class="bp-p on" style="opacity:.7">そのまま写す</div></div></div>
+    <div class="bp-2"><div class="bp-col">${part('2-5')}${part('2-6')}${part('2-7')}</div><div class="bp-col"><div class="bp-p on" style="opacity:.7">そのまま写す</div></div></div>
     <div class="bp-ar">↓</div>
     <div class="bp-io">出：ラベル付き16進のテキスト<br><b>:l 01 31 @e 02 30 @l</b><br>→ あなたのラベル翻訳機（1-10）へ</div>
     <div class="bp-lbl">土台（ラベルで書く練習）</div>
@@ -1251,8 +1256,8 @@ function drawAll(){ drawTests(); if (S.p.mode === 'hex'){ drawGrid(); drawInfo()
 
 function fmtBytes(a, max = 40){ if (!a.length) return '<span class="dim">（なし）</span>'; const s = a.slice(0, max).map(hex2).join(' '); return s + (a.length > max ? ' …' : ''); }
 // テープ・出力を文字として読む課題（それ以外は数として 16 進だけ見せる）
-const TAPE_TEXT = new Set(['1-2','1-5','1-6','1-7','1-8','1-9','1-10','2-2','2-3','2-4','2-5','2-7','2-8','3-2','3-3']);
-const OUT_TEXT = new Set(['1-1','1-2','2-2','2-3','2-6','2-8','3-1','3-3']);
+const TAPE_TEXT = new Set(['1-2','1-5','1-6','1-7','1-8','1-9','1-10','2-2','2-3','2-4','2-5','2-6','2-8','3-2','3-3']);
+const OUT_TEXT = new Set(['1-1','1-2','2-2','2-3','2-7','2-8','3-1','3-3']);
 const chOf = c => c === 0x0A ? '↵' : c === 0x20 ? '␣' : c > 0x20 && c < 0x7F ? String.fromCharCode(c) : '·';
 function textOf(a, on){ return on && a.length ? ` <span class="dim">"${esc(a.map(chOf).join(''))}"</span>` : ''; }
 function drawTests(){
@@ -1812,7 +1817,7 @@ app.addEventListener('click', e => {
     case 'exp': exportSave(); break;
     case 'imp': importSave(); break;
     case 'wipe':
-      ask('すべての進み具合とコードを消して、最初からにしますか？', '消して最初から', () => { SAVE = {ver:3, code:{}, solved:{}, notes:{}, translator:null}; persist(); go('title'); });
+      ask('すべての進み具合とコードを消して、最初からにしますか？', '消して最初から', () => { SAVE = {ver:4, code:{}, solved:{}, notes:{}, translator:null, assembler:null}; persist(); go('title'); });
       break;
     case 'k': key(t.dataset.k); break;
     case 'left': case 'right': case 'ins': case 'del': case 'undo': editOp(a); break;
