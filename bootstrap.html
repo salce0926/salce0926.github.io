@@ -626,26 +626,94 @@ const STEP_LIMIT = 20000, TR_LIMIT = 300000, TR_ID = '1-10';
 const KEY = 'bootstrap-proto-v1';
 let SAVE = {ver:3, code:{}, solved:{}, notes:{}, translator:null};
 try { const j = JSON.parse(localStorage.getItem(KEY)); if (j && j.code) SAVE = Object.assign({code:{}, solved:{}, notes:{}, translator:null}, j); } catch(e){}
-if (!SAVE.notes) SAVE.notes = {};
-if (!SAVE.ver || SAVE.ver < 2){
+// 古い形のセーブを今の課題番号に合わせる
+function migrate(sv){
+  sv = Object.assign({code:{}, solved:{}, notes:{}, translator:null}, sv);
+  if (!sv.notes) sv.notes = {};
+if (!sv.ver || sv.ver < 2){
   // 旧版の 1-6（区切り付き）は新しい 1-7 に、旧 1-7（ラベル翻訳機）は 1-8 に移す
-  const c = SAVE.code, d = SAVE.solved;
+  const c = sv.code, d = sv.solved;
   if ('1-7' in c){ c['1-8'] = c['1-7']; delete c['1-7']; }
   if (d['1-7']){ d['1-8'] = d['1-7']; delete d['1-7']; }
   if ('1-6' in c){ c['1-7'] = c['1-6'].slice(); if (!d['1-6']) delete c['1-6']; }
   if (d['1-6']) d['1-7'] = d['1-6'];
-  SAVE.ver = 2;
+  sv.ver = 2;
 }
-if (SAVE.ver === 2){
+if (sv.ver === 2){
   // ラベル翻訳機を 1-8 から 1-10 へ。クリア済みなら新しい 1-8・1-9 も通過扱い
-  const c = SAVE.code, d = SAVE.solved, n = SAVE.notes;
+  const c = sv.code, d = sv.solved, n = sv.notes;
   if ('1-8' in c){ c['1-10'] = c['1-8']; delete c['1-8']; }
   if ('1-8' in n){ n['1-10'] = n['1-8']; delete n['1-8']; }
   if (d['1-8']){ d['1-10'] = d['1-8']; delete d['1-8']; d['1-8'] = {size:0, steps:0}; d['1-9'] = {size:0, steps:0}; c['1-9'] = c['1-10'].slice(); }
-  SAVE.ver = 3;
-  try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch(e){}
+  sv.ver = 3;
 }
-function persist(){ try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch(e){} }
+  return sv;
+}
+SAVE = migrate(SAVE);
+try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch(e){}
+function persist(){ SAVE.t = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch(e){} cloudSoon(); }
+
+/* ---------- claude.ai アカウントへの保存（使えるときだけ） ---------- */
+// ブラウザの保存は消えることがあるので、本人だけが読めるデータ領域にも同じものを置く
+const CLOUD = {ref:null, timer:null, busy:false, again:false};
+const progress = sv => Object.keys(sv.solved || {}).length;
+function cloudSoon(){ if (!CLOUD.ref) return; clearTimeout(CLOUD.timer); CLOUD.timer = setTimeout(cloudWrite, 1500); }
+async function cloudWrite(){
+  if (!CLOUD.ref) return;
+  if (CLOUD.busy){ CLOUD.again = true; return; }
+  CLOUD.busy = true;
+  try { await CLOUD.ref.set({json:JSON.stringify(SAVE), t:SAVE.t || 0}); } catch(e){}
+  CLOUD.busy = false;
+  if (CLOUD.again){ CLOUD.again = false; cloudWrite(); }
+}
+async function cloudInit(){
+  try {
+    if (!window.claude || !window.claude.use) return;
+    const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+    if (!db || !user) return;
+    const id = await user.id(); if (!id) return;
+    const ref = db.collection('data/users/' + id).doc('save');
+    const snap = await ref.get();
+    CLOUD.ref = ref;
+    let remote = null;
+    if (snap.exists){ try { remote = migrate(JSON.parse(snap.data().json)); } catch(e){} }
+    const useRemote = remote && (progress(remote) > progress(SAVE) || (progress(remote) === progress(SAVE) && (remote.t || 0) > (SAVE.t || 0)));
+    if (useRemote){
+      SAVE = remote;
+      try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch(e){}
+      if (S.screen !== 'puzzle') render();
+      else if (!document.querySelector('.ov')) { const id2 = S.p.id; go('puzzle', id2); }
+    } else if (progress(SAVE) || remote) cloudWrite();
+    if (S.screen === 'map') render();
+  } catch(e){}
+}
+
+/* ---------- 引き継ぎコード（手で控えておける予備） ---------- */
+const enc = o => btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const dec = t => JSON.parse(decodeURIComponent(escape(atob(t.replace(/\s+/g, '')))));
+function exportSave(){
+  const code = enc(SAVE);
+  const d = modal(`<h2>引き継ぎコード</h2><p style="font-size:14px">いまの進み具合とコードがすべて入っています。メモ帳などに控えておけば、別の端末や、保存が消えたときに「読み込む」で戻せます。</p>
+    <textarea class="src" style="min-height:120px;font-size:11px" readonly>${code}</textarea>
+    <div class="msg ok" id="cpok"></div>
+    <div class="row"><button data-close>閉じる</button><button class="pri" id="cp">コピー</button></div>`);
+  const ta = d.querySelector('textarea');
+  d.querySelector('#cp').onclick = async () => {
+    try { await navigator.clipboard.writeText(code); d.querySelector('#cpok').textContent = 'コピーしました'; }
+    catch(e){ ta.focus(); ta.select(); d.querySelector('#cpok').textContent = '選択しました。長押しなどでコピーしてください'; }
+  };
+}
+function importSave(){
+  const d = modal(`<h2>引き継ぎコードを読み込む</h2><p style="font-size:14px">いまの進み具合は、読み込んだ内容で置き換わります。</p>
+    <textarea class="src" style="min-height:120px;font-size:11px" spellcheck="false" autocapitalize="off" placeholder="ここに貼り付け"></textarea>
+    <div class="msg err" id="imerr"></div>
+    <div class="row"><button data-close>やめる</button><button class="amb" id="imok">読み込む</button></div>`);
+  d.querySelector('#imok').onclick = () => {
+    let o; try { o = dec(d.querySelector('textarea').value); } catch(e){ o = null; }
+    if (!o || typeof o !== 'object' || !o.code || !o.solved){ d.querySelector('#imerr').textContent = '引き継ぎコードとして読めませんでした。全部コピーできているか確かめてください。'; return; }
+    SAVE = migrate(o); persist(); d.remove(); go('map');
+  };
+}
 
 function unlocked(p){
   if (p.st === 2 && !SAVE.translator) return false;
@@ -725,7 +793,8 @@ function renderMap(){
           <span class="n">${p.id}${p.big ? '　★翻訳機' : ''}</span>${ok ? p.title : '？？？'}</button>`; }).join('')}</div>` :
         (s.n === 2 ? '<p class="mono" style="color:var(--amber)">解放条件：1-10 ラベル翻訳機</p>' : '')}
     </div>`;
-  }).join('') + `<p class="dim" style="font-size:12px;text-align:center">進み具合はこの端末のブラウザに保存されます。 <button data-act="wipe" style="font-size:12px;padding:3px 8px">最初から</button></p>`;
+  }).join('') + `<p class="dim" style="font-size:12px;text-align:center">${CLOUD.ref ? '進み具合は claude.ai のあなたのアカウントにも保存されています（あなただけが読めます）。' : '進み具合はこの端末のブラウザに保存されます。消えることがあるので、ときどき引き継ぎコードを控えておくと安心です。'}</p>
+  <p style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap"><button data-act="exp" style="font-size:12px;padding:4px 9px">引き継ぎコードを書き出す</button><button data-act="imp" style="font-size:12px;padding:4px 9px">読み込む</button><button data-act="wipe" style="font-size:12px;padding:4px 9px">最初から</button></p>`;
 }
 
 /* ---------- 課題画面 ---------- */
@@ -1164,6 +1233,8 @@ app.addEventListener('click', e => {
     case 'map': go('map'); break;
     case 'manual': manual(); break;
     case 'open': go('puzzle', t.dataset.id); break;
+    case 'exp': exportSave(); break;
+    case 'imp': importSave(); break;
     case 'wipe':
       ask('すべての進み具合とコードを消して、最初からにしますか？', '消して最初から', () => { SAVE = {ver:3, code:{}, solved:{}, notes:{}, translator:null}; persist(); go('title'); });
       break;
@@ -1214,8 +1285,9 @@ document.addEventListener('keydown', e => {
   else if (k === 'Enter'){ e.preventDefault(); check(); }
 });
 
-window.__boot = {SAMPLES, P, PZ, runVM, asmTape, lint, build, SAVE: () => SAVE};
+window.__boot = {enc, dec, migrate, SAMPLES, P, PZ, runVM, asmTape, lint, build, SAVE: () => SAVE};
 render();
+cloudInit();
 </script>
 </body>
 </html>
