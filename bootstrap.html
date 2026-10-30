@@ -78,6 +78,7 @@ small,.dim{color:var(--dim)}
 .grid .c{position:relative}
 .grid .c.tgt{outline:2px dashed var(--blue);outline-offset:-2px}
 .grid .c.miss{outline:2px dashed var(--red);outline-offset:-2px;color:var(--red)}
+.grid .c.lb::before{content:attr(data-l);position:absolute;left:2px;top:0;font-size:9px;line-height:1.1;color:var(--blue)}
 .grid .gap{grid-column:1/-1;text-align:center;color:var(--dim);font-size:12px;border:1px dashed #1f2c21;border-radius:5px;padding:3px;cursor:pointer}
 .grid.ro .gap{cursor:default}
 .grid .c.nt::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--amber)}
@@ -227,7 +228,7 @@ function runVM(bytes, tape, limit){
 }
 
 /* ============ ラベル付き16進：正しい翻訳（検査用） ============ */
-// テープ仕様どおりの2パス翻訳（1-8 の期待値づくりと、翻訳機の答え合わせに使う）
+// テープ仕様どおりの2パス翻訳（1-10 の期待値づくりと、翻訳機の答え合わせに使う）
 function asmTape(s){
   const t = str(s), lab = {}, out = [];
   const hv = c => c >= 0x41 ? c - 0x37 : c - 0x30;
@@ -241,6 +242,17 @@ function asmTape(s){
       if (pass) out.push(((hv(c) << 4) + hv(t[i + 1] ?? 0)) & 255);
       i++; pos++;
     }
+  }
+  return out;
+}
+// テープ中の :x が指す番地を、出てきた順に並べる（1-8 の期待値）
+function labelPos(s){
+  const t = str(s), out = []; let pos = 0;
+  for (let i = 0; i < t.length; i++){
+    const c = t[i];
+    if (c < 0x21) continue;
+    if (c === 0x3A){ i++; out.push(pos); continue; }
+    i++; pos++;
   }
   return out;
 }
@@ -278,7 +290,7 @@ function lint(src){
   toks.forEach(k => { if (k.ln !== curLn){ lines.push(cur.join(' ')); cur = []; curLn = k.ln; } cur.push(k.t === 'b' ? hex2(k.v) : k.t + k.l); });
   if (cur.length) lines.push(cur.join(' '));
   const tape = lines.join('\n');
-  return {errors, tape, bytes: errors.length ? [] : asmTape(tape)};
+  return {errors, tape, labels:lab, bytes: errors.length ? [] : asmTape(tape)};
 }
 
 /* ================= 課題 ================= */
@@ -296,7 +308,7 @@ const P = [
   learn:`<p><b>テープ</b>は機械の外にある入力用の紙で、256 バイトのメモリとは別の装置です。</p>
    <ul>
    <li><code>IN</code> を実行すると、読み取り位置の1文字が A に入り、<b>読み取り位置は自動で1つ進みます</b>。どこまで読んだかを数えたり、番地を足したりする必要はありません。</li>
-   <li>後戻りはできません。できるのは <code>RWD</code> で先頭まで巻き戻すことだけです（1-8 で使います）。</li>
+   <li>後戻りはできません。できるのは <code>RWD</code> で先頭まで巻き戻すことだけです（1-10 で使います）。</li>
    <li>最後まで読んだ後の <code>IN</code> は <code>00</code> を返します。これで終わりを見分けます。</li>
    <li>テープに書かれた文字は、機械には<b>文字コード</b>（数）として届きます。たとえば A は <code>41</code>、B は <code>42</code>。</li>
    </ul>
@@ -378,27 +390,88 @@ const P = [
    <p>跳ぶ命令のマスを1つずつタップしよう。行き先が青い点線で光る（空きなら赤）。光ったマスが本当に跳びたい命令か確かめる。</p>`,
   hint:'1-6 のコードを「読込」で持ってくる。上の桁の IN と終わりの判定の後、CALL の前に <code>40 21 34 xx</code>（xx はその IN の番地）を「挿入」で差し込む。そのあと跳ぶ命令を全部タップして、行き先がずれていないか確かめる。部品の手前の 00 を4つ削除すれば、部品は 20 番地に戻る。',
   tests:[W('48 49'), W('4F 4B\n21'), W('00FF7F 10'), W('')].map(t => ({...t, out:asmTape(String.fromCharCode(...t.tape))}))},
- {id:'1-8', st:1, mode:'hex', big:true, title:'ラベル翻訳機',
-  story:'番地を数えるのも、機械にやらせよう。番地に名前（ラベル）をつけ、名前で跳ぶ。この翻訳機が完成すれば、もう二度と番地を数えなくていい。',
-  task:`1-7 の翻訳機に、ラベルを足す。テープの仕様：
+ {id:'1-8', st:1, mode:'hex', title:'番地を数える',
+  story:'番地を数えるのも、機械にやらせたい。ソースに名前（ラベル）を書いておき、名前で跳ぶ。その第一歩として、まずは機械に番地を数えさせる。',
+  task:`テープにはラベル付きのソースが並ぶ。<code>:x</code> が出てくるたびに、その名前が指す番地を出力する。<br>
+   例：<code>01 31 :a 02 :b 00</code> → <code>02 03</code>`,
+  learn:`<p><b>ラベルは場所を取らない。</b><code>:a</code> は1バイトも出力されない付箋で、「次に出てくるバイトの番地」に a という名前をつける。</p>
+   <pre>ソース   01   31   :a   02   :b   00
+番地     00   01        02        03
+                   a ─┘      b ─┘</pre>
+   <ul>
+   <li>a = <code>02</code>（02 番地にあるバイト <code>02</code> のこと）、b = <code>03</code></li>
+   <li>同じ場所に2枚貼れば同じ番地（<code>:b :c 05</code> なら b も c も 00）</li>
+   <li>最後に貼れば「最後のバイトの次」の番地</li>
+   </ul>
+   <p><b>数え方</b>：機械語のバイトが1つ増えるたびに番地を1増やす。</p>
+   <table><tr><th>テープ</th><th>文字数</th><th>バイト数</th></tr>
+   <tr><td>区切り</td><td>1</td><td>0</td></tr>
+   <tr><td><code>4F</code>（2桁の16進）</td><td>2</td><td>1</td></tr>
+   <tr><td><code>@x</code></td><td>2</td><td>1</td></tr>
+   <tr><td><code>:x</code></td><td>2</td><td>0</td></tr></table>
+   <p>2桁の16進も <code>@x</code> も「2文字で1バイト」なので、<b>この課題では区別しなくていい</b>。1文字目を見て、<code>:</code>（<code>3A</code>）かどうかだけ分ければいい。</p>
+   <p>番地は A に置いたままだとすぐ上書きされる。メモリ（たとえば 80 番地）に置いて、<code>LD</code> → <code>ADI 01</code> → <code>ST</code> で1増やす。最初に 00 を入れておくこと。</p>`,
+  hint:'1文字読む → 終わりなら停止 → 区切りなら読み直し → <code>:</code>（3A）なら、次の1文字（名前）を読み捨てて、いまの番地を <code>LD</code> して出力 → それ以外なら、もう1文字読み捨てて番地を1増やす → 最初へ。',
+  tests:['01 31 :a 02 :b 00', ':s 10 48 02 :e 00', '30 @x 00 00 :x 10 @y :y 00', '10 48\n02 00', ':b :c 05 @c @b :d']
+    .map(s => ({tape:str(s), out:labelPos(s)})), table:false},
+ {id:'1-9', st:1, mode:'hex', title:'名前を覚える',
+  story:'数えた番地を、名前と結びつけて覚えておく。覚えた名前を呼べば番地が返ってくる——これで「名前で跳ぶ」ができる。まずは、すでに出てきた名前だけを扱う。',
+  task:`テープの仕様：
    <ul>
    <li>空白・改行（21 未満）は読み飛ばす</li>
-   <li><code>:x</code> … 名前 x（1文字）を「この位置の番地」として覚える。バイトは出さない</li>
-   <li><code>@x</code> … 名前 x の番地を1バイトとして出力する（後ろで定義される名前もある）</li>
+   <li><code>:x</code> … 名前 x（1文字）を「次のバイトの番地」として覚える。バイトは出さない</li>
+   <li><code>@x</code> … 名前 x の番地を1バイトとして出力する</li>
    <li>それ以外は2桁の16進 → 1バイト</li></ul>
+   この課題の <code>@x</code> は、いつも<b>それより前で</b> <code>:x</code> された名前を指す。<br>
+   例：<code>01 :l 02 30 @l</code> → <code>01 02 30 01</code>`,
+  learn:`<p><b>名前の表</b>：名前の文字コードを、そのまま番地として使う。a は <code>61</code>、b は <code>62</code> … z は <code>7A</code>。<code>:a</code> なら 61 番地に、a が指す番地をしまっておく。</p>
+   <p>ところが <code>ST nn</code> の nn は打ち込んだときに決まってしまい、名前によって変えられない。そこで <b>X</b> を使う。X に番地を入れておけば、<code>STX</code> / <code>LDX</code> は「X が指す番地」を読み書きする。</p>
+   <pre>:a を読んだ（いまの番地が 05 のとき）
+  IN     A = 61   （名前 a の文字コード）
+  TAX    X = 61
+  LD 80  A = 05   （いまの番地）
+  STX    メモリ[61] = 05
+
+@a を読んだ
+  IN     A = 61
+  TAX    X = 61
+  LDX    A = メモリ[61] = 05
+  OUT    05 を出力</pre>
+   <p>番地の数え方は 1-8 と同じ。<code>@x</code> も1バイト出すので、番地を1増やすのを忘れずに。2桁の16進は 1-7 と同じく変換して出力する。今度は <code>:</code>・<code>@</code>・16進の3つに分ける。</p>
+   <p>表は 61〜7A 番地を使う。プログラムがそこに重ならないよう、手前で終わらせるか、その範囲を跳び越えて置くこと。下の「機械」欄に名前の表の中身が出る。</p>`,
+  hint:'1-8 のコードを「読込」で持ってきて足していく。<code>:</code> のときは出力の代わりに <code>TAX</code> → <code>LD 番地</code> → <code>STX</code>。<code>@</code>（40）のときは名前を読んで <code>TAX</code> → <code>LDX</code> → <code>OUT</code>、番地+1。それ以外は 1-7 の変換で1バイト出力して、番地+1。部品（CALL 先）が名前の表と重ならないかも確かめよう。',
+  tests:['10 48 02 00', ':a 01 02 30 @a', '01 :l 02 30 @l', ':a 00 :b 00 :c @c @b @a', ':s 01 31 0A\n12 80 :t 01\n21 80 30 @t\n30 @s']
+    .map(s => ({tape:str(s), out:asmTape(s)})), table:true},
+ {id:'1-10', st:1, mode:'hex', big:true, title:'ラベル翻訳機',
+  story:'最後の壁は「まだ出てきていない名前」だ。ループを抜けた先の番地は、ループを書いている時点では分からない。この翻訳機が完成すれば、もう二度と番地を数えなくていい。',
+  task:`テープの仕様（1-9 と同じ）：
+   <ul>
+   <li>空白・改行（21 未満）は読み飛ばす</li>
+   <li><code>:x</code> … 名前 x（1文字）を「次のバイトの番地」として覚える。バイトは出さない</li>
+   <li><code>@x</code> … 名前 x の番地を1バイトとして出力する</li>
+   <li>それ以外は2桁の16進 → 1バイト</li></ul>
+   ただし今度は、<code>@x</code> が<b>後ろで</b> <code>:x</code> される名前を指すこともある。<br>
    例：<code>:a 01 31 @e 02 30 @a :e 00</code> → <code>01 31 07 02 30 00 00</code>`,
-  hint:`後ろで定義される名前があるので、テープを<b>2回</b>読む。<br>
-   1周目：出力はせず、番地を数える。<code>:</code> が来たら次の文字（名前）を読み、<code>TAX</code> して <code>STX</code> で「名前の文字コード番地」に今の番地をしまう（a〜z は 61〜7A 番地。プログラムをそこまで伸ばさないこと）。<code>:</code> 以外なら、もう1文字読み捨てて番地を1増やすだけでいい（<code>@x</code> も2桁の16進も、2文字で1バイトだから）。<br>
-   テープが終わったら <code>RWD</code> で巻き戻し、2周目：<code>:x</code> は読み飛ばし、<code>@x</code> は名前を読んで <code>TAX</code>→<code>LDX</code>→<code>OUT</code>、それ以外は 1-7 と同じ（部品の CALL もそのまま使える）。`,
+  learn:`<p><code>31 @e … :e 00</code> のように、<code>@e</code> を読んだ時点では e がまだ表にない。だから<b>テープを2回読む</b>。</p>
+   <pre>1周目：数えて、表にしまうだけ（何も出力しない）
+        ＝ 1-8 の「:x で番地を出力」を「表にしまう」に替えたもの
+        テープが終わったら RWD で巻き戻し、2周目へ
+2周目：出力する
+        ＝ 1-9 から「表にしまう」と「番地を数える」を外したもの
+        （:x は名前を読み捨てるだけ。表はもう全部そろっている）
+        テープが終わったら停止</pre>
+   <p>1周目の「テープの終わり」は停止ではなく 2周目へ跳ぶ。<code>RWD</code> は巻き戻すだけなので、そのあと 2周目の先頭の IN へ進めばいい。</p>
+   <p>1-9 のコードの前に1周目を差し込むと、後ろがすべてずれる。跳ぶ命令を1つずつタップして行き先を確かめよう。部品が名前の表（61〜7A）に重ならないかにも注意。</p>`,
+  hint:'近道：1-9 を「読込」で持ってきて、先頭に1周目（1-8 の形で、<code>:</code> のところを <code>TAX</code>/<code>LD</code>/<code>STX</code> にしたもの。終わりで <code>RWD</code> して 2周目へ跳ぶ）を差し込む。2周目では、番地を数える部分と <code>STX</code> の部分は使わなくなる（残しても動くが、:x の名前は読み捨てるだけでいい）。',
   tests:['10 48 02 00', ':a 01 31 @e 02 30 @a :e 00', '@z :z', ':s 01 31 @e\n12 80 01\n21 80 02 30 @s\n:e 00', ':b :c 05 @c @b', '30 @x 00 00 :x 10 @y :y 00']
-    .map(s => ({tape:str(s), out:asmTape(s)}))},
+    .map(s => ({tape:str(s), out:asmTape(s)})), table:true},
 
  {id:'2-1', st:2, mode:'label', title:'掛け算',
   story:'あなたの翻訳機が動いた。ここからのコードは、あなたが16進で書いたあの翻訳機が機械語に直す。ラベルがあれば、ループはもうこわくない。',
   task:'テープには数が2つずつ並ぶ。各組の積を出力する（積は 256 未満）。テープが終われば止まる。',
   hint:'掛け算命令はない。a を b 回足す。a, b, 合計をメモリ（80, 81, 82 番地など）に置き、b が 0 になるまでループ。',
   prefill:`# ラベルの書き方
-#   :x  … この場所に名前 x をつける（バイトは出ない）
+#   :x  … 次のバイトの番地に名前 x をつける（:x 自体はバイトにならない）
 #   @x  … 名前 x の番地（1バイト）に置き換わる
 #   #   … そこから行末までは注釈（翻訳機には渡らない）
 #
@@ -434,14 +507,14 @@ const STAGES = [
   {n:4, name:'第4段階　小さなC', lang:'while (c = getc()) putc(c);', desc:'式と変数と関数。ここからは、言語が言語を育てる。', locked:true},
   {n:5, name:'第？段階　拾ったコンパイラ', lang:'cc: ELF 64-bit, stripped', desc:'廃墟のサーバに、完成品のCコンパイラが残っているという。使えば何段階も飛ばせる。だが、それを作ったのは誰だ？', locked:true},
 ];
-const STEP_LIMIT = 20000, TR_LIMIT = 300000, TR_ID = '1-8';
+const STEP_LIMIT = 20000, TR_LIMIT = 300000, TR_ID = '1-10';
 
 /* ================= 保存 ================= */
 const KEY = 'bootstrap-proto-v1';
-let SAVE = {ver:2, code:{}, solved:{}, notes:{}, translator:null};
+let SAVE = {ver:3, code:{}, solved:{}, notes:{}, translator:null};
 try { const j = JSON.parse(localStorage.getItem(KEY)); if (j && j.code) SAVE = Object.assign({code:{}, solved:{}, notes:{}, translator:null}, j); } catch(e){}
 if (!SAVE.notes) SAVE.notes = {};
-if (SAVE.ver !== 2){
+if (!SAVE.ver || SAVE.ver < 2){
   // 旧版の 1-6（区切り付き）は新しい 1-7 に、旧 1-7（ラベル翻訳機）は 1-8 に移す
   const c = SAVE.code, d = SAVE.solved;
   if ('1-7' in c){ c['1-8'] = c['1-7']; delete c['1-7']; }
@@ -449,6 +522,14 @@ if (SAVE.ver !== 2){
   if ('1-6' in c){ c['1-7'] = c['1-6'].slice(); if (!d['1-6']) delete c['1-6']; }
   if (d['1-6']) d['1-7'] = d['1-6'];
   SAVE.ver = 2;
+}
+if (SAVE.ver === 2){
+  // ラベル翻訳機を 1-8 から 1-10 へ。クリア済みなら新しい 1-8・1-9 も通過扱い
+  const c = SAVE.code, d = SAVE.solved, n = SAVE.notes;
+  if ('1-8' in c){ c['1-10'] = c['1-8']; delete c['1-8']; }
+  if ('1-8' in n){ n['1-10'] = n['1-8']; delete n['1-8']; }
+  if (d['1-8']){ d['1-10'] = d['1-8']; delete d['1-8']; d['1-8'] = {size:0, steps:0}; d['1-9'] = {size:0, steps:0}; c['1-9'] = c['1-10'].slice(); }
+  SAVE.ver = 3;
   try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch(e){}
 }
 function persist(){ try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch(e){} }
@@ -529,7 +610,7 @@ function renderMap(){
         const ok = unlocked(p);
         return `<button data-act="open" data-id="${p.id}" class="${SAVE.solved[p.id] ? 'done' : ''} ${p.big ? 'big' : ''}" ${ok ? '' : 'disabled'}>
           <span class="n">${p.id}${p.big ? '　★翻訳機' : ''}</span>${ok ? p.title : '？？？'}</button>`; }).join('')}</div>` :
-        (s.n === 2 ? '<p class="mono" style="color:var(--amber)">解放条件：1-8 ラベル翻訳機</p>' : '')}
+        (s.n === 2 ? '<p class="mono" style="color:var(--amber)">解放条件：1-10 ラベル翻訳機</p>' : '')}
     </div>`;
   }).join('') + `<p class="dim" style="font-size:12px;text-align:center">進み具合はこの端末のブラウザに保存されます。 <button data-act="wipe" style="font-size:12px;padding:3px 8px">最初から</button></p>`;
 }
@@ -546,11 +627,11 @@ function build(src){
   const L = lint(src);
   if (L.errors.length) return {errors:L.errors};
   const v = runVM(SAVE.translator, str(L.tape), TR_LIMIT);
-  if (v.err) return {errors:['あなたの翻訳機（1-8）が失敗しました：' + v.err]};
+  if (v.err) return {errors:['あなたの翻訳機（1-10）が失敗しました：' + v.err]};
   const bytes = v.out.slice(0, 256);
   const diff = bytes.length !== L.bytes.length || bytes.some((b, i) => b !== L.bytes[i]);
-  return {bytes, steps:v.steps, tape:L.tape,
-    warn: diff ? 'あなたの翻訳機の出力が、仕様どおりの翻訳と食い違っています。このまま動かしますが、1-8 を見直した方がいいかもしれません。' : null};
+  return {bytes, steps:v.steps, tape:L.tape, labels:L.labels,
+    warn: diff ? 'あなたの翻訳機の出力が、仕様どおりの翻訳と食い違っています。このまま動かしますが、1-10 を見直した方がいいかもしれません。' : null};
 }
 
 function renderPuzzle(){
@@ -624,12 +705,14 @@ function gridHTML(bytes, opt){
     if (miss.has(i)) cls += ' miss';
     if (nt[i]) cls += ' nt';
     if (opt.vm && !opt.vm.halted){ if (i === pc) cls += ' pc'; else if (i === pcArg) cls += ' arg'; }
+    const lb = opt.labels ? Object.keys(opt.labels).filter(k => opt.labels[k] === i) : [];
+    if (lb.length) return `<div class="${cls} lb" data-l=":${lb.join(':')}">${txt}</div>`;
     return `<div class="${cls}" ${opt.edit ? `data-act="cell" data-i="${i}"` : ''}>${txt}</div>`;
   };
   const shown = r => {
     if (r < 4) return true;
     for (let i = r * 8; i < r * 8 + 8; i++)
-      if (i <= len || i === opt.cur || refs.has(i) || nt[i] || (opt.vm && (opt.vm.mem[i] || i === pc))) return true;
+      if (i <= len || i === opt.cur || refs.has(i) || (opt.labels && Object.values(opt.labels).includes(i)) || nt[i] || (opt.vm && (opt.vm.mem[i] || i === pc))) return true;
     return false;
   };
   let h = '', r = 0;
@@ -664,13 +747,22 @@ function drawBuilt(){
   if (!S.built) S.built = build(getCode(S.p));
   const B = S.built;
   if (B.errors){ el.innerHTML = B.errors.slice(0, 6).map(e => `<div class="msg err">✗ ${esc(e)}</div>`).join(''); return; }
-  el.innerHTML = gridHTML(B.bytes, {cur:-1, vm:S.vm && S.vm.steps ? S.vm : null, edit:false}) +
+  el.innerHTML = gridHTML(B.bytes, {cur:-1, vm:S.vm && S.vm.steps ? S.vm : null, edit:false, labels:B.labels}) +
+    (B.labels && Object.keys(B.labels).length ? `<div class="msg dim">名前：${Object.keys(B.labels).sort().map(k => `<span class="mono" style="color:var(--blue)">${k}</span>=${hex2(B.labels[k])}`).join('　')}</div>` : '') +
     `<div class="msg dim">${B.bytes.length} バイト　/ 翻訳機は ${B.steps} 歩で翻訳</div>` +
     (B.warn ? `<div class="msg warn">⚠ ${B.warn}</div>` : '');
 }
 function ensureVM(){
   if (!S.vm){ const b = curBytes(); if (!b) return null; S.vm = newVM(b, S.p.tests[S.ti].tape); }
   return S.vm;
+}
+// 名前の表（61〜7A 番地）のうち、このテープで :x される名前だけを見せる
+function tableHTML(v, t){
+  if (!S.p.table) return '';
+  const names = [];
+  t.tape.forEach((c, i) => { if (c === 0x3A && t.tape[i + 1] >= 0x61 && t.tape[i + 1] <= 0x7A && !names.includes(t.tape[i + 1])) names.push(t.tape[i + 1]); });
+  if (!names.length) return '';
+  return `<div class="strip"><span class="lbl">名前の表</span>${names.sort((a, b) => a - b).map(c => `<span class="t">${String.fromCharCode(c)}<span class="dim">[${hex2(c)}]</span>=${hex2(v.mem[c])}</span>`).join('　')}</div>`;
 }
 function drawMach(){
   const el = document.getElementById('mach'); if (!el) return;
@@ -686,7 +778,7 @@ function drawMach(){
     <div>PC <b>${hex2(v.pc)}</b></div><div>A <b>${hex2(v.a)}</b></div><div>X <b>${hex2(v.x)}</b></div>
     <div>EQ <b>${v.eq ? '1' : '0'}</b> LT <b>${v.lt ? '1' : '0'}</b></div><div>歩数 <b>${v.steps}</b></div><div>${status}</div></div>
     <div class="strip"><span class="lbl">次</span>${next}${v.rs.length ? `　<span class="lbl">戻り先</span>${v.rs.map(hex2).join(' ')}` : ''}</div>
-    <div class="strip"><span class="lbl">テープ #${S.ti + 1}</span>${tape}</div>
+    <div class="strip"><span class="lbl">テープ #${S.ti + 1}</span>${tape}</div>${tableHTML(v, t)}
     <div class="strip"><span class="lbl">出力</span>${outs || '<span class="dim">（なし）</span>'}${asciiOf(v.out)}</div>
     ${v.err ? `<div class="msg err">✗ ${esc(v.err)}</div>` : ''}`;
   const g = S.p.mode === 'hex' ? drawGrid : drawBuilt; g();
@@ -887,7 +979,7 @@ app.addEventListener('click', e => {
     case 'manual': manual(); break;
     case 'open': go('puzzle', t.dataset.id); break;
     case 'wipe':
-      ask('すべての進み具合とコードを消して、最初からにしますか？', '消して最初から', () => { SAVE = {ver:2, code:{}, solved:{}, notes:{}, translator:null}; persist(); go('title'); });
+      ask('すべての進み具合とコードを消して、最初からにしますか？', '消して最初から', () => { SAVE = {ver:3, code:{}, solved:{}, notes:{}, translator:null}; persist(); go('title'); });
       break;
     case 'k': key(t.dataset.k); break;
     case 'left': case 'right': case 'ins': case 'del': case 'undo': editOp(a); break;
