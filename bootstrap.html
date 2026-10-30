@@ -854,13 +854,17 @@ function renderPuzzle(){
 function drawAll(){ drawTests(); if (S.p.mode === 'hex'){ drawGrid(); drawInfo(); } else drawBuilt(); drawMach(); drawResult(); }
 
 function fmtBytes(a, max = 40){ if (!a.length) return '<span class="dim">（なし）</span>'; const s = a.slice(0, max).map(hex2).join(' '); return s + (a.length > max ? ' …' : ''); }
-function asciiOf(a){ return a.every(c => c >= 0x20 && c < 0x7F) && a.length ? ` <span class="dim">"${esc(String.fromCharCode(...a))}"</span>` : ''; }
+// テープ・出力を文字として読む課題（それ以外は数として 16 進だけ見せる）
+const TAPE_TEXT = new Set(['1-2','1-5','1-6','1-7','1-8','1-9','1-10','2-2','2-3','2-4']);
+const OUT_TEXT = new Set(['1-1','1-2','2-2','2-3']);
+const chOf = c => c === 0x0A ? '↵' : c === 0x20 ? '␣' : c > 0x20 && c < 0x7F ? String.fromCharCode(c) : '·';
+function textOf(a, on){ return on && a.length ? ` <span class="dim">"${esc(a.map(chOf).join(''))}"</span>` : ''; }
 function drawTests(){
   const el = document.getElementById('tests'); if (!el) return;
   el.innerHTML = S.p.tests.map((t, i) => {
     const r = S.results && S.results[i];
     return `<div class="test ${i === S.ti ? 'sel' : ''} ${r ? (r.pass ? 'ok' : 'ng') : ''}" data-act="pick" data-i="${i}">
-      <span class="k">#${i + 1} テープ:</span> ${fmtBytes(t.tape)}${asciiOf(t.tape)}<br><span class="k">　 期待:</span> ${fmtBytes(t.out)}${asciiOf(t.out)}</div>`;
+      <span class="k">#${i + 1} テープ:</span> ${fmtBytes(t.tape)}${textOf(t.tape, TAPE_TEXT.has(S.p.id))}<br><span class="k">　 期待:</span> ${fmtBytes(t.out)}${textOf(t.out, OUT_TEXT.has(S.p.id))}</div>`;
   }).join('');
 }
 // メモリ全体（00〜FF）を8バイトずつの行で描く。何もない行が続くところは1行に畳む
@@ -954,14 +958,14 @@ function drawMach(){
   const status = v.err ? `<span style="color:var(--red)">エラー</span>` : v.halted ? '<span style="color:var(--acc)">停止</span>' : v.steps ? '実行中' : '待機';
   const o = OP[v.mem[v.pc]];
   const next = v.halted || v.err ? '—' : o ? o.m + (o.arg ? ' ' + hex2(v.mem[(v.pc + 1) & 255]) : '') : '??';
-  const tape = t.tape.length ? t.tape.map((c, i) => `<span class="t ${i === v.tp ? 'now' : i < v.tp ? 'used' : ''}">${c > 0x20 && c < 0x7F ? esc(String.fromCharCode(c)) : hex2(c)}</span>`).join('') + `<span class="t ${v.tp >= t.tape.length ? 'now' : ''}">■</span>` : '<span class="t now">■</span><span class="dim">（空）</span>';
+  const tape = t.tape.length ? t.tape.map((c, i) => `<span class="t ${i === v.tp ? 'now' : i < v.tp ? 'used' : ''}">${TAPE_TEXT.has(S.p.id) ? esc(chOf(c)) : hex2(c)}</span>`).join('') + `<span class="t ${v.tp >= t.tape.length ? 'now' : ''}">■</span>` : '<span class="t now">■</span><span class="dim">（空）</span>';
   const outs = v.out.map((c, i) => `<span class="t ${t.out[i] === c ? '' : 'bad'}">${hex2(c)}</span>`).join(' ');
   el.innerHTML = `<div class="regs">
     <div>PC <b>${hex2(v.pc)}</b></div><div>A <b>${hex2(v.a)}</b></div><div>X <b>${hex2(v.x)}</b></div>
     <div>EQ <b>${v.eq ? '1' : '0'}</b> LT <b>${v.lt ? '1' : '0'}</b></div><div>歩数 <b>${v.steps}</b></div><div>${status}</div></div>
     <div class="strip"><span class="lbl">次</span>${next}${v.rs.length ? `　<span class="lbl">戻り先</span>${v.rs.map(hex2).join(' ')}` : ''}</div>
     <div class="strip"><span class="lbl">テープ #${S.ti + 1}</span>${tape}</div>${tableHTML(v, t)}
-    <div class="strip"><span class="lbl">出力</span>${outs || '<span class="dim">（なし）</span>'}${asciiOf(v.out)}</div>
+    <div class="strip"><span class="lbl">出力</span>${outs || '<span class="dim">（なし）</span>'}${textOf(v.out, OUT_TEXT.has(S.p.id))}</div>
     ${v.err ? `<div class="msg err">✗ ${esc(v.err)}</div>` : ''}`;
   const g = S.p.mode === 'hex' ? drawGrid : drawBuilt; g();
 }
