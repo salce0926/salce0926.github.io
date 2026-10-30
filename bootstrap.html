@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f0b">
+<title>BOOTSTRAP — 16進からの再建</title>
+<style>
+:root{
+  --bg:#0b0f0b; --panel:#121a13; --panel2:#18231a; --line:#2a3b2c;
+  --fg:#cfeccb; --dim:#7f9c80; --acc:#7dff8a; --amber:#ffb84d; --red:#ff6b6b; --blue:#7cc4ff;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Noto Sans Mono", monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer;touch-action:manipulation}
+button:active{transform:translateY(1px)}
+button:disabled{opacity:.4;cursor:default}
+button.pri{background:#1f4a25;border-color:#3d8a47;color:#eaffea;font-weight:700}
+button.amb{background:#4a3410;border-color:#8a6420;color:#ffe7bf}
+code,.mono{font-family:var(--mono)}
+#app{max-width:780px;margin:0 auto;padding:0 12px calc(16px + env(safe-area-inset-bottom))}
+.bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:10px 0;background:var(--bg);border-bottom:1px solid var(--line)}
+.bar .ttl{flex:1;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar button{padding:6px 10px;font-size:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0}
+.card h3{margin:0 0 8px;font-size:15px;color:var(--acc)}
+details.card>summary{cursor:pointer;font-weight:700;color:var(--acc);list-style:none}
+details.card>summary::before{content:"▸ ";}
+details.card[open]>summary::before{content:"▾ ";}
+.story{color:var(--dim);font-size:14px;border-left:3px solid var(--line);padding-left:10px;margin:8px 0}
+.task{margin:8px 0}
+.hint{margin-top:8px;font-size:14px}
+.hint summary{color:var(--amber);cursor:pointer}
+small,.dim{color:var(--dim)}
+/* title */
+.title{padding:48px 4px 24px;text-align:center}
+.title h1{font-family:var(--mono);font-size:clamp(34px,10vw,64px);letter-spacing:.08em;margin:0;color:var(--acc);text-shadow:0 0 18px #2dff4a55}
+.title .sub{color:var(--amber);margin-top:4px}
+.prose{text-align:left;max-width:560px;margin:24px auto;color:var(--fg)}
+.prose p{margin:0 0 12px}
+.cursor{display:inline-block;width:.6em;height:1.1em;background:var(--acc);vertical-align:-3px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+/* map */
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0}
+.stage.locked{opacity:.55}
+.stage h2{margin:0;font-size:17px}
+.stage .lang{font-family:var(--mono);color:var(--amber);font-size:13px}
+.stage p{margin:6px 0 10px;font-size:14px;color:var(--dim)}
+.plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.plist button{text-align:left;padding:10px}
+.plist button .n{font-family:var(--mono);color:var(--dim);font-size:12px;display:block}
+.plist button.done{border-color:#3d8a47}
+.plist button.done .n::after{content:" ✓";color:var(--acc)}
+.plist button.big{grid-column:1/-1;border-color:#8a6420}
+/* grid */
+.grid{display:grid;grid-template-columns:2.4em repeat(8,1fr);gap:3px;font-family:var(--mono);font-size:16px;user-select:none;-webkit-user-select:none}
+.grid .ad{color:var(--dim);font-size:11px;align-self:center}
+.grid .c{background:#0e150f;border:1px solid #1f2c21;border-radius:5px;text-align:center;padding:7px 0;min-height:36px;cursor:pointer}
+.grid .c.e{color:#33463a}
+.grid .c.cur{outline:2px solid var(--amber);outline-offset:-1px;background:#2a2210}
+.grid .c.pc{background:#1d4a24;color:#fff}
+.grid .c.arg{background:#173520}
+.grid .c.cur.pc{background:#3d4a10}
+.grid.ro .c{cursor:default}
+.info{font-family:var(--mono);font-size:13px;color:var(--blue);margin-top:8px;min-height:1.6em;word-break:break-all}
+.tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tools button{font-size:13px;padding:6px 9px}
+textarea.src{width:100%;min-height:260px;background:#0e150f;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:10px;font:15px/1.5 var(--mono);resize:vertical}
+/* tests */
+.tests{display:flex;flex-direction:column;gap:6px}
+.test{font-family:var(--mono);font-size:13px;background:#0e150f;border:1px solid #1f2c21;border-radius:8px;padding:6px 8px;cursor:pointer;word-break:break-all}
+.test.sel{border-color:var(--amber)}
+.test .k{color:var(--dim)}
+.test.ok{border-left:4px solid var(--acc)}
+.test.ng{border-left:4px solid var(--red)}
+/* machine */
+.regs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-family:var(--mono);font-size:13px}
+.regs div{background:#0e150f;border:1px solid #1f2c21;border-radius:6px;padding:4px 6px}
+.regs b{color:var(--acc);font-weight:400}
+.strip{font-family:var(--mono);font-size:13px;background:#0e150f;border:1px solid #1f2c21;border-radius:6px;padding:6px;margin-top:6px;word-break:break-all;line-height:1.9}
+.strip .lbl{color:var(--dim);margin-right:6px}
+.strip span.t{display:inline-block;min-width:1.6em;text-align:center;border-radius:3px}
+.strip span.now{background:var(--amber);color:#000}
+.strip span.bad{background:var(--red);color:#000}
+.strip span.used{color:#4b6450}
+.ctrl{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.ctrl button{flex:1;min-width:60px}
+.msg{font-size:14px;margin-top:6px}
+.msg.err{color:var(--red)}
+.msg.ok{color:var(--acc)}
+.msg.warn{color:var(--amber)}
+/* keypad */
+.pad{position:sticky;bottom:0;z-index:4;background:var(--bg);border-top:1px solid var(--line);padding:8px 0 calc(8px + env(safe-area-inset-bottom));margin-top:12px}
+.keys{display:grid;grid-template-columns:repeat(8,1fr);gap:5px}
+.keys button{padding:10px 0;font:600 17px var(--mono)}
+.keys2{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:5px}
+.keys2 button{padding:9px 0;font-size:13px}
+.keys2 button.pri{font-size:14px}
+.ktool{display:flex;gap:5px}
+.ktool button{flex:1;font:600 16px var(--mono);padding:9px 0}
+.ktool button.pri{flex:2;font:700 15px system-ui,sans-serif}
+/* modal */
+.ov{position:fixed;inset:0;background:#000a;z-index:10;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;max-width:600px;width:100%;max-height:88vh;overflow:auto}
+.modal h2{margin:0 0 8px;color:var(--acc);font-size:19px}
+.modal .row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+table.ops{border-collapse:collapse;width:100%;font-size:13px}
+table.ops td,table.ops th{border-bottom:1px solid var(--line);padding:5px 4px;text-align:left;vertical-align:top}
+table.ops td:first-child{font-family:var(--mono);color:var(--amber);white-space:nowrap}
+table.ops td:nth-child(2){font-family:var(--mono);white-space:nowrap}
+table.ops th{color:var(--dim);font-weight:400}
+.unlock{font-family:var(--mono);color:var(--amber);font-size:20px;text-align:center;margin:12px 0;letter-spacing:.05em}
+.stats{font-family:var(--mono);color:var(--blue)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+/* ================= 機械 SEED-8 ================= */
+const hex2 = n => (n & 255).toString(16).toUpperCase().padStart(2, '0');
+const str = s => Array.from(s).map(c => c.charCodeAt(0));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const OPS = [
+  [0x00,'HLT',0,'停止する'],
+  [0x01,'IN', 0,'テープから1文字読んで A へ（テープの終わりなら 00）'],
+  [0x02,'OUT',0,'A を出力する'],
+  [0x03,'RWD',0,'テープを先頭に巻き戻す'],
+  [0x04,'TAX',0,'X ← A'],
+  [0x05,'TXA',0,'A ← X'],
+  [0x06,'INX',0,'X ← X+1'],
+  [0x07,'DEX',0,'X ← X−1'],
+  [0x10,'LDI',1,'A ← nn（数そのもの）'],
+  [0x11,'LD', 1,'A ← メモリ[nn]'],
+  [0x12,'ST', 1,'メモリ[nn] ← A'],
+  [0x13,'LDX',0,'A ← メモリ[X]'],
+  [0x14,'STX',0,'メモリ[X] ← A'],
+  [0x20,'ADI',1,'A ← A + nn'],
+  [0x21,'ADD',1,'A ← A + メモリ[nn]'],
+  [0x22,'SBI',1,'A ← A − nn'],
+  [0x23,'SUB',1,'A ← A − メモリ[nn]'],
+  [0x24,'SHL',0,'A ← A × 2'],
+  [0x30,'JMP',1,'nn 番地へ跳ぶ'],
+  [0x31,'JZ', 1,'A が 00 なら nn 番地へ跳ぶ'],
+  [0x32,'JNZ',1,'A が 00 でなければ nn 番地へ跳ぶ'],
+  [0x33,'JEQ',1,'直前の CMP が「等しい」なら nn へ跳ぶ'],
+  [0x34,'JLT',1,'直前の CMP が「A の方が小さい」なら nn へ跳ぶ'],
+  [0x40,'CMP',1,'A と nn を比べる（A は変わらない）'],
+];
+const OP = {}; OPS.forEach(o => OP[o[0]] = {code:o[0], m:o[1], arg:o[2], d:o[3]});
+
+function newVM(bytes, tape){
+  const mem = new Uint8Array(256);
+  for (let i = 0; i < bytes.length && i < 256; i++) mem[i] = bytes[i];
+  return {mem, pc:0, a:0, x:0, eq:false, lt:false, tape:tape.slice(), tp:0, out:[], steps:0, halted:false, err:null};
+}
+function step(v){
+  if (v.halted || v.err) return;
+  const m = v.mem, op = m[v.pc], n = m[(v.pc + 1) & 255];
+  const o = OP[op];
+  if (!o){ v.err = `${hex2(v.pc)}番地の ${hex2(op)} は命令ではありません`; return; }
+  let pc = (v.pc + 1 + o.arg) & 255;
+  switch (op){
+    case 0x00: v.halted = true; v.steps++; return;
+    case 0x01: v.a = v.tp < v.tape.length ? v.tape[v.tp++] : 0; break;
+    case 0x02: v.out.push(v.a); if (v.out.length > 3000) v.err = '出力が多すぎます'; break;
+    case 0x03: v.tp = 0; break;
+    case 0x04: v.x = v.a; break;
+    case 0x05: v.a = v.x; break;
+    case 0x06: v.x = (v.x + 1) & 255; break;
+    case 0x07: v.x = (v.x - 1) & 255; break;
+    case 0x10: v.a = n; break;
+    case 0x11: v.a = m[n]; break;
+    case 0x12: m[n] = v.a; break;
+    case 0x13: v.a = m[v.x]; break;
+    case 0x14: m[v.x] = v.a; break;
+    case 0x20: v.a = (v.a + n) & 255; break;
+    case 0x21: v.a = (v.a + m[n]) & 255; break;
+    case 0x22: v.a = (v.a - n) & 255; break;
+    case 0x23: v.a = (v.a - m[n]) & 255; break;
+    case 0x24: v.a = (v.a << 1) & 255; break;
+    case 0x30: pc = n; break;
+    case 0x31: if (v.a === 0) pc = n; break;
+    case 0x32: if (v.a !== 0) pc = n; break;
+    case 0x33: if (v.eq) pc = n; break;
+    case 0x34: if (v.lt) pc = n; break;
+    case 0x40: v.eq = v.a === n; v.lt = v.a < n; break;
+  }
+  v.pc = pc; v.steps++;
+}
+function runVM(bytes, tape, limit){
+  const v = newVM(bytes, tape);
+  while (!v.halted && !v.err){
+    if (v.steps >= limit){ v.err = `${limit}歩を超えても止まりません（無限ループ？）`; break; }
+    step(v);
+  }
+  return v;
+}
+
+/* ============ ラベル付き16進：正しい翻訳（検査用） ============ */
+// テープ仕様どおりの2パス翻訳（1-7 の期待値づくりと、翻訳機の答え合わせに使う）
+function asmTape(s){
+  const t = str(s), lab = {}, out = [];
+  const hv = c => c >= 0x41 ? c - 0x37 : c - 0x30;
+  for (let pass = 0; pass < 2; pass++){
+    let pos = 0;
+    for (let i = 0; i < t.length; i++){
+      const c = t[i];
+      if (c < 0x21) continue;
+      if (c === 0x3A){ i++; if (!pass) lab[t[i]] = pos; continue; }
+      if (c === 0x40){ i++; if (pass) out.push(lab[t[i]] ?? 0); pos++; continue; }
+      if (pass) out.push(((hv(c) << 4) + hv(t[i + 1] ?? 0)) & 255);
+      i++; pos++;
+    }
+  }
+  return out;
+}
+// 第2段階のソースを点検し、翻訳機に通すテープを作る
+function lint(src){
+  const errors = [], toks = [];
+  src.split('\n').forEach((line, li) => {
+    const ln = li + 1;
+    const h = line.indexOf('#'); if (h >= 0) line = line.slice(0, h);
+    for (let i = 0; i < line.length; i++){
+      const c = line[i];
+      if (c === ' ' || c === '\t' || c === '\r' || c === '　') continue;
+      if (c === ':' || c === '@'){
+        const l = line[i + 1];
+        if (!l || !/[a-z]/.test(l)){ errors.push(`${ln}行目: '${c}' の直後にラベル名（a〜z の小文字1文字）が必要です`); continue; }
+        if (line[i + 2] && /[0-9a-zA-Z]/.test(line[i + 2])) errors.push(`${ln}行目: ラベル名は1文字だけです（'${c}${l}${line[i+2]}…' の後に空白を）`);
+        toks.push({t:c, l, ln}); i++; continue;
+      }
+      if (/[0-9a-fA-F]/.test(c)){
+        const d = line[i + 1];
+        if (!d || !/[0-9a-fA-F]/.test(d)){ errors.push(`${ln}行目: 16進数は2桁ずつ書きます（'${c}' が1桁だけ）`); continue; }
+        toks.push({t:'b', v:parseInt(c + d, 16), ln}); i++; continue;
+      }
+      errors.push(`${ln}行目: 使えない文字 '${c}'`);
+    }
+  });
+  const lab = {}; let pos = 0;
+  toks.forEach(k => {
+    if (k.t === ':'){ if (k.l in lab) errors.push(`${k.ln}行目: ラベル '${k.l}' が二度つけられています`); lab[k.l] = pos; }
+    else pos++;
+  });
+  toks.forEach(k => { if (k.t === '@' && !(k.l in lab)) errors.push(`${k.ln}行目: ラベル '${k.l}' がどこにもありません`); });
+  if (pos > 256) errors.push(`プログラムが ${pos} バイトあります（メモリは 256 バイト）`);
+  const lines = []; let cur = [], curLn = toks.length ? toks[0].ln : 1;
+  toks.forEach(k => { if (k.ln !== curLn){ lines.push(cur.join(' ')); cur = []; curLn = k.ln; } cur.push(k.t === 'b' ? hex2(k.v) : k.t + k.l); });
+  if (cur.length) lines.push(cur.join(' '));
+  const tape = lines.join('\n');
+  return {errors, tape, bytes: errors.length ? [] : asmTape(tape)};
+}
+
+/* ================= 課題 ================= */
+const W = s => ({tape:str(s)});
+const P = [
+ {id:'1-1', st:1, mode:'hex', title:'最初の一声',
+  story:'機械はまだ何も知らない。メモリに直接書き込んだ数が、そのまま命令になる。いまメモリには「H と言って止まる」プログラムが入っている。',
+  task:'機械に <b>HI</b>（48 49）と出力させよう。',
+  hint:'<code>10 48</code> は「A に 48 を入れる」、<code>02</code> は「A を出力」、<code>00</code> は「停止」。最後の <code>00</code> の位置に何を足せばいいだろう？',
+  prefill:[0x10,0x48,0x02,0x00],
+  tests:[{tape:[], out:str('HI')}]},
+ {id:'1-2', st:1, mode:'hex', title:'こだま',
+  story:'テープ読み取り機が動いた。読んだものをそのまま返すだけの、最小のプログラムを書こう。',
+  task:'テープの文字を、終わり（00）まで順に出力する。',
+  hint:'IN → 00なら終わりへ（JZ）→ OUT → 先頭へ（JMP）。飛び先は「何番地か」を自分で数える。番地は表の左端と列から読める。',
+  tests:[W('ABC'), W('BOOT'), W(''), W('Hello!')].map(t => ({...t, out:t.tape}))},
+ {id:'1-3', st:1, mode:'hex', title:'足し算',
+  story:'計算させてみよう。ただし A は1つしかない。覚えておきたい数はメモリにしまう。',
+  task:'テープには数が2つずつ並ぶ。各組の和を出力する（256 以上は下2桁）。テープが終われば止まる。',
+  hint:'1つ目を <code>ST 80</code>（12 80）で 80 番地にしまい、2つ目を読んで <code>ADD 80</code>（21 80）。プログラムが 80 番地まで届かないなら、そこは自由なメモ用紙だ。',
+  tests:[{tape:[3,4],out:[7]},{tape:[1,2,10,20],out:[3,30]},{tape:[200,100],out:[44]},{tape:[],out:[]}]},
+ {id:'1-4', st:1, mode:'hex', title:'挿入地獄',
+  story:'昨日書いたカウントダウン（テープの数 n から 1 まで出力）が入っている。そこへ仕様変更が来た。途中に命令を差し込むと……後ろの番地が、全部ずれる。',
+  task:'各数の後に <b>,</b>（2C）を、最後に <b>!</b>（21）を出力するように直す。例：3 → <code>03 2C 02 2C 01 2C 21</code>',
+  hint:'「挿入」で 00 を差し込める。OUT のあとで「LDI 2C, OUT, LD 80」を差し込むと、A を取り戻せる。差し込んだ後ろを指していた飛び先（JZ の行き先）を数え直すのを忘れずに。',
+  prefill:[0x01,0x12,0x80,0x11,0x80,0x31,0x0E,0x02,0x22,0x01,0x12,0x80,0x30,0x03,0x00],
+  tests:[3,1,5].map(n => { const o = []; for (let i = n; i > 0; i--) o.push(i, 0x2C); o.push(0x21); return {tape:[n], out:o}; }),
+  after:'番地を数え直すのは、人間の仕事ではない。……そう思ったなら、もう半分は分かっている。'},
+ {id:'1-5', st:1, mode:'hex', title:'数字を読む',
+  story:'16進を手で打ち込むのはもう限界だ。機械自身に「文字で書いた16進」を読ませたい。まずは1文字から。',
+  task:'テープには文字 <code>0</code>〜<code>9</code>, <code>A</code>〜<code>F</code> が並ぶ。それぞれの値（00〜0F）を出力する。',
+  hint:'"0" は 30、"9" は 39、"A" は 41、"F" は 46。<code>CMP 41</code> して <code>JLT</code> なら数字なので 30 を引く。そうでなければ 37 を引く。',
+  tests:[W('0123456789ABCDEF'), W('C0DE'), W('7')].map(t => ({...t, out:t.tape.map(c => c >= 0x41 ? c - 0x37 : c - 0x30)}))},
+ {id:'1-6', st:1, mode:'hex', title:'最初の翻訳機',
+  story:'<code>4</code><code>8</code> という2つの文字を、本物のバイト 48 にする。これができれば、プログラムを「文字」で書けるようになる。最初の翻訳機だ。',
+  task:'テープには2桁ずつの16進の文字と、区切りの空白（20）・改行（0A）が並ぶ。空白と改行は読み飛ばし、各2桁をバイトにして出力する。',
+  hint:'空白と改行はどちらも 21 未満なので <code>CMP 21</code> + <code>JLT</code> でまとめて飛ばせる。上の桁は <code>SHL</code>（×2）を4回で ×16。それをメモリにしまい、下の桁を読んで足す。数字の変換（1-5）は「読込」で持ってこられる。',
+  tests:[W('48 49'), W('4F 4B\n21'), W('00FF7F 10'), W('')].map(t => ({...t, out:asmTape(String.fromCharCode(...t.tape))}))},
+ {id:'1-7', st:1, mode:'hex', big:true, title:'ラベル翻訳機',
+  story:'番地を数えるのも、機械にやらせよう。番地に名前（ラベル）をつけ、名前で跳ぶ。この翻訳機が完成すれば、もう二度と番地を数えなくていい。',
+  task:`1-6 の翻訳機に、ラベルを足す。テープの仕様：
+   <ul>
+   <li>空白・改行（21 未満）は読み飛ばす</li>
+   <li><code>:x</code> … 名前 x（1文字）を「この位置の番地」として覚える。バイトは出さない</li>
+   <li><code>@x</code> … 名前 x の番地を1バイトとして出力する（後ろで定義される名前もある）</li>
+   <li>それ以外は2桁の16進 → 1バイト</li></ul>
+   例：<code>:a 01 31 @e 02 30 @a :e 00</code> → <code>01 31 07 02 30 00 00</code>`,
+  hint:`後ろで定義される名前があるので、テープを<b>2回</b>読む。<br>
+   1周目：出力はせず、番地を数える。<code>:</code> が来たら次の文字（名前）を読み、<code>TAX</code> して <code>STX</code> で「名前の文字コード番地」に今の番地をしまう（a〜z は 61〜7A 番地。プログラムをそこまで伸ばさないこと）。<code>:</code> 以外なら、もう1文字読み捨てて番地を1増やすだけでいい（<code>@x</code> も2桁の16進も、2文字で1バイトだから）。<br>
+   テープが終わったら <code>RWD</code> で巻き戻し、2周目：<code>:x</code> は読み飛ばし、<code>@x</code> は名前を読んで <code>TAX</code>→<code>LDX</code>→<code>OUT</code>、それ以外は 1-6 と同じ。`,
+  tests:['10 48 02 00', ':a 01 31 @e 02 30 @a :e 00', '@z :z', ':s 01 31 @e\n12 80 01\n21 80 02 30 @s\n:e 00', ':b :c 05 @c @b', '30 @x 00 00 :x 10 @y :y 00']
+    .map(s => ({tape:str(s), out:asmTape(s)}))},
+
+ {id:'2-1', st:2, mode:'label', title:'掛け算',
+  story:'あなたの翻訳機が動いた。ここからのコードは、あなたが16進で書いたあの翻訳機が機械語に直す。ラベルがあれば、ループはもうこわくない。',
+  task:'テープには数が2つずつ並ぶ。各組の積を出力する（積は 256 未満）。テープが終われば止まる。',
+  hint:'掛け算命令はない。a を b 回足す。a, b, 合計をメモリ（80, 81, 82 番地など）に置き、b が 0 になるまでループ。',
+  prefill:`# ラベルの書き方
+#   :x  … この場所に名前 x をつける（バイトは出ない）
+#   @x  … 名前 x の番地（1バイト）に置き換わる
+#   #   … そこから行末までは注釈（翻訳機には渡らない）
+#
+# 例：1-2「こだま」をラベルで書くと
+#   :l 01 31 @e 02 30 @l
+#   :e 00
+
+`,
+  tests:[{tape:[3,4],out:[12]},{tape:[2,5,7,1],out:[10,7]},{tape:[15,15],out:[225]},{tape:[],out:[]}]},
+ {id:'2-2', st:2, mode:'label', title:'逆さま',
+  story:'翻訳機の2周目は、テープを巻き戻して読み直す。今度はメモリに貯めて、逆から読み出してみよう。',
+  task:'テープの文字列を逆順に出力する。',
+  hint:'X をしおりにする。<code>10 A0 04</code>（X=A0）から、読むたび <code>STX</code> → <code>INX</code>。終わったら <code>DEX</code> → <code>LDX</code> → <code>OUT</code> を、X が A0 に戻るまで（<code>TXA</code> して <code>CMP A0</code>）。',
+  tests:[W('ABC'), W('BOOTSTRAP'), W(''), W('Z')].map(t => ({...t, out:t.tape.slice().reverse()}))},
+ {id:'2-3', st:2, mode:'label', title:'大文字',
+  story:'これから先の翻訳機は、もっと文字を扱う。文字の小手調べ。',
+  task:'テープを出力する。ただし小文字 a〜z（61〜7A）は大文字（20 引く）にする。それ以外はそのまま。',
+  hint:'<code>CMP 61</code> + <code>JLT</code> で「a より前」、<code>CMP 7B</code> + <code>JLT</code> で「z 以下」。CMP は A を変えない。',
+  tests:[W('hello, World!'), W('abc xyz'), W('`a{z'), W('')].map(t => ({...t, out:t.tape.map(c => c >= 0x61 && c <= 0x7A ? c - 0x20 : c)}))},
+ {id:'2-4', st:2, mode:'label', big:true, title:'名前で呼ぶ',
+  story:'ラベルのおかげで番地は数えなくてよくなった。それでも 31 が JZ で 33 が JEQ……と表を引き続けるのはつらい。命令を名前で呼びたい。次の翻訳機の心臓部、「名前 → 番号」を作ろう。',
+  task:'テープには命令名が空白か改行で区切られて並ぶ（<code>HLT IN OUT JMP JZ JNZ</code> のどれか）。それぞれの番号（00 01 02 30 31 32）を出力する。',
+  hint:'1文字目で H / I / O / J に分かれる。J なら2文字目で M / Z / N。残りの文字は読み捨てればいい。',
+  tests:['HLT','IN OUT HLT','JMP JZ JNZ\nOUT','IN\nJZ OUT JMP'].map(s => {
+    const T = {HLT:0,IN:1,OUT:2,JMP:0x30,JZ:0x31,JNZ:0x32}; return {tape:str(s), out:s.split(/\s+/).map(w => T[w])}; }),
+  after:'名前で命令を書く——アセンブリ言語は目の前だ。'},
+];
+const PZ = {}; P.forEach(p => PZ[p.id] = p);
+const STAGES = [
+  {n:1, name:'第1段階　16進', lang:'10 48 02 00', desc:'メモリに数を直接書き込む。番地は全部、自分で数える。'},
+  {n:2, name:'第2段階　ラベル付き16進', lang:':l 01 31 @e 02 30 @l', desc:'番地に名前をつける。翻訳はあなたが書いた翻訳機がする。'},
+  {n:3, name:'第3段階　ニーモニック', lang:'loop: IN / JZ end / OUT', desc:'命令を名前で書くアセンブリ言語。試作版ではここまで。', locked:true},
+  {n:4, name:'第4段階　小さなC', lang:'while (c = getc()) putc(c);', desc:'式と変数と関数。ここからは、言語が言語を育てる。', locked:true},
+  {n:5, name:'第？段階　拾ったコンパイラ', lang:'cc: ELF 64-bit, stripped', desc:'廃墟のサーバに、完成品のCコンパイラが残っているという。使えば何段階も飛ばせる。だが、それを作ったのは誰だ？', locked:true},
+];
+const STEP_LIMIT = 20000, TR_LIMIT = 300000;
+
+/* ================= 保存 ================= */
+const KEY = 'bootstrap-proto-v1';
+let SAVE = {code:{}, solved:{}, translator:null};
+try { const j = JSON.parse(localStorage.getItem(KEY)); if (j && j.code) SAVE = Object.assign(SAVE, j); } catch(e){}
+function persist(){ try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch(e){} }
+
+function unlocked(p){
+  if (p.st === 2 && !SAVE.translator) return false;
+  const same = P.filter(q => q.st === p.st);
+  const i = same.indexOf(p);
+  return i === 0 || !!SAVE.solved[same[i - 1].id];
+}
+function getCode(p){
+  if (p.id in SAVE.code) return SAVE.code[p.id];
+  return p.mode === 'hex' ? (p.prefill || []).slice() : (p.prefill || '');
+}
+
+/* ================= 画面状態 ================= */
+const app = document.getElementById('app');
+const S = {screen:'title', p:null, cur:0, pend:null, undo:[], vm:null, ti:0, timer:null, results:null, msg:null, built:null};
+
+function go(screen, id){
+  stopPlay();
+  S.screen = screen;
+  if (id){ S.p = PZ[id]; S.cur = 0; S.pend = null; S.undo = []; S.vm = null; S.ti = 0; S.results = null; S.msg = null; S.built = null; }
+  render(); window.scrollTo(0, 0);
+}
+function render(){
+  if (S.screen === 'title') renderTitle();
+  else if (S.screen === 'map') renderMap();
+  else renderPuzzle();
+}
+
+function renderTitle(){
+  const started = Object.keys(SAVE.solved).length > 0;
+  app.innerHTML = `<div class="title">
+    <h1>BOOTSTRAP</h1><div class="sub">― 16進エディタからの再建 ―</div>
+    <div class="prose">
+      <p>ある朝、世界中のコンパイラが消えた。</p>
+      <p>実行ファイルも、ソースも、ツールチェーンも。コンパイラを作るためのコンパイラさえ残っていない。</p>
+      <p>残ったのは古い機械 <b class="mono">SEED-8</b> が1台と、そのメモリを直接書き換える16進エディタだけ。</p>
+      <p>手で書けるものを書き、それを使って次の道具を書く。自分の靴ひもを引いて自分を持ち上げるように——<b>ブートストラップ</b>だ。</p>
+      <p class="mono" style="color:var(--acc)">&gt; _<span class="cursor"></span></p>
+    </div>
+    <button class="pri" data-act="map" style="font-size:17px;padding:12px 28px">${started ? 'つづきから' : 'はじめる'}</button>
+    <div style="margin-top:14px"><button data-act="manual">機械の説明書</button></div>
+  </div>`;
+}
+
+function renderMap(){
+  app.innerHTML = `<div class="bar"><button data-act="title">≡</button><div class="ttl">再建の道のり</div><button data-act="manual">命令表</button></div>` +
+  STAGES.map(s => {
+    const ps = P.filter(p => p.st === s.n);
+    const open = !s.locked && (s.n === 1 || SAVE.translator);
+    return `<div class="stage ${open ? '' : 'locked'}">
+      <h2>${open ? '' : '🔒 '}${s.name}</h2><div class="lang">${esc(s.lang)}</div><p>${s.desc}</p>
+      ${open ? `<div class="plist">${ps.map(p => {
+        const ok = unlocked(p);
+        return `<button data-act="open" data-id="${p.id}" class="${SAVE.solved[p.id] ? 'done' : ''} ${p.big ? 'big' : ''}" ${ok ? '' : 'disabled'}>
+          <span class="n">${p.id}${p.big ? '　★翻訳機' : ''}</span>${ok ? p.title : '？？？'}</button>`; }).join('')}</div>` :
+        (s.n === 2 ? '<p class="mono" style="color:var(--amber)">解放条件：1-7 ラベル翻訳機</p>' : '')}
+    </div>`;
+  }).join('') + `<p class="dim" style="font-size:12px;text-align:center">進み具合はこの端末のブラウザに保存されます。 <button data-act="wipe" style="font-size:12px;padding:3px 8px">最初から</button></p>`;
+}
+
+/* ---------- 課題画面 ---------- */
+function curBytes(){
+  const p = S.p;
+  if (p.mode === 'hex') return getCode(p);
+  if (!S.built) S.built = build(getCode(p));
+  return S.built.bytes || null;
+}
+// 第2段階：プレイヤーの翻訳機で翻訳する
+function build(src){
+  const L = lint(src);
+  if (L.errors.length) return {errors:L.errors};
+  const v = runVM(SAVE.translator, str(L.tape), TR_LIMIT);
+  if (v.err) return {errors:['あなたの翻訳機（1-7）が失敗しました：' + v.err]};
+  const bytes = v.out.slice(0, 256);
+  const diff = bytes.length !== L.bytes.length || bytes.some((b, i) => b !== L.bytes[i]);
+  return {bytes, steps:v.steps, tape:L.tape,
+    warn: diff ? 'あなたの翻訳機の出力が、仕様どおりの翻訳と食い違っています。このまま動かしますが、1-7 を見直した方がいいかもしれません。' : null};
+}
+
+function renderPuzzle(){
+  const p = S.p, hexMode = p.mode === 'hex';
+  const st = STAGES[p.st - 1];
+  app.innerHTML = `<div class="bar"><button data-act="map">← 地図</button><div class="ttl">${p.id}　${p.title}</div><button data-act="manual">命令表</button></div>
+  <details class="card" open><summary>課題</summary>
+    <div class="story">${p.story}</div>
+    <div class="task">${p.task}</div>
+    <details class="hint"><summary>ヒント</summary><div>${p.hint}</div></details>
+  </details>
+  <div class="card"><h3>テスト <small>（タップで機械に読み込む）</small></h3><div class="tests" id="tests"></div></div>
+  <div class="card"><h3>${hexMode ? 'メモリ（16進エディタ）' : 'ソース（ラベル付き16進）'}</h3>
+    ${hexMode ? `<div id="grid"></div><div class="info" id="info"></div>
+      <div class="tools"><button data-act="text">テキストで編集</button><button data-act="import">読込</button><button data-act="reset">初期状態に戻す</button></div>`
+    : `<textarea class="src" id="src" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off">${esc(getCode(p))}</textarea>
+      <div class="tools"><button data-act="import">読込</button><button data-act="reset">初期状態に戻す</button></div>`}
+  </div>
+  ${hexMode ? '' : `<div class="card"><h3>翻訳結果 <small>（あなたの翻訳機による）</small></h3><div id="built"></div></div>`}
+  <div class="card"><h3>機械 SEED-8</h3>
+    <div class="ctrl"><button data-act="rst">⏮ 最初</button><button data-act="step">⏭ 1歩</button><button data-act="play" id="playBtn">▶ 再生</button><button data-act="fin">⏩ 最後</button></div>
+    <div id="mach"></div>
+  </div>
+  <div id="result"></div>
+  <div class="pad">${hexMode ? `
+    <div class="keys">${'0123456789ABCDEF'.split('').map(k => `<button data-act="k" data-k="${k}">${k}</button>`).join('')}</div>
+    <div class="keys2"><button data-act="left">◀</button><button data-act="right">▶</button><button data-act="ins">挿入</button><button data-act="del">削除</button><button data-act="undo">↶ 戻す</button></div>
+    <div class="ktool" style="margin-top:5px"><button class="pri" data-act="check">検証する</button></div>`
+  : `<div class="ktool">${[':', '@', '#', '␣', '↵'].map(k => `<button data-act="ins-t" data-k="${k}">${k}</button>`).join('')}<button class="pri" data-act="check">検証する</button></div>`}</div>`;
+  if (!hexMode){
+    const ta = document.getElementById('src');
+    ta.addEventListener('input', () => { SAVE.code[p.id] = ta.value; persist(); S.built = null; S.vm = null; S.results = null; stopPlay(); drawBuilt(); drawMach(); drawTests(); });
+  }
+  drawAll();
+}
+function drawAll(){ drawTests(); if (S.p.mode === 'hex'){ drawGrid(); drawInfo(); } else drawBuilt(); drawMach(); drawResult(); }
+
+function fmtBytes(a, max = 40){ if (!a.length) return '<span class="dim">（なし）</span>'; const s = a.slice(0, max).map(hex2).join(' '); return s + (a.length > max ? ' …' : ''); }
+function asciiOf(a){ return a.every(c => c >= 0x20 && c < 0x7F) && a.length ? ` <span class="dim">"${esc(String.fromCharCode(...a))}"</span>` : ''; }
+function drawTests(){
+  const el = document.getElementById('tests'); if (!el) return;
+  el.innerHTML = S.p.tests.map((t, i) => {
+    const r = S.results && S.results[i];
+    return `<div class="test ${i === S.ti ? 'sel' : ''} ${r ? (r.pass ? 'ok' : 'ng') : ''}" data-act="pick" data-i="${i}">
+      <span class="k">#${i + 1} テープ:</span> ${fmtBytes(t.tape)}${asciiOf(t.tape)}<br><span class="k">　 期待:</span> ${fmtBytes(t.out)}${asciiOf(t.out)}</div>`;
+  }).join('');
+}
+function gridHTML(bytes, opt){
+  const len = bytes.length;
+  let hi = len;
+  if (opt.vm) for (let i = 255; i >= len; i--) if (opt.vm.mem[i]){ hi = i + 1; break; }
+  const n = Math.min(256, Math.max(32, Math.ceil((Math.max(len + 1, hi) + 8) / 8) * 8));
+  let h = '';
+  const pc = opt.vm ? opt.vm.pc : -1;
+  const pcArg = opt.vm && OP[opt.vm.mem[pc]] && OP[opt.vm.mem[pc]].arg ? (pc + 1) & 255 : -1;
+  for (let i = 0; i < n; i++){
+    if (i % 8 === 0) h += `<div class="ad">${hex2(i)}</div>`;
+    const v = opt.vm ? opt.vm.mem[i] : bytes[i];
+    let txt = i < len || opt.vm ? hex2(v) : '··';
+    let cls = 'c' + (i >= len && !(opt.vm && v) ? ' e' : '');
+    if (i === opt.cur){ cls += ' cur'; if (S.pend !== null) txt = S.pend + '_'; }
+    if (i === pc && !opt.vm.halted) cls += ' pc'; else if (i === pcArg && !opt.vm.halted) cls += ' arg';
+    h += `<div class="${cls}" ${opt.edit ? `data-act="cell" data-i="${i}"` : ''}>${txt}</div>`;
+  }
+  return `<div class="grid ${opt.edit ? '' : 'ro'}">${h}</div>`;
+}
+function drawGrid(){
+  const el = document.getElementById('grid'); if (!el) return;
+  el.innerHTML = gridHTML(getCode(S.p), {cur:S.cur, vm:S.vm && S.vm.steps ? S.vm : null, edit:true});
+}
+function drawInfo(){
+  const el = document.getElementById('info'); if (!el) return;
+  const b = getCode(S.p), v = b[S.cur];
+  if (v === undefined){ el.innerHTML = `[${hex2(S.cur)}] 空き　<span class="dim">（数を打つとここに書かれる）</span>`; return; }
+  const o = OP[v];
+  el.innerHTML = `[${hex2(S.cur)}] = ${hex2(v)}　` + (o ? `命令なら <b>${o.m}${o.arg ? ' nn' : ''}</b>：${o.d}` : '<span class="dim">命令ではない数（データや飛び先なら可）</span>');
+}
+function drawBuilt(){
+  const el = document.getElementById('built'); if (!el) return;
+  if (!S.built) S.built = build(getCode(S.p));
+  const B = S.built;
+  if (B.errors){ el.innerHTML = B.errors.slice(0, 6).map(e => `<div class="msg err">✗ ${esc(e)}</div>`).join(''); return; }
+  el.innerHTML = gridHTML(B.bytes, {cur:-1, vm:S.vm && S.vm.steps ? S.vm : null, edit:false}) +
+    `<div class="msg dim">${B.bytes.length} バイト　/ 翻訳機は ${B.steps} 歩で翻訳</div>` +
+    (B.warn ? `<div class="msg warn">⚠ ${B.warn}</div>` : '');
+}
+function ensureVM(){
+  if (!S.vm){ const b = curBytes(); if (!b) return null; S.vm = newVM(b, S.p.tests[S.ti].tape); }
+  return S.vm;
+}
+function drawMach(){
+  const el = document.getElementById('mach'); if (!el) return;
+  const v = ensureVM();
+  if (!v){ el.innerHTML = '<div class="msg err">翻訳できないので動かせません。</div>'; return; }
+  const t = S.p.tests[S.ti];
+  const status = v.err ? `<span style="color:var(--red)">エラー</span>` : v.halted ? '<span style="color:var(--acc)">停止</span>' : v.steps ? '実行中' : '待機';
+  const o = OP[v.mem[v.pc]];
+  const next = v.halted || v.err ? '—' : o ? o.m + (o.arg ? ' ' + hex2(v.mem[(v.pc + 1) & 255]) : '') : '??';
+  const tape = t.tape.length ? t.tape.map((c, i) => `<span class="t ${i === v.tp ? 'now' : i < v.tp ? 'used' : ''}">${c > 0x20 && c < 0x7F ? esc(String.fromCharCode(c)) : hex2(c)}</span>`).join('') + `<span class="t ${v.tp >= t.tape.length ? 'now' : ''}">■</span>` : '<span class="t now">■</span><span class="dim">（空）</span>';
+  const outs = v.out.map((c, i) => `<span class="t ${t.out[i] === c ? '' : 'bad'}">${hex2(c)}</span>`).join(' ');
+  el.innerHTML = `<div class="regs">
+    <div>PC <b>${hex2(v.pc)}</b></div><div>A <b>${hex2(v.a)}</b></div><div>X <b>${hex2(v.x)}</b></div>
+    <div>EQ <b>${v.eq ? '1' : '0'}</b> LT <b>${v.lt ? '1' : '0'}</b></div><div>歩数 <b>${v.steps}</b></div><div>${status}</div></div>
+    <div class="strip"><span class="lbl">次</span>${next}</div>
+    <div class="strip"><span class="lbl">テープ #${S.ti + 1}</span>${tape}</div>
+    <div class="strip"><span class="lbl">出力</span>${outs || '<span class="dim">（なし）</span>'}${asciiOf(v.out)}</div>
+    ${v.err ? `<div class="msg err">✗ ${esc(v.err)}</div>` : ''}`;
+  const g = S.p.mode === 'hex' ? drawGrid : drawBuilt; g();
+}
+function drawResult(){
+  const el = document.getElementById('result'); if (!el) return;
+  el.innerHTML = S.msg ? `<div class="card"><div class="msg ${S.msg.cls}">${S.msg.html}</div></div>` : '';
+}
+
+/* ---------- 実行 ---------- */
+function stopPlay(){ if (S.timer){ clearInterval(S.timer); S.timer = null; } const b = document.getElementById('playBtn'); if (b) b.textContent = '▶ 再生'; }
+function doStep(n){
+  const v = ensureVM(); if (!v) return;
+  for (let i = 0; i < n && !v.halted && !v.err; i++){ step(v); if (v.steps >= STEP_LIMIT){ v.err = `${STEP_LIMIT}歩を超えても止まりません（無限ループ？）`; } }
+  if (v.halted || v.err) stopPlay();
+  drawMach();
+}
+function check(){
+  stopPlay();
+  const p = S.p, b = curBytes();
+  if (!b){ S.msg = {cls:'err', html:'翻訳エラーを直してください。'}; drawResult(); document.getElementById('result').scrollIntoView({behavior:'smooth', block:'center'}); return; }
+  S.results = p.tests.map(t => {
+    const v = runVM(b, t.tape, STEP_LIMIT);
+    const pass = !v.err && v.out.length === t.out.length && v.out.every((c, i) => c === t.out[i]);
+    return {pass, v};
+  });
+  const bad = S.results.findIndex(r => !r.pass);
+  drawTests();
+  if (bad < 0){
+    const steps = S.results.reduce((s, r) => s + r.v.steps, 0);
+    const first = !SAVE.solved[p.id];
+    SAVE.solved[p.id] = {size:b.length, steps};
+    if (p.id === '1-7') SAVE.translator = b.slice();
+    persist();
+    S.msg = {cls:'ok', html:`✓ 全テスト通過　<span class="stats">${b.length} バイト / 合計 ${steps} 歩</span>`};
+    drawResult();
+    clearModal(p, b.length, steps, first);
+  } else {
+    const r = S.results[bad], t = p.tests[bad];
+    let why = r.v.err ? esc(r.v.err) : `出力が違います。<br><span class="mono">期待 ${fmtBytes(t.out)}<br>実際 ${fmtBytes(r.v.out)}</span>`;
+    S.msg = {cls:'err', html:`✗ テスト #${bad + 1} で失敗：${why}<br><small>テスト #${bad + 1} を機械に読み込みました。「1歩」で追いかけられます。</small>`};
+    S.ti = bad; S.vm = null; drawAll();
+    document.getElementById('result').scrollIntoView({behavior:'smooth', block:'center'});
+  }
+}
+
+/* ---------- 編集（16進） ---------- */
+function setCode(b){ SAVE.code[S.p.id] = b; persist(); S.vm = null; S.results = null; S.msg = null; stopPlay(); }
+function pushUndo(){ S.undo.push(getCode(S.p).slice()); if (S.undo.length > 200) S.undo.shift(); }
+function key(d){
+  const b = getCode(S.p).slice();
+  if (S.cur > b.length || S.cur > 255) return;
+  if (S.pend === null){ S.pend = d; drawGrid(); return; }
+  pushUndo();
+  b[S.cur] = parseInt(S.pend + d, 16); S.pend = null;
+  setCode(b); S.cur = Math.min(S.cur + 1, 255);
+  drawAll();
+}
+function editOp(act){
+  S.pend = null;
+  const b = getCode(S.p).slice();
+  if (act === 'left') S.cur = Math.max(0, S.cur - 1);
+  else if (act === 'right') S.cur = Math.min(b.length, S.cur + 1, 255);
+  else if (act === 'ins'){ if (S.cur > b.length || b.length >= 256) return; pushUndo(); b.splice(S.cur, 0, 0); setCode(b); }
+  else if (act === 'del'){ if (S.cur >= b.length) { if (S.cur > 0 && S.cur === b.length){ pushUndo(); b.pop(); setCode(b); S.cur--; } } else { pushUndo(); b.splice(S.cur, 1); setCode(b); } }
+  else if (act === 'bs'){ if (S.cur === 0) return; pushUndo(); b.splice(S.cur - 1, 1); setCode(b); S.cur--; }
+  else if (act === 'undo'){ if (!S.undo.length) return; setCode(S.undo.pop()); S.cur = Math.min(S.cur, getCode(S.p).length); }
+  drawAll();
+}
+
+/* ---------- モーダル ---------- */
+function modal(html){
+  const d = document.createElement('div'); d.className = 'ov';
+  d.innerHTML = `<div class="modal">${html}</div>`;
+  d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.remove(); });
+  document.body.appendChild(d); return d;
+}
+function manual(){
+  modal(`<h2>SEED-8 命令表</h2>
+  <p style="font-size:14px">メモリ 256 バイト（00〜FF 番地）。プログラムは 00 番地から置かれ、00 番地から動き出す。レジスタは <b>A</b>（計算用）と <b>X</b>（しおり用）。数はすべて 00〜FF で、あふれると下2桁だけ残る。<br>
+  2バイト命令は「命令 nn」の順に並べる。例：<code>10 48</code> = A に 48 を入れる。</p>
+  <table class="ops"><tr><th>番号</th><th>名前</th><th>働き</th></tr>
+  ${OPS.map(o => `<tr><td>${hex2(o[0])}${o[2] ? ' nn' : ''}</td><td>${o[1]}</td><td>${o[3]}</td></tr>`).join('')}</table>
+  <p style="font-size:13px" class="dim">文字コード：空白 20 / 改行 0A / "0"〜"9" 30〜39 / "A"〜"Z" 41〜5A / "a"〜"z" 61〜7A / ":" 3A / "@" 40<br>
+  命令名は人間向けのあだ名。機械が分かるのは番号だけ。</p>
+  <div class="row"><button class="pri" data-close>閉じる</button></div>`);
+}
+function textEdit(){
+  const b = getCode(S.p);
+  const d = modal(`<h2>テキストで編集</h2><p style="font-size:14px">16進を2桁ずつ。空白・改行は自由。</p>
+    <textarea class="src" style="min-height:160px" spellcheck="false" autocapitalize="off">${b.map(hex2).join(' ')}</textarea>
+    <div class="msg err" id="terr"></div>
+    <div class="row"><button data-close>やめる</button><button class="pri" id="tok">反映</button></div>`);
+  d.querySelector('#tok').onclick = () => {
+    const t = d.querySelector('textarea').value.replace(/\s+/g, '');
+    if (!/^([0-9a-fA-F]{2})*$/.test(t)){ d.querySelector('#terr').textContent = '16進の2桁ずつになっていません'; return; }
+    if (t.length / 2 > 256){ d.querySelector('#terr').textContent = '256 バイトを超えています'; return; }
+    pushUndo(); setCode((t.match(/../g) || []).map(x => parseInt(x, 16))); S.cur = 0; d.remove(); drawAll();
+  };
+}
+function importCode(){
+  const p = S.p;
+  const list = P.filter(q => q.mode === p.mode && q.id !== p.id && q.id in SAVE.code && unlocked(q));
+  if (!list.length){ modal('<h2>読込</h2><p>読み込めるコードがまだありません。</p><div class="row"><button class="pri" data-close>閉じる</button></div>'); return; }
+  const d = modal(`<h2>読込</h2><p style="font-size:14px">他の課題のコードで、いまのコードを置き換えます（「戻す」で取り消せます）。</p>
+    <div style="display:flex;flex-direction:column;gap:6px">${list.map(q => `<button data-id="${q.id}" style="text-align:left">${q.id} ${q.title} ${SAVE.solved[q.id] ? '✓' : ''}</button>`).join('')}</div>
+    <div class="row"><button data-close>やめる</button></div>`);
+  d.querySelectorAll('[data-id]').forEach(btn => btn.onclick = () => {
+    const c = SAVE.code[btn.dataset.id];
+    if (p.mode === 'hex'){ pushUndo(); setCode(c.slice()); S.cur = 0; drawAll(); }
+    else { SAVE.code[p.id] = c; persist(); renderPuzzle(); }
+    d.remove();
+  });
+}
+function clearModal(p, size, steps, first){
+  const next = P[P.indexOf(p) + 1];
+  let body = `<h2>課題クリア</h2><p class="stats">${p.id} ${p.title}<br>${size} バイト ／ 合計 ${steps} 歩</p>`;
+  if (p.after) body += `<div class="story">${p.after}</div>`;
+  if (p.id === '1-7'){
+    body += `<div class="unlock">▼ 段階解放 ▼<br>ラベル付き16進</div>
+    <p>あなたが一字一字、番地を数えて書いた ${size} バイト。これがあなたの最初の本格的な翻訳機だ。</p>
+    <p>第2段階からのコードは、<b>この翻訳機</b>が機械語に直す。もう番地は数えなくていい。</p>
+    <div class="story">この翻訳機は、あなたが書いた。だから信じられる。<br>……あなたが書いたものなら。</div>`;
+  }
+  if (p.id === '2-4'){
+    body += `<div class="unlock">試作版はここまで</div>
+    <p>次の段階では、いま作った「名前 → 番号」を芯に、ニーモニックのアセンブラを、ラベル付き16進で書くことになる。その次は小さなC——。</p>
+    <div class="story">道の先、廃墟のサーバに「完成品のCコンパイラ」のバイナリが残っているという噂がある。使えば、何段階も飛ばせる。<br>
+    だが、そのコンパイラのソースに何も怪しいところがなくても——コンパイラ自身が、自分をコンパイルするたびに裏口を仕込み直していたら？<br>
+    <span class="dim">（Ken Thompson「Reflections on Trusting Trust」1984）</span></div>`;
+  }
+  const nextOk = next && unlocked(next);
+  body += `<div class="row"><button data-close>このまま</button>${nextOk ? `<button class="pri" id="gonext">次へ：${next.id} ${next.title}</button>` : `<button class="pri" id="gomap">地図へ</button>`}</div>`;
+  const d = modal(body);
+  const gn = d.querySelector('#gonext'); if (gn) gn.onclick = () => { d.remove(); go('puzzle', next.id); };
+  const gm = d.querySelector('#gomap'); if (gm) gm.onclick = () => { d.remove(); go('map'); };
+}
+
+/* ---------- 入力 ---------- */
+app.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  const a = t.dataset.act;
+  switch (a){
+    case 'title': go('title'); break;
+    case 'map': go('map'); break;
+    case 'manual': manual(); break;
+    case 'open': go('puzzle', t.dataset.id); break;
+    case 'wipe':
+      if (confirm('すべての進み具合とコードを消して最初からにしますか？')){ SAVE = {code:{}, solved:{}, translator:null}; persist(); go('title'); }
+      break;
+    case 'k': key(t.dataset.k); break;
+    case 'left': case 'right': case 'ins': case 'del': case 'undo': editOp(a); break;
+    case 'cell': S.pend = null; S.cur = Math.min(+t.dataset.i, getCode(S.p).length); drawGrid(); drawInfo(); break;
+    case 'text': textEdit(); break;
+    case 'import': importCode(); break;
+    case 'reset':
+      if (confirm('この課題のコードを初期状態に戻しますか？')){
+        if (S.p.mode === 'hex'){ pushUndo(); setCode((S.p.prefill || []).slice()); S.cur = 0; drawAll(); }
+        else { delete SAVE.code[S.p.id]; persist(); S.built = null; S.vm = null; renderPuzzle(); }
+      }
+      break;
+    case 'ins-t': {
+      const ta = document.getElementById('src'); const ch = {'␣':' ', '↵':'\n'}[t.dataset.k] || t.dataset.k;
+      const s = ta.selectionStart, en = ta.selectionEnd;
+      ta.setRangeText(ch, s, en, 'end'); ta.dispatchEvent(new Event('input')); ta.focus();
+      break; }
+    case 'pick': stopPlay(); S.ti = +t.dataset.i; S.vm = null; drawTests(); drawMach(); break;
+    case 'rst': stopPlay(); S.vm = null; drawMach(); break;
+    case 'step': stopPlay(); doStep(1); break;
+    case 'fin': stopPlay(); doStep(STEP_LIMIT); break;
+    case 'play':
+      if (S.timer){ stopPlay(); break; }
+      { const v = ensureVM(); if (!v) break; if (v.halted || v.err){ S.vm = null; ensureVM(); } }
+      t.textContent = '⏸ 停止';
+      S.timer = setInterval(() => doStep(1), 140);
+      break;
+    case 'check': check(); break;
+  }
+});
+document.addEventListener('keydown', e => {
+  if (S.screen !== 'puzzle' || S.p.mode !== 'hex' || document.querySelector('.ov')) return;
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  const k = e.key;
+  if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z'){ e.preventDefault(); editOp('undo'); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/^[0-9a-fA-F]$/.test(k)){ e.preventDefault(); key(k.toUpperCase()); }
+  else if (k === 'ArrowLeft'){ e.preventDefault(); editOp('left'); }
+  else if (k === 'ArrowRight' || k === ' '){ e.preventDefault(); editOp('right'); }
+  else if (k === 'ArrowUp'){ e.preventDefault(); S.pend = null; S.cur = Math.max(0, S.cur - 8); drawGrid(); drawInfo(); }
+  else if (k === 'ArrowDown'){ e.preventDefault(); S.pend = null; S.cur = Math.min(getCode(S.p).length, S.cur + 8); drawGrid(); drawInfo(); }
+  else if (k === 'Backspace'){ e.preventDefault(); if (S.pend !== null){ S.pend = null; drawGrid(); } else editOp('bs'); }
+  else if (k === 'Delete'){ e.preventDefault(); editOp('del'); }
+  else if (k === 'Insert'){ e.preventDefault(); editOp('ins'); }
+  else if (k === 'Enter'){ e.preventDefault(); check(); }
+});
+
+window.__boot = {P, PZ, runVM, asmTape, lint, build, SAVE: () => SAVE};
+render();
+</script>
+</body>
+</html>
