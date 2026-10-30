@@ -35,6 +35,15 @@ details.card[open]>summary::before{content:"▾ ";}
 .task{margin:8px 0}
 .hint{margin-top:8px;font-size:14px}
 .hint summary{color:var(--amber);cursor:pointer}
+.learn{margin-top:10px;font-size:14px;background:#0e1a1f;border:1px solid #23404c;border-radius:8px;padding:8px 10px}
+.learn summary{color:var(--blue);cursor:pointer;font-weight:700}
+.learn p{margin:6px 0}
+.learn ul{margin:6px 0;padding-left:1.3em}
+.learn table{border-collapse:collapse;font-size:13px;margin:6px 0}
+.learn td,.learn th{border:1px solid #23404c;padding:3px 7px;text-align:center}
+.learn th{color:var(--dim);font-weight:400}
+.learn pre{font-family:var(--mono);font-size:13px;background:#0b1316;border-radius:6px;padding:6px 8px;margin:6px 0;overflow-x:auto}
+.learn code,.task code,.hint code{font-family:var(--mono);color:var(--amber)}
 small,.dim{color:var(--dim)}
 /* title */
 .title{padding:48px 4px 24px;text-align:center}
@@ -269,6 +278,14 @@ const P = [
  {id:'1-2', st:1, mode:'hex', title:'こだま',
   story:'テープ読み取り機が動いた。読んだものをそのまま返すだけの、最小のプログラムを書こう。',
   task:'テープの文字を、終わり（00）まで順に出力する。',
+  learn:`<p><b>テープ</b>は機械の外にある入力用の紙で、256 バイトのメモリとは別の装置です。</p>
+   <ul>
+   <li><code>IN</code> を実行すると、読み取り位置の1文字が A に入り、<b>読み取り位置は自動で1つ進みます</b>。どこまで読んだかを数えたり、番地を足したりする必要はありません。</li>
+   <li>後戻りはできません。できるのは <code>RWD</code> で先頭まで巻き戻すことだけです（1-7 で使います）。</li>
+   <li>最後まで読んだ後の <code>IN</code> は <code>00</code> を返します。これで終わりを見分けます。</li>
+   <li>テープに書かれた文字は、機械には<b>文字コード</b>（数）として届きます。たとえば A は <code>41</code>、B は <code>42</code>。</li>
+   </ul>
+   <p>下の「機械」欄では、オレンジの印が次に読む位置、■ がテープの終わりです。</p>`,
   hint:'IN → 00なら終わりへ（JZ）→ OUT → 先頭へ（JMP）。飛び先は「何番地か」を自分で数える。番地は表の左端と列から読める。',
   tests:[W('ABC'), W('BOOT'), W(''), W('Hello!')].map(t => ({...t, out:t.tape}))},
  {id:'1-3', st:1, mode:'hex', title:'足し算',
@@ -286,6 +303,21 @@ const P = [
  {id:'1-5', st:1, mode:'hex', title:'数字を読む',
   story:'16進を手で打ち込むのはもう限界だ。機械自身に「文字で書いた16進」を読ませたい。まずは1文字から。',
   task:'テープには文字 <code>0</code>〜<code>9</code>, <code>A</code>〜<code>F</code> が並ぶ。それぞれの値（00〜0F）を出力する。',
+  learn:`<p><b>文字と数は別物</b>です。機械は文字を知らないので、人間が「どの文字を何番にするか」を表で決めました（ASCII）。人間がテープに「C」と書くと、機械に届くのは C の背番号 <code>43</code> です。</p>
+   <p>一方、16進では C という記号は<b>数の 12</b> を表します（A=10, B=11, C=12 … F=15）。この課題では、文字「C」（背番号 <code>43</code>）を受け取ったら数の 12（2桁で <code>0C</code>）を出します。次の 1-6 で「4」「8」の2文字から本物のバイト <code>48</code> を組み立てるための部品です。</p>
+   <table><tr><th>文字</th><th>背番号</th><th>表す数</th><th>差</th></tr>
+   <tr><td>0</td><td>30</td><td>00</td><td>30</td></tr>
+   <tr><td>7</td><td>37</td><td>07</td><td>30</td></tr>
+   <tr><td>A</td><td>41</td><td>0A</td><td>37</td></tr>
+   <tr><td>C</td><td>43</td><td>0C</td><td>37</td></tr>
+   <tr><td>F</td><td>46</td><td>0F</td><td>37</td></tr></table>
+   <p>数字どうし・英字どうしは背番号が連続しているので、差はいつも同じです。<b>数字は 30 を引き、英字は 37 を引けば</b>表す数になります。英字は 39 と 41 の間に <code>:</code> や <code>@</code> などの記号が挟まっているので、数字と同じ差では直りません。（文字「7」の背番号 <code>37</code> と、英字で引く <code>37</code> は偶然の一致です。）</p>
+   <p><b>16進のまま 43 − 0C を計算するには</b>：16進は F の次で桁が上がり、<code>10</code>（10進の 16）になります。</p>
+   <ul>
+   <li><b>筆算</b>：下の桁 3 − C は引けないので、上の桁から1借りて <code>13</code>。C から <code>13</code> までは D, E, F, 10, 11, 12, 13 の 7歩なので 7。上の桁は 4 − 1 = 3。答え <code>37</code>。</li>
+   <li><b>回り道</b>：<code>0C</code> は <code>10</code> より 4 少ないので、43 − 10 + 4 = 33 + 4 = <code>37</code>。</li>
+   <li><b>A で考える</b>：差はどの英字でも同じなので、A（<code>41</code> → <code>0A</code>）だけ考えれば十分です。</li>
+   </ul>`,
   hint:'"0" は 30、"9" は 39、"A" は 41、"F" は 46。<code>CMP 41</code> して <code>JLT</code> なら数字なので 30 を引く。そうでなければ 37 を引く。',
   tests:[W('0123456789ABCDEF'), W('C0DE'), W('7')].map(t => ({...t, out:t.tape.map(c => c >= 0x41 ? c - 0x37 : c - 0x30)}))},
  {id:'1-6', st:1, mode:'hex', title:'最初の翻訳機',
@@ -442,6 +474,7 @@ function renderPuzzle(){
   <details class="card" open><summary>課題</summary>
     <div class="story">${p.story}</div>
     <div class="task">${p.task}</div>
+    ${p.learn ? `<details class="learn" ${SAVE.solved[p.id] ? '' : 'open'}><summary>しくみ</summary>${p.learn}</details>` : ''}
     <details class="hint"><summary>ヒント</summary><div>${p.hint}</div></details>
   </details>
   <div class="card"><h3>テスト <small>（タップで機械に読み込む）</small></h3><div class="tests" id="tests"></div></div>
@@ -625,6 +658,10 @@ function manual(){
   2バイト命令は「命令 nn」の順に並べる。例：<code>10 48</code> = A に 48 を入れる。</p>
   <table class="ops"><tr><th>番号</th><th>名前</th><th>働き</th></tr>
   ${OPS.map(o => `<tr><td>${hex2(o[0])}${o[2] ? ' nn' : ''}</td><td>${o[1]}</td><td>${o[3]}</td></tr>`).join('')}</table>
+  <h3 style="color:var(--acc);font-size:15px;margin:14px 0 4px">テープ</h3>
+  <p style="font-size:14px;margin:0">入力用の紙で、メモリとは別の装置。<code>IN</code> で1文字読むたびに読み取り位置が自動で進む。後戻りは <code>RWD</code>（先頭へ巻き戻し）だけ。読み終わると <code>IN</code> は 00 を返す。</p>
+  <h3 style="color:var(--acc);font-size:15px;margin:14px 0 4px">文字コード</h3>
+  <p style="font-size:14px;margin:0">文字は背番号（数）として届く。文字「C」は <code>43</code> で、数の C（= 12, <code>0C</code>）とは別物。数字の文字は 30 を引くと、英字 A〜F は 37 を引くと、表す数になる。</p>
   <p style="font-size:13px" class="dim">文字コード：空白 20 / 改行 0A / "0"〜"9" 30〜39 / "A"〜"Z" 41〜5A / "a"〜"z" 61〜7A / ":" 3A / "@" 40<br>
   命令名は人間向けのあだ名。機械が分かるのは番号だけ。</p>
   <div class="row"><button class="pri" data-close>閉じる</button></div>`);
