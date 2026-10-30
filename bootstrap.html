@@ -75,6 +75,14 @@ small,.dim{color:var(--dim)}
 .grid .c.arg{background:#173520}
 .grid .c.cur.pc{background:#3d4a10}
 .grid.ro .c{cursor:default}
+.grid .c{position:relative}
+.grid .c.tgt{outline:2px dashed var(--blue);outline-offset:-2px}
+.grid .c.nt::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--amber)}
+.notes{margin-top:8px;font-size:13px}
+.notes .nhead{color:var(--dim);font-size:12px}
+.nitem{padding:3px 6px;border-radius:5px;cursor:pointer}
+.nitem b{font-family:var(--mono);color:var(--amber);font-weight:400;margin-right:4px}
+.nitem.on{background:#2a2210}
 .info{font-family:var(--mono);font-size:13px;color:var(--blue);margin-top:8px;min-height:1.6em;word-break:break-all}
 .tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .tools button{font-size:13px;padding:6px 9px}
@@ -97,7 +105,7 @@ textarea.src{width:100%;min-height:260px;background:#0e150f;color:var(--fg);bord
 .strip span.bad{background:var(--red);color:#000}
 .strip span.used{color:#4b6450}
 .ctrl{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
-.ctrl button{flex:1;min-width:60px}
+.ctrl button{flex:1;min-width:60px;white-space:nowrap;padding:8px 4px;font-size:14px}
 .msg{font-size:14px;margin-top:6px}
 .msg.err{color:var(--red)}
 .msg.ok{color:var(--acc)}
@@ -159,6 +167,8 @@ const OPS = [
   [0x32,'JNZ',1,'A が 00 でなければ nn 番地へ跳ぶ'],
   [0x33,'JEQ',1,'直前の CMP が「等しい」なら nn へ跳ぶ'],
   [0x34,'JLT',1,'直前の CMP が「A の方が小さい」なら nn へ跳ぶ'],
+  [0x35,'CALL',1,'戻り先を覚えてから nn へ跳ぶ（部品を呼ぶ）'],
+  [0x36,'RET',0,'最後の CALL の次の命令へ戻る'],
   [0x40,'CMP',1,'A と nn を比べる（A は変わらない）'],
 ];
 const OP = {}; OPS.forEach(o => OP[o[0]] = {code:o[0], m:o[1], arg:o[2], d:o[3]});
@@ -166,7 +176,7 @@ const OP = {}; OPS.forEach(o => OP[o[0]] = {code:o[0], m:o[1], arg:o[2], d:o[3]}
 function newVM(bytes, tape){
   const mem = new Uint8Array(256);
   for (let i = 0; i < bytes.length && i < 256; i++) mem[i] = bytes[i];
-  return {mem, pc:0, a:0, x:0, eq:false, lt:false, tape:tape.slice(), tp:0, out:[], steps:0, halted:false, err:null};
+  return {mem, pc:0, a:0, x:0, eq:false, lt:false, rs:[], tape:tape.slice(), tp:0, out:[], steps:0, halted:false, err:null};
 }
 function step(v){
   if (v.halted || v.err) return;
@@ -198,6 +208,8 @@ function step(v){
     case 0x32: if (v.a !== 0) pc = n; break;
     case 0x33: if (v.eq) pc = n; break;
     case 0x34: if (v.lt) pc = n; break;
+    case 0x35: if (v.rs.length >= 16){ v.err = 'CALL が深すぎます（RET せずに CALL を重ねていませんか？）'; return; } v.rs.push(pc); pc = n; break;
+    case 0x36: if (!v.rs.length){ v.err = `${hex2(v.pc)}番地の RET：戻り先がありません（CALL されていないのに RET した）`; return; } pc = v.rs.pop(); break;
     case 0x40: v.eq = v.a === n; v.lt = v.a < n; break;
   }
   v.pc = pc; v.steps++;
@@ -212,7 +224,7 @@ function runVM(bytes, tape, limit){
 }
 
 /* ============ ラベル付き16進：正しい翻訳（検査用） ============ */
-// テープ仕様どおりの2パス翻訳（1-7 の期待値づくりと、翻訳機の答え合わせに使う）
+// テープ仕様どおりの2パス翻訳（1-8 の期待値づくりと、翻訳機の答え合わせに使う）
 function asmTape(s){
   const t = str(s), lab = {}, out = [];
   const hv = c => c >= 0x41 ? c - 0x37 : c - 0x30;
@@ -281,7 +293,7 @@ const P = [
   learn:`<p><b>テープ</b>は機械の外にある入力用の紙で、256 バイトのメモリとは別の装置です。</p>
    <ul>
    <li><code>IN</code> を実行すると、読み取り位置の1文字が A に入り、<b>読み取り位置は自動で1つ進みます</b>。どこまで読んだかを数えたり、番地を足したりする必要はありません。</li>
-   <li>後戻りはできません。できるのは <code>RWD</code> で先頭まで巻き戻すことだけです（1-7 で使います）。</li>
+   <li>後戻りはできません。できるのは <code>RWD</code> で先頭まで巻き戻すことだけです（1-8 で使います）。</li>
    <li>最後まで読んだ後の <code>IN</code> は <code>00</code> を返します。これで終わりを見分けます。</li>
    <li>テープに書かれた文字は、機械には<b>文字コード</b>（数）として届きます。たとえば A は <code>41</code>、B は <code>42</code>。</li>
    </ul>
@@ -320,14 +332,38 @@ const P = [
    </ul>`,
   hint:'"0" は 30、"9" は 39、"A" は 41、"F" は 46。<code>CMP 41</code> して <code>JLT</code> なら数字なので 30 を引く。そうでなければ 37 を引く。',
   tests:[W('0123456789ABCDEF'), W('C0DE'), W('7')].map(t => ({...t, out:t.tape.map(c => c >= 0x41 ? c - 0x37 : c - 0x30)}))},
- {id:'1-6', st:1, mode:'hex', title:'最初の翻訳機',
-  story:'<code>4</code><code>8</code> という2つの文字を、本物のバイト 48 にする。これができれば、プログラムを「文字」で書けるようになる。最初の翻訳機だ。',
-  task:'テープには2桁ずつの16進の文字と、区切りの空白（20）・改行（0A）が並ぶ。空白と改行は読み飛ばし、各2桁をバイトにして出力する。',
-  hint:'空白と改行はどちらも 21 未満なので <code>CMP 21</code> + <code>JLT</code> でまとめて飛ばせる。上の桁は <code>SHL</code>（×2）を4回で ×16。それをメモリにしまい、下の桁を読んで足す。数字の変換（1-5）は「読込」で持ってこられる。',
+ {id:'1-6', st:1, mode:'hex', title:'2文字で1バイト',
+  story:'<code>4</code><code>8</code> という2つの文字を、本物のバイト 48 にする。これができれば、プログラムを「文字」で書けるようになる。そのために、機械に新しい命令が増えた。',
+  task:'テープには16進の文字が2桁ずつ、区切りなしで並ぶ（例：<code>4849</code>）。2桁ずつを1バイトにして出力する（例：<code>48 49</code>）。',
+  learn:`<p><b>2文字を1バイトに</b>：「4」「8」なら、上の桁の 4 を 16 倍して <code>40</code>、そこへ下の桁の 8 を足して <code>48</code>。16 倍は <code>SHL</code>（×2）を4回。</p>
+   <p><b>部品（サブルーチン）</b>：文字を数に直す処理を、上の桁と下の桁で2回使う。同じものを2回書かずに済むよう、新しい命令が2つ増えた。</p>
+   <ul>
+   <li><code>35 nn</code> CALL … 「戻り先」（CALL の次の番地）を覚えてから、nn 番地へ跳ぶ</li>
+   <li><code>36</code> RET … 覚えておいた戻り先へ戻る</li>
+   </ul>
+   <pre>03: 35 20   CALL 20  ─┐
+05: 24      ← RET で   │
+   ここへ戻る ───────┐  │
+20: 40 41   部品 ←───┼─┘
+    …               │
+26: 36      RET ────┘</pre>
+   <p><b>20 番地には、1-5 の変換を部品にしたものを用意してある</b>（A に入った文字を数に直して戻る）。00〜1F 番地に本体を<b>上書きで</b>打とう。「挿入」を使うと部品の位置がずれる。</p>
+   <p>マスをタップすると、跳ぶ命令の行き先や、読み書きする番地が青い点線で光る。「メモ」で各バイトに注釈を残せる。</p>`,
+  hint:'流れ：IN → 00 なら終わりへ → <code>CALL 20</code> → <code>SHL</code> を4回 → <code>ST 80</code> でしまう → IN → <code>CALL 20</code> → <code>ADD 80</code> → OUT → 先頭へ。',
+  prefill:[...Array(0x20).fill(0), 0x40,0x41,0x34,0x27,0x22,0x37,0x36,0x22,0x30,0x36],
+  prefillNotes:{0x00:'ここから本体を上書きで打つ', 0x20:'部品：A の文字を数に直して戻る', 0x22:'数字なら 27 へ', 0x24:'英字：37 を引く', 0x26:'英字はここで戻る', 0x27:'数字：30 を引く', 0x29:'数字はここで戻る'},
+  tests:[W('4849'), W('4F4B21'), W('00FF7F10'), W('')].map(t => ({...t, out:asmTape(String.fromCharCode(...t.tape))}))},
+ {id:'1-7', st:1, mode:'hex', title:'最初の翻訳機',
+  story:'人間が読みやすいように、2桁ごとに空白や改行で区切りたい。区切りを読み飛ばせれば、それはもう「16進のソースを機械語に直す」最初の翻訳機だ。',
+  task:'1-6 と同じだが、2桁の間に区切りの空白（20）・改行（0A）が入る。区切りは読み飛ばす。',
+  learn:`<p>空白（<code>20</code>）と改行（<code>0A</code>）は、どちらも <code>21</code> より小さい。だから <code>CMP 21</code> → <code>JLT</code> で、まとめて「区切りなら読み直す」にできる。</p>
+   <p>1-6 のコードを「読込」で持ってきて、IN と JZ の後に4バイト差し込む。すると後ろがすべてずれる。部品も 24 番地に動いてしまうので、CALL の行き先が合わなくなる。</p>
+   <p>実際のプログラマもよく使った手：<b>空き（00 の並び）を削る</b>。差し込んだのと同じ数だけ、部品の手前の 00 を「削除」すれば、部品は 20 番地に戻る。</p>`,
+  hint:'1-6 の <code>JZ</code> の直後に <code>40 21 34 00</code>（CMP 21 / JLT 00）を挿入。JZ の行き先（HLT の位置）が4つずれるので直す。部品の手前の 00 を4つ削除すれば、CALL 20 はそのままでいい。',
   tests:[W('48 49'), W('4F 4B\n21'), W('00FF7F 10'), W('')].map(t => ({...t, out:asmTape(String.fromCharCode(...t.tape))}))},
- {id:'1-7', st:1, mode:'hex', big:true, title:'ラベル翻訳機',
+ {id:'1-8', st:1, mode:'hex', big:true, title:'ラベル翻訳機',
   story:'番地を数えるのも、機械にやらせよう。番地に名前（ラベル）をつけ、名前で跳ぶ。この翻訳機が完成すれば、もう二度と番地を数えなくていい。',
-  task:`1-6 の翻訳機に、ラベルを足す。テープの仕様：
+  task:`1-7 の翻訳機に、ラベルを足す。テープの仕様：
    <ul>
    <li>空白・改行（21 未満）は読み飛ばす</li>
    <li><code>:x</code> … 名前 x（1文字）を「この位置の番地」として覚える。バイトは出さない</li>
@@ -336,7 +372,7 @@ const P = [
    例：<code>:a 01 31 @e 02 30 @a :e 00</code> → <code>01 31 07 02 30 00 00</code>`,
   hint:`後ろで定義される名前があるので、テープを<b>2回</b>読む。<br>
    1周目：出力はせず、番地を数える。<code>:</code> が来たら次の文字（名前）を読み、<code>TAX</code> して <code>STX</code> で「名前の文字コード番地」に今の番地をしまう（a〜z は 61〜7A 番地。プログラムをそこまで伸ばさないこと）。<code>:</code> 以外なら、もう1文字読み捨てて番地を1増やすだけでいい（<code>@x</code> も2桁の16進も、2文字で1バイトだから）。<br>
-   テープが終わったら <code>RWD</code> で巻き戻し、2周目：<code>:x</code> は読み飛ばし、<code>@x</code> は名前を読んで <code>TAX</code>→<code>LDX</code>→<code>OUT</code>、それ以外は 1-6 と同じ。`,
+   テープが終わったら <code>RWD</code> で巻き戻し、2周目：<code>:x</code> は読み飛ばし、<code>@x</code> は名前を読んで <code>TAX</code>→<code>LDX</code>→<code>OUT</code>、それ以外は 1-7 と同じ（部品の CALL もそのまま使える）。`,
   tests:['10 48 02 00', ':a 01 31 @e 02 30 @a :e 00', '@z :z', ':s 01 31 @e\n12 80 01\n21 80 02 30 @s\n:e 00', ':b :c 05 @c @b', '30 @x 00 00 :x 10 @y :y 00']
     .map(s => ({tape:str(s), out:asmTape(s)}))},
 
@@ -381,12 +417,23 @@ const STAGES = [
   {n:4, name:'第4段階　小さなC', lang:'while (c = getc()) putc(c);', desc:'式と変数と関数。ここからは、言語が言語を育てる。', locked:true},
   {n:5, name:'第？段階　拾ったコンパイラ', lang:'cc: ELF 64-bit, stripped', desc:'廃墟のサーバに、完成品のCコンパイラが残っているという。使えば何段階も飛ばせる。だが、それを作ったのは誰だ？', locked:true},
 ];
-const STEP_LIMIT = 20000, TR_LIMIT = 300000;
+const STEP_LIMIT = 20000, TR_LIMIT = 300000, TR_ID = '1-8';
 
 /* ================= 保存 ================= */
 const KEY = 'bootstrap-proto-v1';
-let SAVE = {code:{}, solved:{}, translator:null};
-try { const j = JSON.parse(localStorage.getItem(KEY)); if (j && j.code) SAVE = Object.assign(SAVE, j); } catch(e){}
+let SAVE = {ver:2, code:{}, solved:{}, notes:{}, translator:null};
+try { const j = JSON.parse(localStorage.getItem(KEY)); if (j && j.code) SAVE = Object.assign({code:{}, solved:{}, notes:{}, translator:null}, j); } catch(e){}
+if (!SAVE.notes) SAVE.notes = {};
+if (SAVE.ver !== 2){
+  // 旧版の 1-6（区切り付き）は新しい 1-7 に、旧 1-7（ラベル翻訳機）は 1-8 に移す
+  const c = SAVE.code, d = SAVE.solved;
+  if ('1-7' in c){ c['1-8'] = c['1-7']; delete c['1-7']; }
+  if (d['1-7']){ d['1-8'] = d['1-7']; delete d['1-7']; }
+  if ('1-6' in c) c['1-7'] = c['1-6'].slice();
+  if (d['1-6']) d['1-7'] = d['1-6'];
+  SAVE.ver = 2;
+  try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch(e){}
+}
 function persist(){ try { localStorage.setItem(KEY, JSON.stringify(SAVE)); } catch(e){} }
 
 function unlocked(p){
@@ -394,6 +441,28 @@ function unlocked(p){
   const same = P.filter(q => q.st === p.st);
   const i = same.indexOf(p);
   return i === 0 || !!SAVE.solved[same[i - 1].id];
+}
+function getNotes(p){
+  const n = p.id in SAVE.notes ? SAVE.notes[p.id].slice() : (() => {
+    const a = []; if (p.prefillNotes) for (const k in p.prefillNotes) a[+k] = p.prefillNotes[k]; return a; })();
+  const len = getCode(p).length;
+  for (let i = 0; i < len; i++) n[i] = n[i] || '';
+  n.length = len; return n;
+}
+// 先頭から命令として読み下し、各バイトが「命令」か「その引数」かを決める
+function decode(b){
+  const r = []; let i = 0;
+  while (i < b.length){ const o = OP[b[i]]; r[i] = {k:'op', at:i}; if (o && o.arg && i + 1 < b.length) r[i + 1] = {k:'arg', at:i}; i += 1 + (o ? o.arg : 0); }
+  return r;
+}
+const JUMPS = [0x30,0x31,0x32,0x33,0x34,0x35], MEMS = {0x11:'読む', 0x12:'書く', 0x21:'読んで足す', 0x23:'読んで引く'};
+function target(b, c){
+  const r = decode(b)[c]; if (!r) return null;
+  const op = b[r.at], n = b[r.at + 1];
+  if (r.at + 1 >= b.length) return null;
+  if (JUMPS.includes(op)) return {at:n, text:`${OP[op].m} の行き先 → ${hex2(n)}番地`};
+  if (op in MEMS) return {at:n, text:`${hex2(n)}番地を${MEMS[op]}`};
+  return null;
 }
 function getCode(p){
   if (p.id in SAVE.code) return SAVE.code[p.id];
@@ -443,7 +512,7 @@ function renderMap(){
         const ok = unlocked(p);
         return `<button data-act="open" data-id="${p.id}" class="${SAVE.solved[p.id] ? 'done' : ''} ${p.big ? 'big' : ''}" ${ok ? '' : 'disabled'}>
           <span class="n">${p.id}${p.big ? '　★翻訳機' : ''}</span>${ok ? p.title : '？？？'}</button>`; }).join('')}</div>` :
-        (s.n === 2 ? '<p class="mono" style="color:var(--amber)">解放条件：1-7 ラベル翻訳機</p>' : '')}
+        (s.n === 2 ? '<p class="mono" style="color:var(--amber)">解放条件：1-8 ラベル翻訳機</p>' : '')}
     </div>`;
   }).join('') + `<p class="dim" style="font-size:12px;text-align:center">進み具合はこの端末のブラウザに保存されます。 <button data-act="wipe" style="font-size:12px;padding:3px 8px">最初から</button></p>`;
 }
@@ -460,11 +529,11 @@ function build(src){
   const L = lint(src);
   if (L.errors.length) return {errors:L.errors};
   const v = runVM(SAVE.translator, str(L.tape), TR_LIMIT);
-  if (v.err) return {errors:['あなたの翻訳機（1-7）が失敗しました：' + v.err]};
+  if (v.err) return {errors:['あなたの翻訳機（1-8）が失敗しました：' + v.err]};
   const bytes = v.out.slice(0, 256);
   const diff = bytes.length !== L.bytes.length || bytes.some((b, i) => b !== L.bytes[i]);
   return {bytes, steps:v.steps, tape:L.tape,
-    warn: diff ? 'あなたの翻訳機の出力が、仕様どおりの翻訳と食い違っています。このまま動かしますが、1-7 を見直した方がいいかもしれません。' : null};
+    warn: diff ? 'あなたの翻訳機の出力が、仕様どおりの翻訳と食い違っています。このまま動かしますが、1-8 を見直した方がいいかもしれません。' : null};
 }
 
 function renderPuzzle(){
@@ -480,7 +549,8 @@ function renderPuzzle(){
   <div class="card"><h3>テスト <small>（タップで機械に読み込む）</small></h3><div class="tests" id="tests"></div></div>
   <div class="card"><h3>${hexMode ? 'メモリ（16進エディタ）' : 'ソース（ラベル付き16進）'}</h3>
     ${hexMode ? `<div id="grid"></div><div class="info" id="info"></div>
-      <div class="tools"><button data-act="text">テキストで編集</button><button data-act="import">読込</button><button data-act="reset">初期状態に戻す</button></div>`
+      <div id="notes" class="notes"></div>
+      <div class="tools"><button data-act="memo">メモ</button><button data-act="text">テキストで編集</button><button data-act="import">読込</button><button data-act="reset">初期状態に戻す</button></div>`
     : `<textarea class="src" id="src" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off">${esc(getCode(p))}</textarea>
       <div class="tools"><button data-act="import">読込</button><button data-act="reset">初期状態に戻す</button></div>`}
   </div>
@@ -521,12 +591,16 @@ function gridHTML(bytes, opt){
   let h = '';
   const pc = opt.vm ? opt.vm.pc : -1;
   const pcArg = opt.vm && OP[opt.vm.mem[pc]] && OP[opt.vm.mem[pc]].arg ? (pc + 1) & 255 : -1;
+  const tg = opt.edit && opt.cur >= 0 ? target(bytes, opt.cur) : null;
+  const nt = opt.notes || [];
   for (let i = 0; i < n; i++){
     if (i % 8 === 0) h += `<div class="ad">${hex2(i)}</div>`;
     const v = opt.vm ? opt.vm.mem[i] : bytes[i];
     let txt = i < len || opt.vm ? hex2(v) : '··';
     let cls = 'c' + (i >= len && !(opt.vm && v) ? ' e' : '');
     if (i === opt.cur){ cls += ' cur'; if (S.pend !== null) txt = S.pend + '_'; }
+    if (tg && i === tg.at) cls += ' tgt';
+    if (nt[i]) cls += ' nt';
     if (i === pc && !opt.vm.halted) cls += ' pc'; else if (i === pcArg && !opt.vm.halted) cls += ' arg';
     h += `<div class="${cls}" ${opt.edit ? `data-act="cell" data-i="${i}"` : ''}>${txt}</div>`;
   }
@@ -534,14 +608,22 @@ function gridHTML(bytes, opt){
 }
 function drawGrid(){
   const el = document.getElementById('grid'); if (!el) return;
-  el.innerHTML = gridHTML(getCode(S.p), {cur:S.cur, vm:S.vm && S.vm.steps ? S.vm : null, edit:true});
+  el.innerHTML = gridHTML(getCode(S.p), {cur:S.cur, vm:S.vm && S.vm.steps ? S.vm : null, edit:true, notes:getNotes(S.p)});
+  const nl = document.getElementById('notes'); if (!nl) return;
+  const nt = getNotes(S.p), items = nt.map((t, i) => t ? `<div class="nitem ${i === S.cur ? 'on' : ''}" data-act="cell" data-i="${i}"><b>${hex2(i)}</b> ${esc(t)}</div>` : '').join('');
+  nl.innerHTML = items ? `<div class="nhead">メモ一覧</div>${items}` : '';
 }
 function drawInfo(){
   const el = document.getElementById('info'); if (!el) return;
   const b = getCode(S.p), v = b[S.cur];
   if (v === undefined){ el.innerHTML = `[${hex2(S.cur)}] 空き　<span class="dim">（数を打つとここに書かれる）</span>`; return; }
-  const o = OP[v];
-  el.innerHTML = `[${hex2(S.cur)}] = ${hex2(v)}　` + (o ? `命令なら <b>${o.m}${o.arg ? ' nn' : ''}</b>：${o.d}` : '<span class="dim">命令ではない数（データや飛び先なら可）</span>');
+  const r = decode(b)[S.cur], o = OP[v], tg = target(b, S.cur), note = getNotes(S.p)[S.cur];
+  let h = `[${hex2(S.cur)}] = ${hex2(v)}　`;
+  if (r && r.k === 'arg') h += `<b>${OP[b[r.at]].m}</b> の引数`;
+  else h += o ? `<b>${o.m}${o.arg ? ' nn' : ''}</b>：${o.d}` : '<span class="dim">命令ではない数（データなら可）</span>';
+  if (tg) h += `<br><span style="color:var(--acc)">${tg.text}</span>`;
+  if (note) h += `<br><span style="color:var(--amber)">メモ：${esc(note)}</span>`;
+  el.innerHTML = h;
 }
 function drawBuilt(){
   const el = document.getElementById('built'); if (!el) return;
@@ -569,7 +651,7 @@ function drawMach(){
   el.innerHTML = `<div class="regs">
     <div>PC <b>${hex2(v.pc)}</b></div><div>A <b>${hex2(v.a)}</b></div><div>X <b>${hex2(v.x)}</b></div>
     <div>EQ <b>${v.eq ? '1' : '0'}</b> LT <b>${v.lt ? '1' : '0'}</b></div><div>歩数 <b>${v.steps}</b></div><div>${status}</div></div>
-    <div class="strip"><span class="lbl">次</span>${next}</div>
+    <div class="strip"><span class="lbl">次</span>${next}${v.rs.length ? `　<span class="lbl">戻り先</span>${v.rs.map(hex2).join(' ')}` : ''}</div>
     <div class="strip"><span class="lbl">テープ #${S.ti + 1}</span>${tape}</div>
     <div class="strip"><span class="lbl">出力</span>${outs || '<span class="dim">（なし）</span>'}${asciiOf(v.out)}</div>
     ${v.err ? `<div class="msg err">✗ ${esc(v.err)}</div>` : ''}`;
@@ -603,7 +685,7 @@ function check(){
     const steps = S.results.reduce((s, r) => s + r.v.steps, 0);
     const first = !SAVE.solved[p.id];
     SAVE.solved[p.id] = {size:b.length, steps};
-    if (p.id === '1-7') SAVE.translator = b.slice();
+    if (p.id === TR_ID) SAVE.translator = b.slice();
     persist();
     S.msg = {cls:'ok', html:`✓ 全テスト通過　<span class="stats">${b.length} バイト / 合計 ${steps} 歩</span>`};
     drawResult();
@@ -618,26 +700,27 @@ function check(){
 }
 
 /* ---------- 編集（16進） ---------- */
-function setCode(b){ SAVE.code[S.p.id] = b; persist(); S.vm = null; S.results = null; S.msg = null; stopPlay(); }
-function pushUndo(){ S.undo.push(getCode(S.p).slice()); if (S.undo.length > 200) S.undo.shift(); }
+function setCode(b, notes){ SAVE.code[S.p.id] = b; if (notes) SAVE.notes[S.p.id] = notes; persist(); S.vm = null; S.results = null; S.msg = null; stopPlay(); }
+function pushUndo(){ S.undo.push({b:getCode(S.p).slice(), n:getNotes(S.p)}); if (S.undo.length > 200) S.undo.shift(); }
 function key(d){
   const b = getCode(S.p).slice();
   if (S.cur > b.length || S.cur > 255) return;
   if (S.pend === null){ S.pend = d; drawGrid(); return; }
   pushUndo();
   b[S.cur] = parseInt(S.pend + d, 16); S.pend = null;
-  setCode(b); S.cur = Math.min(S.cur + 1, 255);
+  const nt = getNotes(S.p); if (nt.length < b.length) nt.push('');
+  setCode(b, nt); S.cur = Math.min(S.cur + 1, 255);
   drawAll();
 }
 function editOp(act){
   S.pend = null;
-  const b = getCode(S.p).slice();
+  const b = getCode(S.p).slice(), nt = getNotes(S.p);
   if (act === 'left') S.cur = Math.max(0, S.cur - 1);
   else if (act === 'right') S.cur = Math.min(b.length, S.cur + 1, 255);
-  else if (act === 'ins'){ if (S.cur > b.length || b.length >= 256) return; pushUndo(); b.splice(S.cur, 0, 0); setCode(b); }
-  else if (act === 'del'){ if (S.cur >= b.length) { if (S.cur > 0 && S.cur === b.length){ pushUndo(); b.pop(); setCode(b); S.cur--; } } else { pushUndo(); b.splice(S.cur, 1); setCode(b); } }
-  else if (act === 'bs'){ if (S.cur === 0) return; pushUndo(); b.splice(S.cur - 1, 1); setCode(b); S.cur--; }
-  else if (act === 'undo'){ if (!S.undo.length) return; setCode(S.undo.pop()); S.cur = Math.min(S.cur, getCode(S.p).length); }
+  else if (act === 'ins'){ if (S.cur > b.length || b.length >= 256) return; pushUndo(); b.splice(S.cur, 0, 0); nt.splice(S.cur, 0, ''); setCode(b, nt); }
+  else if (act === 'del'){ if (S.cur >= b.length) { if (S.cur > 0 && S.cur === b.length){ pushUndo(); b.pop(); nt.pop(); setCode(b, nt); S.cur--; } } else { pushUndo(); b.splice(S.cur, 1); nt.splice(S.cur, 1); setCode(b, nt); } }
+  else if (act === 'bs'){ if (S.cur === 0) return; pushUndo(); b.splice(S.cur - 1, 1); nt.splice(S.cur - 1, 1); setCode(b, nt); S.cur--; }
+  else if (act === 'undo'){ if (!S.undo.length) return; const u = S.undo.pop(); setCode(u.b, u.n); S.cur = Math.min(S.cur, getCode(S.p).length); }
   drawAll();
 }
 
@@ -666,18 +749,58 @@ function manual(){
   命令名は人間向けのあだ名。機械が分かるのは番号だけ。</p>
   <div class="row"><button class="pri" data-close>閉じる</button></div>`);
 }
+function serialize(b, nt){
+  const lines = []; let cur = [];
+  let note = '';
+  const flush = () => { if (cur.length) lines.push(cur.join(' ') + (note ? '  # ' + note : '')); cur = []; note = ''; };
+  b.forEach((x, i) => {
+    if (nt[i] || cur.length >= 8) flush();
+    if (nt[i]) note = nt[i];
+    cur.push(hex2(x));
+  });
+  flush();
+  return lines.join('\n');
+}
+function parseHexText(t){
+  const b = [], nt = []; let pending = '';
+  for (const line of t.split('\n')){
+    const h = line.indexOf('#');
+    const code = (h >= 0 ? line.slice(0, h) : line).replace(/\s+/g, '');
+    const note = h >= 0 ? line.slice(h + 1).trim() : '';
+    if (!/^([0-9a-fA-F]{2})*$/.test(code)) return {err:`16進の2桁ずつになっていません：「${line.trim()}」`};
+    const start = b.length;
+    (code.match(/../g) || []).forEach(x => { b.push(parseInt(x, 16)); nt.push(''); });
+    // メモはその行の最初のバイトに付く（メモだけの行は次のバイトへ）
+    if (b.length > start){ nt[start] = [pending, note].filter(Boolean).join(' / '); pending = ''; }
+    else if (note) pending = [pending, note].filter(Boolean).join(' / ');
+  }
+  if (b.length > 256) return {err:'256 バイトを超えています'};
+  return {b, nt};
+}
 function textEdit(){
-  const b = getCode(S.p);
-  const d = modal(`<h2>テキストで編集</h2><p style="font-size:14px">16進を2桁ずつ。空白・改行は自由。</p>
-    <textarea class="src" style="min-height:160px" spellcheck="false" autocapitalize="off">${b.map(hex2).join(' ')}</textarea>
+  const d = modal(`<h2>テキストで編集</h2><p style="font-size:14px">16進を2桁ずつ。空白・改行は自由。<code>#</code> から行末まではメモになり、その行の最初のバイトに付く。</p>
+    <textarea class="src" style="min-height:200px" spellcheck="false" autocapitalize="off">${esc(serialize(getCode(S.p), getNotes(S.p)))}</textarea>
     <div class="msg err" id="terr"></div>
     <div class="row"><button data-close>やめる</button><button class="pri" id="tok">反映</button></div>`);
   d.querySelector('#tok').onclick = () => {
-    const t = d.querySelector('textarea').value.replace(/\s+/g, '');
-    if (!/^([0-9a-fA-F]{2})*$/.test(t)){ d.querySelector('#terr').textContent = '16進の2桁ずつになっていません'; return; }
-    if (t.length / 2 > 256){ d.querySelector('#terr').textContent = '256 バイトを超えています'; return; }
-    pushUndo(); setCode((t.match(/../g) || []).map(x => parseInt(x, 16))); S.cur = 0; d.remove(); drawAll();
+    const r = parseHexText(d.querySelector('textarea').value);
+    if (r.err){ d.querySelector('#terr').textContent = r.err; return; }
+    pushUndo(); setCode(r.b, r.nt); S.cur = 0; d.remove(); drawAll();
   };
+}
+function memoEdit(){
+  const b = getCode(S.p);
+  if (S.cur >= b.length){ modal('<h2>メモ</h2><p>メモはバイトに付けます。数の入っているマスを選んでください。</p><div class="row"><button class="pri" data-close>閉じる</button></div>'); return; }
+  const nt = getNotes(S.p);
+  const d = modal(`<h2>${hex2(S.cur)}番地のメモ</h2>
+    <input id="memoin" type="text" maxlength="40" value="${esc(nt[S.cur] || '')}" placeholder="例：ループの先頭" style="width:100%;font:16px system-ui,sans-serif;padding:8px;background:#0e150f;color:var(--fg);border:1px solid var(--line);border-radius:8px">
+    <p class="dim" style="font-size:13px">メモはバイトにくっついて動く（挿入・削除しても離れない）。番地のずれは直してくれない。</p>
+    <div class="row"><button data-close>やめる</button><button id="memodel">消す</button><button class="pri" id="memook">保存</button></div>`);
+  const inp = d.querySelector('#memoin'); inp.focus();
+  const save = v => { const n = getNotes(S.p); n[S.cur] = v; SAVE.notes[S.p.id] = n; persist(); d.remove(); drawGrid(); drawInfo(); };
+  d.querySelector('#memook').onclick = () => save(inp.value.trim());
+  d.querySelector('#memodel').onclick = () => save('');
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') save(inp.value.trim()); });
 }
 function importCode(){
   const p = S.p;
@@ -688,7 +811,7 @@ function importCode(){
     <div class="row"><button data-close>やめる</button></div>`);
   d.querySelectorAll('[data-id]').forEach(btn => btn.onclick = () => {
     const c = SAVE.code[btn.dataset.id];
-    if (p.mode === 'hex'){ pushUndo(); setCode(c.slice()); S.cur = 0; drawAll(); }
+    if (p.mode === 'hex'){ pushUndo(); setCode(c.slice(), getNotes(PZ[btn.dataset.id])); S.cur = 0; drawAll(); }
     else { SAVE.code[p.id] = c; persist(); renderPuzzle(); }
     d.remove();
   });
@@ -697,7 +820,7 @@ function clearModal(p, size, steps, first){
   const next = P[P.indexOf(p) + 1];
   let body = `<h2>課題クリア</h2><p class="stats">${p.id} ${p.title}<br>${size} バイト ／ 合計 ${steps} 歩</p>`;
   if (p.after) body += `<div class="story">${p.after}</div>`;
-  if (p.id === '1-7'){
+  if (p.id === TR_ID){
     body += `<div class="unlock">▼ 段階解放 ▼<br>ラベル付き16進</div>
     <p>あなたが一字一字、番地を数えて書いた ${size} バイト。これがあなたの最初の本格的な翻訳機だ。</p>
     <p>第2段階からのコードは、<b>この翻訳機</b>が機械語に直す。もう番地は数えなくていい。</p>
@@ -727,16 +850,17 @@ app.addEventListener('click', e => {
     case 'manual': manual(); break;
     case 'open': go('puzzle', t.dataset.id); break;
     case 'wipe':
-      ask('すべての進み具合とコードを消して、最初からにしますか？', '消して最初から', () => { SAVE = {code:{}, solved:{}, translator:null}; persist(); go('title'); });
+      ask('すべての進み具合とコードを消して、最初からにしますか？', '消して最初から', () => { SAVE = {ver:2, code:{}, solved:{}, notes:{}, translator:null}; persist(); go('title'); });
       break;
     case 'k': key(t.dataset.k); break;
     case 'left': case 'right': case 'ins': case 'del': case 'undo': editOp(a); break;
     case 'cell': S.pend = null; S.cur = Math.min(+t.dataset.i, getCode(S.p).length); drawGrid(); drawInfo(); break;
     case 'text': textEdit(); break;
+    case 'memo': memoEdit(); break;
     case 'import': importCode(); break;
     case 'reset':
       ask('この課題のコードを初期状態に戻しますか？', '初期状態に戻す', () => {
-        if (S.p.mode === 'hex'){ pushUndo(); setCode((S.p.prefill || []).slice()); S.cur = 0; drawAll(); }
+        if (S.p.mode === 'hex'){ pushUndo(); delete SAVE.notes[S.p.id]; delete SAVE.code[S.p.id]; persist(); setCode(getCode(S.p).slice(), getNotes(S.p)); S.cur = 0; drawAll(); }
         else { delete SAVE.code[S.p.id]; persist(); S.built = null; S.vm = null; renderPuzzle(); }
       });
       break;
