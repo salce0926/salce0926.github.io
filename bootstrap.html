@@ -1961,7 +1961,7 @@ function renderMap(){
     const open = !s.locked && stageOpen(s.n);
     return `<div class="stage ${open ? '' : 'locked'}">
       <h2>${open ? '' : '🔒 '}${s.name}</h2><div class="lang">${esc(s.lang)}</div><p>${s.desc}</p>
-      ${open && s.n === 1 ? blueprint(null, !SAVE.solved[TR_ID]) : ''}${open && s.n === 2 ? blueprint2(null, !SAVE.solved[ASM_ID]) : ''}${open && s.n === 3 ? blueprint3(null, !SAVE.solved[PAR_ID]) : ''}
+      ${open && s.n === 1 ? blueprint(null, !SAVE.solved[TR_ID]) : ''}${open && s.n === 2 ? blueprint2(null, !SAVE.solved[ASM_ID]) : ''}
       ${open ? `<div class="plist">${ps.map(p => {
         const ok = unlocked(p);
         return `<button data-act="open" data-id="${p.id}" class="${SAVE.solved[p.id] ? 'done' : ''} ${p.big ? 'big' : ''}" ${ok ? '' : 'disabled'}>
@@ -2645,7 +2645,7 @@ function clearModal(p, size, steps, first){
     const left = Object.keys(PARTS).filter(id => !SAVE.solved[id]).length;
     body += `<p style="margin:10px 0 0">${first ? 'ラベル翻訳機に部品がはまった。' : ''}${left ? `完成まで、あと <b class="mono" style="color:var(--amber)">${left}</b> 個。` : '部品がすべてそろった。'}</p>` + blueprint(p.id, true);
   }
-  if (p.st === 3 && PARTS3[p.id]){
+  if (false && p.st === 3 && PARTS3[p.id]){  // コンパイラの完成図は第5段階で作り直す
     const left = Object.keys(PARTS3).filter(id => !SAVE.solved[id]).length;
     body += `<p style="margin:10px 0 0">${first ? 'コンパイラに部品がはまった。' : ''}${left ? `完成まで、あと <b class="mono" style="color:var(--amber)">${left}</b> 個。` : '部品がすべてそろった。'}</p>` + blueprint3(p.id, true);
   }
