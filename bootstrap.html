@@ -217,29 +217,46 @@ const OPS = [
   [0x35,'CALL',1,'戻り先を覚えてから nn へ跳ぶ（部品を呼ぶ）'],
   [0x36,'RET',0,'最後の CALL の次の命令へ戻る'],
   [0x40,'CMP',1,'A と nn を比べる（A は変わらない）'],
+  [0x08,'PHA',0,'A をスタックに積む（SEED-16 で追加）'],
+  [0x09,'PLA',0,'スタックから A に取り出す（SEED-16 で追加）'],
+  [0x15,'LXI',1,'X ← nnnn（番地を X に入れる。SEED-16 で追加）'],
+  [0x16,'AXA',0,'X ← X + A（SEED-16 で追加）'],
+  [0x41,'CPM',1,'A とメモリ[nnnn] を比べる（SEED-16 で追加）'],
 ];
+// SEED-16 で増えた命令と、16ビットモードで引数が2バイトになる命令
+const NEW16 = new Set([0x08,0x09,0x15,0x16,0x41]);
+const ADDR16 = new Set([0x11,0x12,0x21,0x23,0x30,0x31,0x32,0x33,0x34,0x35,0x15,0x41]);
+const argw = (code, w16) => { const o = OP[code]; return !o || !o.arg ? 0 : (w16 && ADDR16.has(code) ? 2 : 1); };
+const hex4 = n => (n & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
 const OP = {}; OPS.forEach(o => OP[o[0]] = {code:o[0], m:o[1], arg:o[2], d:o[3]});
 
-function newVM(bytes, tape){
-  const mem = new Uint8Array(256);
-  for (let i = 0; i < bytes.length && i < 256; i++) mem[i] = bytes[i];
-  return {mem, pc:0, a:0, x:0, eq:false, lt:false, rs:[], tape:tape.slice(), tp:0, out:[], steps:0, halted:false, err:null};
+function newVM(bytes, tape, w16){
+  const size = w16 ? 65536 : 256, mem = new Uint8Array(size);
+  for (let i = 0; i < bytes.length && i < size; i++) mem[i] = bytes[i];
+  return {mem, w16:!!w16, mask:size - 1, pc:0, a:0, x:0, eq:false, lt:false, rs:[], ds:[], tape:tape.slice(), tp:0, out:[], steps:0, halted:false, err:null};
 }
+const fmtA = (v, n) => v.w16 ? hex4(n) : hex2(n);
 function step(v){
   if (v.halted || v.err) return;
-  const m = v.mem, op = m[v.pc], n = m[(v.pc + 1) & 255];
+  const m = v.mem, M = v.mask, op = m[v.pc], w = argw(op, v.w16);
+  const n = w === 2 ? (m[(v.pc + 1) & M] << 8) | m[(v.pc + 2) & M] : m[(v.pc + 1) & M];
   const o = OP[op];
-  if (!o){ v.err = `${hex2(v.pc)}番地の ${hex2(op)} は命令ではありません`; return; }
-  let pc = (v.pc + 1 + o.arg) & 255;
+  if (!o){ v.err = `${fmtA(v, v.pc)}番地の ${hex2(op)} は命令ではありません`; return; }
+  let pc = (v.pc + 1 + w) & M;
   switch (op){
     case 0x00: v.halted = true; v.steps++; return;
     case 0x01: v.a = v.tp < v.tape.length ? v.tape[v.tp++] : 0; break;
     case 0x02: v.out.push(v.a); if (v.out.length > 3000) v.err = '出力が多すぎます'; break;
     case 0x03: v.tp = 0; break;
     case 0x04: v.x = v.a; break;
-    case 0x05: v.a = v.x; break;
-    case 0x06: v.x = (v.x + 1) & 255; break;
-    case 0x07: v.x = (v.x - 1) & 255; break;
+    case 0x05: v.a = v.x & 255; break;
+    case 0x06: v.x = (v.x + 1) & M; break;
+    case 0x07: v.x = (v.x - 1) & M; break;
+    case 0x08: if (v.ds.length >= 4096){ v.err = 'スタックがいっぱいです'; return; } v.ds.push(v.a); break;
+    case 0x09: if (!v.ds.length){ v.err = `${fmtA(v, v.pc)}番地の PLA：スタックが空です`; return; } v.a = v.ds.pop(); break;
+    case 0x15: v.x = n; break;
+    case 0x16: v.x = (v.x + v.a) & M; break;
+    case 0x41: v.eq = v.a === m[n]; v.lt = v.a < m[n]; break;
     case 0x10: v.a = n; break;
     case 0x11: v.a = m[n]; break;
     case 0x12: m[n] = v.a; break;
@@ -256,13 +273,13 @@ function step(v){
     case 0x33: if (v.eq) pc = n; break;
     case 0x34: if (v.lt) pc = n; break;
     case 0x35: if (v.rs.length >= 16){ v.err = 'CALL が深すぎます（RET せずに CALL を重ねていませんか？）'; return; } v.rs.push(pc); pc = n; break;
-    case 0x36: if (!v.rs.length){ v.err = `${hex2(v.pc)}番地の RET：戻り先がありません（CALL されていないのに RET した）`; return; } pc = v.rs.pop(); break;
+    case 0x36: if (!v.rs.length){ v.err = `${fmtA(v, v.pc)}番地の RET：戻り先がありません（CALL されていないのに RET した）`; return; } pc = v.rs.pop(); break;
     case 0x40: v.eq = v.a === n; v.lt = v.a < n; break;
   }
   v.pc = pc; v.steps++;
 }
-function runVM(bytes, tape, limit){
-  const v = newVM(bytes, tape);
+function runVM(bytes, tape, limit, w16){
+  const v = newVM(bytes, tape, w16);
   while (!v.halted && !v.err){
     if (v.steps >= limit){ v.err = `${limit}歩を超えても止まりません（無限ループ？）`; break; }
     step(v);
@@ -272,6 +289,23 @@ function runVM(bytes, tape, limit){
 
 /* ============ ラベル付き16進：正しい翻訳（検査用） ============ */
 // テープ仕様どおりの2パス翻訳（1-10 の期待値づくりと、翻訳機の答え合わせに使う）
+// ラベル翻訳機16の仕様：@x は2バイト（上の桁、下の桁）
+function asmTape16(s){
+  const t = str(s), lab = {}, out = [];
+  const hv = c => c >= 0x41 ? c - 0x37 : c - 0x30;
+  for (let pass = 0; pass < 2; pass++){
+    let pos = 0;
+    for (let i = 0; i < t.length; i++){
+      const c = t[i];
+      if (c < 0x21) continue;
+      if (c === 0x3A){ i++; if (!pass) lab[t[i]] = pos; continue; }
+      if (c === 0x40){ i++; if (pass){ const a = lab[t[i]] ?? 0; out.push((a >> 8) & 255, a & 255); } pos += 2; continue; }
+      if (pass) out.push(((hv(c) << 4) + hv(t[i + 1] ?? 0)) & 255);
+      i++; pos++;
+    }
+  }
+  return out;
+}
 function asmTape(s){
   const t = str(s), lab = {}, out = [];
   const hv = c => c >= 0x41 ? c - 0x37 : c - 0x30;
@@ -346,7 +380,7 @@ const HASH = w => [...w].reduce((h, c) => (h * 24 + c.charCodeAt(0)) & 255, 0);
 function refAsmText(s){
   return s.split(/\s+/).filter(Boolean).map(t => (t in OPNAME ? hex2(OPNAME[t]) : t) + ' ').join('');
 }
-function lint3(src){
+function lint3(src, ext){
   const errors = [], toks = [];
   let off = 0;
   src.split('\n').forEach((line, li) => {
@@ -356,20 +390,21 @@ function lint3(src){
       const t = m[0], at = base + m.index, k = {ln, s:at, e:at + t.length};
       if (/^[:@][a-z]$/.test(t)) toks.push({...k, t:t[0], l:t[1]});
       else if (/^[0-9A-Fa-f]{2}$/.test(t)) toks.push({...k, t:'b', v:parseInt(t, 16)});
+      else if (t in OPNAME && !ext && NEW16.has(OPNAME[t])) errors.push(`${ln}行目: '${t}' は SEED-16 で増えた命令です（この課題では使えません）`);
       else if (t in OPNAME) toks.push({...k, t:'m', w:t, v:OPNAME[t]});
       else if (t.toUpperCase() in OPNAME) errors.push(`${ln}行目: 命令名は大文字で書きます（'${t}' → '${t.toUpperCase()}'）`);
       else errors.push(`${ln}行目: '${t}' は命令名でも、16進2桁でも、ラベルでもありません`);
     }
   });
   const lab = {}; let pos = 0;
-  toks.forEach(k => { k.addr = pos; if (k.t === ':'){ if (k.l in lab) errors.push(`${k.ln}行目: ラベル '${k.l}' が二度つけられています`); lab[k.l] = pos; } else pos++; });
+  toks.forEach(k => { k.addr = pos; if (k.t === ':'){ if (k.l in lab) errors.push(`${k.ln}行目: ラベル '${k.l}' が二度つけられています`); lab[k.l] = pos; } else pos += (ext && k.t === '@') ? 2 : 1; });
   toks.forEach(k => { if (k.t === '@' && !(k.l in lab)) errors.push(`${k.ln}行目: ラベル '${k.l}' がどこにもありません`); });
-  if (pos > 256) errors.push(`プログラムが ${pos} バイトあります（メモリは 256 バイト）`);
+  if (pos > (ext ? 65536 : 256)) errors.push(`プログラムが ${pos} バイトあります（メモリは ${ext ? '64KB' : '256 バイト'}）`);
   const lines = []; let cur = [], curLn = toks.length ? toks[0].ln : 1;
   toks.forEach(k => { if (k.ln !== curLn){ lines.push(cur.join(' ')); cur = []; curLn = k.ln; } cur.push(k.t === 'b' ? hex2(k.v) : k.t === 'm' ? k.w : k.t + k.l); });
   if (cur.length) lines.push(cur.join(' '));
   const tape = lines.join('\n'), mid = refAsmText(tape);
-  return {errors, tape, labels:lab, toks, mid, bytes: errors.length ? [] : asmTape(mid)};
+  return {errors, tape, labels:lab, toks, mid, w16:!!ext, bytes: errors.length ? [] : (ext ? asmTape16 : asmTape)(mid)};
 }
 // 第3段階：あなたのアセンブラ（2-9）→ あなたのラベル翻訳機（1-10）の順に通す
 function build3(src){
@@ -474,10 +509,25 @@ function build4(src){
   return {bytes, steps:a.steps + b.steps + v.steps, L, labels:{},
     mids:[['字句解析器の出力（字句の列）', lx], ['構文解析器の出力（ラベル付き16進）', mid]], warn};
 }
-const buildCur = () => S.p.mode === 'c' ? build4(getCode(S.p)) : S.p.mode === 'asm' ? build3(getCode(S.p)) : build(getCode(S.p));
+// SEED-16：あなたのアセンブラ16（4-2）→ ラベル翻訳機16（4-1）→ 64KB の機械
+function build16(src){
+  const L = lint3(src, true);
+  if (L.errors.length) return {errors:L.errors, L};
+  if (!SAVE.tr16 || !SAVE.asm16) return {errors:['4-1（ラベル翻訳機16）と 4-2（アセンブラ16）をクリアすると、ここで翻訳できるようになります'], L};
+  const a = runVM(SAVE.asm16, str(L.tape), TR_LIMIT);
+  if (a.err) return {errors:['あなたのアセンブラ16（4-2）が失敗しました：' + a.err], L};
+  const mid = String.fromCharCode(...a.out);
+  const v = runVM(SAVE.tr16, a.out, TR_LIMIT);
+  if (v.err) return {errors:['あなたのラベル翻訳機16（4-1）が失敗しました：' + v.err], L};
+  const bytes = v.out.slice(0, 65536);
+  const diff = bytes.length !== L.bytes.length || bytes.some((x, i) => x !== L.bytes[i]);
+  const warn = !diff ? null : mid !== L.mid ? 'あなたのアセンブラ16（4-2）の出力が、仕様どおりと食い違っています。' : 'あなたのラベル翻訳機16（4-1）の出力が、仕様どおりと食い違っています。';
+  return {bytes, steps:a.steps + v.steps, L, labels:L.labels, w16:true, mids:[['アセンブラ16の出力（ラベル付き16進）', mid]], warn};
+}
+const buildCur = () => S.p.mode === 'asm16' ? build16(getCode(S.p)) : S.p.mode === 'c' ? build4(getCode(S.p)) : S.p.mode === 'asm' ? build3(getCode(S.p)) : build(getCode(S.p));
 // 2-6 の初期状態：名前の数 → 命令番号 の表
 const TABLE_SRC = '# 名前の数 → 命令番号 の表\n# 2バイトずつ：名前の数（2-5 の決まりで計算したもの）、命令番号\n# 表の終わりの印はない（テープには表にある名前しか来ない）\n:t\n' +
-  OPS.map(o => `${hex2(HASH(o[1]))} ${hex2(o[0])}   # ${o[1]}`).join('\n') + '\n';
+  OPS.filter(o => !NEW16.has(o[0])).map(o => `${hex2(HASH(o[1]))} ${hex2(o[0])}   # ${o[1]}`).join('\n') + '\n';
 
 /* ================= 見本（クリアした課題だけ「読込」で選べる） ================= */
 // [番地, 16進, メモ] の並びからバイト列とメモを作る
@@ -799,9 +849,38 @@ CALL @z LDI 00 CALL @e HLT
    LDI 30 CALL @e DEX LDX CALL @o             # JMP @L
    LDX ADI 01 JMP @q                           # :M
 `,
-  '4-1': SC_PROGS_S.echo,
-  '4-2': SC_PROGS_S.sum,
-  '4-3': SC_PROGS_S.mul,
+  '4-1': `# ラベル翻訳機16：@x を2バイト（上の桁、下の桁）の番地にする
+# 名前 x の番地は、下の桁を x+60 番地（C1〜DA）、上の桁を x+7A 番地（DB〜F4）にしまう
+# 変数：F5 F6 いまの番地（上、下）、F7 何周目、F8 F9 作業用
+:w IN JZ @e CMP 21 JLT @w          # 区切りなら読み直し
+   CMP 3A JEQ @c CMP 40 JEQ @r      # :x と @x
+   ST F8 LD F7 JZ @s                # 1周目は16進を読み捨てる
+   LD F8 CALL @v SHL SHL SHL SHL ST F9
+   IN CALL @v ADD F9 OUT JMP @o     # 2周目：16進2桁を1バイトに
+:s IN JMP @o                        # 1周目：2文字目を読み捨て
+:c IN ADI 60 TAX LD F6 STX          # :x の下の桁
+   TXA ADI 1A TAX LD F5 STX JMP @w  # :x の上の桁（x+7A）
+:r IN ST F8 LD F7 JZ @t             # @x：1周目は数えるだけ
+   LD F8 ADI 7A TAX LDX OUT         # 上の桁
+   LD F8 ADI 60 TAX LDX OUT         # 下の桁
+:t CALL @i                          # 番地 +2
+:o CALL @i JMP @w                   # 番地 +1
+# i：番地（F5 F6）を1増やす。下の桁があふれたら上の桁も
+:i LD F6 ADI 01 ST F6 JNZ @k LD F5 ADI 01 ST F5
+:k RET
+# e：テープの終わり。1周目なら巻き戻して2周目へ
+:e LD F7 JNZ @z RWD LDI 01 ST F7 LDI 00 ST F6 ST F5 JMP @w
+:z HLT
+# v：16進の文字を数に
+:v CMP 41 JLT @n SBI 37 RET
+:n SBI 30 RET
+`,
+  '4-3': `# 逆さま（SEED-16）：スタックに積んで、取り出す
+LDI 00 PHA                  # 目印の 00 を積む
+:r IN JZ @p PHA JMP @r      # 読んで積む
+:p PLA JZ @z OUT JMP @p     # 取り出して出す。目印で止まる
+:z HLT
+`,
   '3-3': `# 電卓：答え（F3）、数（F0）、数の次の文字（F1）
 :s IN JZ @z                        # 行の頭。テープの終わりなら停止
    SBI 30 ST F0 CALL @h            # 1つ目の数
@@ -845,6 +924,7 @@ const MAP_ROWS = [
 ];
 const mapFor = n => `<table><tr><th>番地</th><th>区画</th></tr>${MAP_ROWS.map(([r, t, from]) =>
   `<tr><td>${r}</td><td>${from <= n ? (typeof t === 'function' ? t(n) : t) + (from === n && n > 8 ? ' <b style="color:var(--amber)">← 新しい</b>' : '') : `<span class="dim">空けておく（1-${from} で使う）</span>`}</td></tr>`).join('')}</table>`;
+SAMPLES['4-2'] = '# アセンブラ16：2-9 の見本の表に、SEED-16 の5命令を足したもの\n' + SAMPLES['2-9'] + '01 08   # PHA\n61 09   # PLA\n89 15   # LXI\nC1 16   # AXA\n8D 41   # CPM\n';
 // 1-8 の初期状態：区画の位置だけメモした骨組み
 const SKEL8 = mk([[0,'30 08','開始：振り分けへ跳ぶ'],[8,'00','08〜1F 振り分け：区切り・:・それ以外'],[0x20,'00','20〜 :x の区画：番地を出力'],[0x30,'00','30〜 それ以外の区画'],[0x48,'00','48〜 番地+1 して振り分けへ'],[0x4F,'00','']]);
 
@@ -1292,129 +1372,56 @@ SHL SHL ADD t    8n + 2n = 10n</pre>
   hint:'「数を読む」部品：1文字目を読んで 30 を引き n に → 次の文字を変数 c にしまう → 数字（30〜39）なら n×10+桁 にして次の文字へ、そうでなければ RET。呼んだ後は c を見て + (2B) か - (2D) か判断する。',
   tests:['12+34-5\n3', '100-1\n7+8+9', '255-255', '200+55-10\n1+1\n'].map(w => ({tape:str(w),
     out:str(w.split('\n').filter(Boolean).map(l => (l.match(/[+-]?\d+/g).reduce((a, x) => (a + Number(x)) & 255, 0)) + ' ').join(''))}))},
- {id:'3-4', st:3, mode:'asm', title:'字句①：数と記号',
-  story:'電卓は式を読んで、その場で計算した。今度は、計算する<b>命令を書き出す</b>翻訳機——コンパイラを作る。まずは、文字の並びを意味のあるまとまり（字句）に分けるところから。',
-  task:`テープには小さなC の文の一部が並ぶ（この課題では数と記号だけ）。次のように書き換えて出力する。
-   <ul><li>数（10進）→ <code>#</code> と2桁の16進（例：<code>12</code> → <code>#0C</code>）</li>
-   <li><code>+ - { }</code> → そのまま</li>
-   <li>空白・改行と <code>( ) ; =</code> → 捨てる</li></ul>
-   例：<code>12 + 34 - 5;</code> → <code>"#0C+#22-#05"</code>`,
-  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">コンパイラまでの道のり：<b style="color:var(--amber)">3-4 字句①</b>　→　3-5 字句②　→　3-6 式と代入　→　3-7 入れて出す　→　3-8 くり返し</p><div class="zg"><b class="h">座学：コンパイラの仕事</b>
-   <p>コンパイラの仕事は、大きく3つに分けられる。</p>
-   <ol><li><b>字句解析</b>：文字の並びを、意味のある単語（字句、トークン）に区切る</li>
-   <li><b>構文解析</b>：字句の並びから、文の組み立て（構文）を読み取る</li>
-   <li><b>コード生成</b>：組み立てに合わせて、命令を書き出す</li></ol>
-   <p>このゲームでは、1 を字句解析器が、2 と 3 を構文解析器がまとめて受け持つ。</p></div><div class="zg"><b class="h">座学：字句解析とは</b>
-   <p>日本語でいえば、文字の並びを単語に区切る作業。<code>while (c)</code> の w・h・i・l・e は5文字だが、意味の上では「while」という1つの単語。字句解析器はこれを1つの字句にまとめ、<code>(</code>、変数 <code>c</code>、<code>)</code> も1つずつの字句にする。空白や改行のような、意味を持たないものはここで捨てる。</p>
-   <p>字句に分けておくと、後ろの構文解析器は「1文字ずつ」ではなく「1語ずつ」考えればよくなる。</p></div><p><b>これから作るもの</b>：小さなC のコンパイラ。</p>
-   <pre>c = getc();
-while (c) { putc(c); c = getc(); }</pre>
-   <p>こう書いたものを、機械語にする。ただ、256 バイトの機械にコンパイラ1本は入りきらない。そこで2本に分ける。</p>
-   <pre>小さなC
- ↓ 字句解析器（3-4、3-5）：字句に分ける
-$E2GW$E2{P$E2$E2G}
- ↓ 構文解析器（3-6〜3-8）：命令を書き出す
-11 E2 … :a 11 E2 31 @b … :b 00
- ↓ ラベル翻訳機（1-10）
-機械語</pre>
-   <p><b>字句解析器の仕事</b>：数を <code>#HH</code> に、変数を <code>$HH</code> に、<code>putc</code> などの予約語を1文字にする。この小さなC では、<code>( ) ; =</code> は区切りの飾りにすぎないので、ここで捨ててしまう（構文解析器が楽になる）。</p>
-   <p>この課題では数と記号だけを扱う。部品は 3-2（10進を読む）と 2-7（1バイトを2文字に）と同じもの。</p>`,
-  hint:'いまの文字を F1 に置き、「次の文字（空白は飛ばす）」を部品 n にする。数字（30〜39）なら部品 p で数を読み、<code>#</code>（23）を出してから部品 e で2文字に。<code>+ - { }</code>（2B 2D 7B 7D）はそのまま出す。それ以外は読み捨てる。',
-  tests:['12 + 34 - 5;', '(255)', '{ 7 }', '1+2\n3-4'].map(w => ({tape:str(w), out:str(lexSC(w))}))},
- {id:'3-5', st:3, mode:'asm', big:true, title:'字句②：変数と予約語',
-  story:'字句解析器を仕上げる。残りは変数と予約語（putc・getc・while）。どちらも英小文字で始まるので、2文字目で見分ける。',
-  task:`3-4 に、次の2つを足す。
-   <ul><li>変数（英小文字1文字）→ <code>$</code> と番地の2桁（番地 = 文字コード + 7F。<code>a</code> → <code>$E0</code>、<code>c</code> → <code>$E2</code>）</li>
-   <li>予約語 <code>putc</code> <code>getc</code> <code>while</code> → 頭文字の大文字 <code>P</code> <code>G</code> <code>W</code></li></ul>
-   例：<code>c = getc();</code> → <code>"$E2G"</code>`,
-  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">コンパイラまでの道のり：3-4 字句①　→　<b style="color:var(--amber)">3-5 字句②</b>　→　3-6 式と代入　→　3-7 入れて出す　→　3-8 くり返し</p><p><b>見分け方</b>：英小文字（61〜7A）が来たら、次の文字を読む。次も英小文字なら予約語、そうでなければ1文字の変数。</p>
+ {id:'4-1', st:4, mode:'asm', big:true, title:'ラベル翻訳機16',
+  story:'大きな機械 SEED-16 では、番地が2バイトになる。いまのラベル翻訳機は <code>@x</code> を1バイトにしてしまうので、256 バイトを超えるプログラムが作れない。ラベル翻訳機を作り直す。',
+  task:`1-10 のラベル翻訳機を、次のように変える。
+   <ul><li><code>@x</code> → 番地を<b>2バイト</b>で出す（上の桁、下の桁の順。例：012C 番地なら <code>01 2C</code>）</li>
+   <li>番地を数えるときも、<code>@x</code> は2バイト分進める</li>
+   <li>番地は 256 を超えることがある（2バイトで数える）</li></ul>
+   例：<code>:a 01 31 @e 02 30 @a :e 00</code> → <code>01 31 00 08 02 30 00 00 00</code>`,
+  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">引っ越しの道のり：<b style="color:var(--amber)">4-1 ラベル翻訳機16</b>　→　4-2 アセンブラ16　→　4-3 大きな機械で動かす</p><div class="zg"><b class="h">座学：SEED-16</b>
    <ul>
-   <li>予約語：1文字目から 20 を引くと大文字になる（p 70 → P 50）。残りの英小文字は読み捨てる</li>
-   <li>変数：<code>$</code>（24）を出して、文字コード + 7F を2文字で。変数は、できあがった機械語の E0〜F9 番地に置かれる</li>
-   </ul>
-   <p><b>落とし穴</b>：<code>{</code>（7B）と <code>}</code>（7D）は文字コードが英小文字（61〜7A）より後ろにある。「61 以上なら英小文字」と判定すると、<code>{</code> も英小文字扱いになる。<code>{ }</code> の判定を先にするといい。</p>
-   <p>次の文字を読んだ後、その文字（たとえば <code>=</code> や <code>(</code>）はまだ処理していない。読んだまま、振り分けの最初へ戻ればいい。</p>`,
-  hint:'英小文字なら F2 にしまって部品 n で次へ。次が 61 未満なら変数：<code>LDI 24 OUT LD F2 ADI 7F CALL @e</code>。そうでなければ予約語：<code>LD F2 SBI 20 OUT</code> の後、英小文字が続くあいだ n で読み捨てる。',
-  tests:['a=5;', 'a = 12 + b - 3;', SC_PROGS.echo, 'putc(72);', SC_PROGS.mul].map(w => ({tape:str(w), out:str(lexSC(w))}))},
- {id:'3-6', st:3, mode:'asm', title:'式と代入を訳す',
-  story:'ここから後半、構文解析器。字句の列を読んで、命令をラベル付き16進で書き出す。電卓（3-3）との違いは、計算せずに「計算する命令」を書くこと。',
-  task:`テープには字句解析器の出力（代入だけ）が並ぶ。代入を命令にして、各バイトの後に空白を付けて出力する。
-   <ul><li>式の1つ目の項：<code>#HH</code> → <code>10 HH</code>（LDI）、<code>$HH</code> → <code>11 HH</code>（LD）</li>
-   <li><code>+</code> の後の項：<code>20 HH</code>（ADI）か <code>21 HH</code>（ADD）。<code>-</code> の後：<code>22 HH</code>（SBI）か <code>23 HH</code>（SUB）</li>
-   <li>代入 <code>$HH 式</code> → 式の命令の後に <code>12 HH</code>（ST）</li></ul>
-   例：<code>$E0#0C+$E1</code>（<code>a = 12 + b;</code>）→ <code>"10 0C 21 E1 12 E0 "</code>`,
-  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">コンパイラまでの道のり：3-4 字句①　→　3-5 字句②　→　<b style="color:var(--amber)">3-6 式と代入</b>　→　3-7 入れて出す　→　3-8 くり返し</p><div class="zg"><b class="h">座学：構文解析と文法</b>
-   <p>構文解析は、字句の並びから文の組み立てを読み取る作業。日本語でいえば、単語の並びから主語や述語を見分けるようなもの。組み立ての決まりを<b>文法</b>という。小さなC の文法を書くとこうなる。</p>
-   <pre>文 ＝ 変数 = 式 ;
-   ｜ putc ( 式 ) ;
-   ｜ while ( 式 ) { 文 … }
-式 ＝ 項 に「+ 項」か「- 項」が続く
-   ｜ getc ( )
-項 ＝ 数 ｜ 変数</pre>
-   <p>構文解析器は、この決まりをそのままプログラムにする。「式」を読む部品、「項」を読む部品……と、決まり1つにつき部品1つ。while の中には文があり、文の中にはまた while がありうる。決まりが自分自身を含むので、部品も自分自身を呼ぶ。このやり方を<b>再帰下降構文解析</b>という。</p></div><p><b>項の訳し方</b>：命令の番号は「数なら土台、変数なら土台 + 1」になっている（LDI 10 / LD 11、ADI 20 / ADD 21、SBI 22 / SUB 23）。<code>#</code> は 23、<code>$</code> は 24 なので、「印 − 23」を土台に足せば、枝分かれせずに番号が決まる。</p>
-   <p><b>+ と − の訳し方</b>：<code>+</code> は 2B、<code>-</code> は 2D。土台は 20 と 22。「文字 − 0B」がちょうど土台になる。</p>
-   <p><b>代入</b>：<code>$HH</code> の2文字を覚えておき、式を訳し終えてから <code>12</code> と覚えた2文字を出す。字句解析器が <code>=</code> と <code>;</code> を捨てているので、式の終わりは「+ でも - でもない字句が来たとき」。</p>
-   <p>出力する命令の番号は 0〜3 の数字しか使わないので、2文字にする部品は A〜F を考えなくていい。</p>`,
-  hint:'部品 c（<code>#</code> や <code>$</code> の後ろの2文字を写して空白、次の字句へ）を作ると、項は「番号を出して c」で済む。式：1つ目の項を土台 10 で訳す → 次の字句が + か - なら、土台を決めて次の項を訳し、くり返す。',
-  tests:['a=5;', 'a=12+34-5;b=a+1-a;', 'x=0;y=x-255;'].map(w => { const t = lexSC(w); return {tape:str(t), out:str(parseSC(t))}; })},
- {id:'3-7', st:3, mode:'asm', title:'入れて出す',
-  story:'テープを読み、結果を出す。putc と getc を訳せば、プログラムに入出力ができる。',
-  task:`3-6 に、次の2つを足す。
-   <ul><li>文 <code>P 式</code>（<code>putc(式);</code>）→ 式の命令の後に <code>02</code>（OUT）</li>
-   <li>式 <code>G</code>（<code>getc()</code>）→ <code>01</code>（IN）。この小さなC では、getc() は式の中で単独でしか使わない</li></ul>
-   例：<code>$E2GP$E2</code>（<code>c = getc(); putc(c);</code>）→ <code>"01 12 E2 11 E2 02 "</code>`,
-  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">コンパイラまでの道のり：3-4 字句①　→　3-5 字句②　→　3-6 式と代入　→　<b style="color:var(--amber)">3-7 入れて出す</b>　→　3-8 くり返し</p><p>文の振り分け：字句が <code>P</code>（50）なら putc、そうでなければ代入。式の振り分け：字句が <code>G</code>（47）なら getc、そうでなければ項から。</p>`,
-  hint:'<code>:s LD F1 CMP 50 JEQ @p</code> を文の頭に。p：次の字句へ進んで式を訳し、<code>02</code> を出す。式の頭に <code>LD F1 CMP 47 JEQ @g</code>、g：次の字句へ進んで <code>01</code> を出す。',
-  tests:['c=getc();putc(c);', 'putc(72);putc(73);', 'a=getc();b=a+1;putc(b);'].map(w => { const t = lexSC(w); return {tape:str(t), out:str(parseSC(t))}; })},
- {id:'3-8', st:3, mode:'asm', big:true, title:'くり返し',
-  story:'最後は while。くり返しの中にくり返しがあってもいいように作る。これができれば、コンパイラの完成だ。',
-  task:`3-7 に、次の2つを足す。
-   <ul><li>文 <code>W 式 { 文… }</code>（<code>while (式) { … }</code>）→ <code>:L 式の命令 31 @M 中の文の命令 30 @L :M</code></li>
-   <li>テープの終わりで、最後に <code>00</code>（HLT）を出す</li></ul>
-   ラベル L・M は、<code>a</code> から順に2つずつ使う（1つ目の while は a と b、2つ目は c と d…）。<br>
-   例：<code>W$E2{P$E2}</code> → <code>":a 11 E2 31 @b 11 E2 02 30 @a :b 00 "</code>`,
-  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">コンパイラまでの道のり：3-4 字句①　→　3-5 字句②　→　3-6 式と代入　→　3-7 入れて出す　→　<b style="color:var(--amber)">3-8 くり返し</b></p><div class="zg"><b class="h">座学：入れ子とスタック</b>
-   <p><b>スタック</b>は、後から積んだものを先に取り出す置き場。本を積み重ねて、上から取るのと同じ。入れ子の構造は、スタックで扱うとうまくいく。外の while のラベルを積み、中の while のラベルをその上に積む。中が終わったら上から取り出せば、ちょうど外のラベルが残っている。</p>
-   <p>CALL と RET も、戻り先をスタックに積んでいる（だから部品の中から別の部品を呼んでも、正しく戻れる）。</p></div><pre>:L       ← くり返しの頭
-  式      A に結果
-  31 @M   JZ：0 なら抜ける
-  中の文
-  30 @L   JMP：頭へ戻る
-:M       ← 抜けた先</pre>
-   <p><b>中の文を訳すのは、全体を訳すのと同じ</b>：「<code>}</code> かテープの終わりが来るまで文を訳す」部品を作り、全体でも while の中でも呼ぶ。</p>
-   <p><b>入れ子</b>：中の while が先にラベルを使うので、外側の L は、中を訳し終えるころには分からなくなっている。L を X の指す場所に積んでおき（<code>STX INX</code>）、中を訳し終えたら取り出す（<code>DEX LDX</code>）。M は L + 1。</p>
-   <p><code>@M</code> を出すのは中を訳す前なので、その時点の「次のラベル − 1」が M になる。</p>`,
-  hint:'ラベルを出す部品を2つ作ると楽：「<code>:</code> と A と空白」と「<code>@</code> と A と空白」。次のラベルを F9 に置き（最初は 61 = a）、X は使っていない番地（FA など）から積む。',
-  tests:[SC_PROGS.echo, SC_PROGS.sum, SC_PROGS.mul, 'putc(1);'].map(w => { const t = lexSC(w); return {tape:str(t), out:str(parseSC(t, true))}; })},
-
- {id:'4-1', st:4, mode:'c', title:'こだま',
-  story:'小さなC で書ける。1-2 で7バイトを番地を数えて打ったあのプログラムを、もう一度。',
-  task:'テープの文字を、終わり（00）まで順に出力する。',
-  learn:`<div class="zg"><b class="h">座学：高水準言語</b>
-   <p>小さなC のように、番地や命令を意識せず、変数や式で書ける言語を<b>高水準言語</b>という。逆に、機械語やアセンブリ言語のように機械に近い言語を<b>低水準言語</b>という。</p>
-   <p>高水準言語の1行は、何個もの命令になる。<code>s = s + a;</code> は「LD s → ADD a → ST s」の3命令。その変換をするのがコンパイラ。ソースの言葉をタップすると、どの命令になったかが見られる。</p></div><p><b>小さなC の書き方</b></p>
+   <li>メモリは 64KB（番地 0000〜FFFF）。番地を書くには2バイト要る</li>
+   <li>命令の番号と名前は SEED-8 と同じ。番地を指す引数（LD・ST・ADD・SUB・JMP・JZ・JNZ・JEQ・JLT・CALL など）だけが2バイトになる。<code>LDI 48</code> のような数そのものの引数は1バイトのまま</li>
+   <li>SEED-8 のプログラムも、そのまま動く。だから、これまでの道具（ラベル翻訳機・アセンブラ）はここでも使える</li>
+   </ul></div>
+   <p><b>この翻訳機自身は SEED-8 のプログラム</b>（256 バイトに収める）。命令名で書き、あなたのアセンブラとラベル翻訳機で組み立てる。出力する番地だけが2バイトになる。</p>
+   <p><b>変えるところ</b>（手引きありでは、1-10 と同じ働きを命令名で書き直したものから始まる）：</p>
    <ul>
-   <li>変数は英小文字1文字（a〜z）。数は 0〜255 の10進</li>
-   <li>式は数と変数を <code>+</code> <code>-</code> でつなぐ。<code>getc()</code> はテープから1文字読む（式の中で単独で使う）</li>
-   <li>文は <code>変数 = 式;</code>、<code>putc(式);</code>、<code>while (式) { 文… }</code>（式が 0 でない間くり返す）</li>
-   <li><code>//</code> から行末は注釈</li>
-   </ul>
-   <p>翻訳は4段：あなたの字句解析器 → 構文解析器 → ラベル翻訳機 → 機械語。「翻訳結果」にそれぞれの出力が出る。キーパッドの <code>putc(</code> <code>getc()</code> <code>while (</code> で予約語を入れられ、「a〜z」で変数を入れられる。</p>`,
-  hint:'1文字読んで c に入れ、c が 0 でない間「出して、次を読む」をくり返す。',
-  prefill:'// 小さなC で書く\n\n',
-  tests:[W('ABC'), W('BOOT'), W(''), W('Hello!')].map(t => ({...t, out:t.tape}))},
- {id:'4-2', st:4, mode:'c', title:'合計',
-  story:'足し算を繰り返す。1-3 では足し算1回にメモリの番地を選んで命令を並べたが、いまは変数の名前を書くだけだ。',
-  task:'テープの数（どれも 0 ではない）を全部足して、合計を1バイトで出力する（256 以上は下2桁）。',
-  hint:'合計 s を 0 にしてから、読んだ数が 0 でない間、s に足していく。最後に putc(s)。',
-  prefill:'// 小さなC で書く\n\n',
-  tests:[{tape:[1,2,3], out:[6]}, {tape:[100,100,100], out:[44]}, {tape:[], out:[0]}, {tape:[255,1], out:[0]}]},
- {id:'4-3', st:4, mode:'c', big:true, title:'掛け算',
-  story:'2-1 で、ラベルを使ってやっと書いた掛け算。小さなC では、くり返しの中にくり返しを書けば済む。',
-  task:'テープには数が2つずつ並ぶ（どれも 0 ではない）。各組の積を出力する（積は 256 未満）。テープが終われば止まる。',
-  hint:'外のくり返しで a を読み、内のくり返しで b 回 a を足す。',
-  prefill:'// 小さなC で書く\n\n',
-  tests:[{tape:[3,4], out:[12]}, {tape:[2,5,7,1], out:[10,7]}, {tape:[15,15], out:[225]}, {tape:[], out:[]}]},
+   <li><b>番地の数え方</b>：上の桁と下の桁の2つの変数で数える。下の桁に 1 足して 00 になったら（あふれたら）、上の桁にも 1 足す</li>
+   <li><b>名前の表</b>：名前ごとに上の桁と下の桁の2つをしまう。たとえば下の桁を「名前+60」番地、上の桁を「名前+7A」番地に</li>
+   <li><b>@x</b>：上の桁、下の桁の順に2つ出す。数えるときは 2 進める</li>
+   </ul>`,
+  hint:'番地を1増やす部品 i を作る：<code>LD 下 ADI 01 ST 下 JNZ 戻る LD 上 ADI 01 ST 上</code>。@x では i を2回呼ぶ。:x では、下の桁をしまった後 <code>TXA ADI 1A TAX</code> で X を上の桁の場所へ移し、上の桁もしまう。',
+  tests:['10 48 02 00', ':a 01 31 @e 02 30 @a :e 00', '@b 00 :b @a :a', '00 '.repeat(300) + ':z 30 @z', ':s 01 31 @e\n12 80 01\n21 80 02 30 @s\n:e 00']
+    .map(w => ({tape:str(w), out:asmTape16(w)}))},
+ {id:'4-2', st:4, mode:'asm', big:true, title:'アセンブラ16',
+  story:'SEED-16 には、SEED-8 にない命令が5つある。アセンブラにその名前を教える。自分の道具を、自分の道具で作り直す——セルフホストを、初めて本当に使う。',
+  task:`2-9 のアセンブラが、次の5つの命令名も番号に直せるようにする。
+   <table><tr><th>名前</th><th>番号</th><th>名前の数（×24）</th><th>働き</th></tr>
+   <tr><td>PHA</td><td>08</td><td>01</td><td>A をスタックに積む</td></tr>
+   <tr><td>PLA</td><td>09</td><td>61</td><td>スタックから A に取り出す</td></tr>
+   <tr><td>LXI</td><td>15</td><td>89</td><td>X に番地を入れる</td></tr>
+   <tr><td>AXA</td><td>16</td><td>C1</td><td>X に A を足す</td></tr>
+   <tr><td>CPM</td><td>41</td><td>8D</td><td>A とメモリの値を比べる</td></tr></table>
+   例：<code>PHA PLA CPM 01 2C</code> → <code>"08 09 41 01 2C "</code>`,
+  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">引っ越しの道のり：4-1 ラベル翻訳機16　→　<b style="color:var(--amber)">4-2 アセンブラ16</b>　→　4-3 大きな機械で動かす</p><p>アセンブラは「名前の数 → 番号」の表を引いているだけなので、<b>表に5行足せば</b>新しい命令を覚える。名前の数は 2-5 の決まり（×24 して足す）で計算してある。</p>
+   <p>この課題のソースは命令名で書かれ、<b>いまのアセンブラ</b>が組み立てる。できあがるのは<b>新しいアセンブラ</b>。道具が、自分の次の版を作る。</p>
+   <p>新しいアセンブラ自身は SEED-8 のプログラムのまま。番地2バイトの引数（<code>01 2C</code>）は16進2桁が2つ並ぶだけなので、そのまま写せばいい。</p>`,
+  hint:'表の最後に <code>01 08</code>、<code>61 09</code>、<code>89 15</code>、<code>C1 16</code>、<code>8D 41</code> の5行を足す。',
+  tests:['PHA PLA', 'LXI 10 00 AXA', 'CPM 01 2C JMP 01 00', 'IN OUT HLT', 'HLT IN OUT RWD TAX TXA INX DEX LDI LD ST LDX STX ADI ADD SBI SUB SHL JMP JZ JNZ JEQ JLT CALL RET CMP PHA PLA LXI AXA CPM']
+    .map(w => ({tape:str(w), out:str(refAsmText(w))}))},
+ {id:'4-3', st:4, mode:'asm16', big:true, title:'大きな機械で動かす',
+  story:'SEED-16 で、最初のプログラムを動かす。長いテープを逆さまにする。2-2 では X で並べたが、今度は新しい命令、スタックを使う。',
+  task:'テープの文字列（長いものもある）を、逆順に出力する。',
+  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">引っ越しの道のり：4-1 ラベル翻訳機16　→　4-2 アセンブラ16　→　<b style="color:var(--amber)">4-3 大きな機械で動かす</b></p><div class="zg"><b class="h">座学：スタック</b>
+   <p><b>スタック</b>は、後から積んだものを先に取り出す置き場（3-8 の座学）。SEED-16 には、A をスタックに積む <code>PHA</code> と、取り出す <code>PLA</code> がある。読んだ順に積んで、取り出せば、逆さまになる。</p>
+   <p>どこまで取り出せばいいかは、最初に目印の <code>00</code> を積んでおけば分かる（テープの文字に 00 はない）。</p>
+   <p>CALL の戻り先を覚えておく場所も、スタックの一種。こちらは機械が自動で使う。PHA と PLA の置き場は、それとは別にある。</p></div>
+   <p><b>SEED-16 のプログラム</b>：命令名で書くのは第3段階と同じ。ただし、ラベル <code>@x</code> は2バイトの番地になり、新しい5命令も使える。翻訳は、あなたのアセンブラ16（4-2）→ ラベル翻訳機16（4-1）。</p>`,
+  hint:'<code>LDI 00 PHA</code> で目印を積む → 読んで 00 でなければ PHA をくり返す → PLA して 00 なら止まる、でなければ OUT をくり返す。',
+  prefill:'# SEED-16 のプログラム（命令名で書く。@x は2バイトの番地になる）\n\n',
+  tests:[W('ABC'), W('BOOTSTRAP'), W(''), W('The quick brown fox jumps over the lazy dog. '.repeat(7))].map(t => ({...t, out:t.tape.slice().reverse()}))},
 ];
 const PZ = {}; P.forEach(p => PZ[p.id] = p);
 
@@ -1524,6 +1531,36 @@ CALL @n CALL @z HLT
 
 # ---- 部品 ----
 ` + SAMPLES['3-3'].slice(SAMPLES['3-3'].indexOf('# 部品：数を読む')).replace(/\n:z HLT\n?$/, '\n'),
+  '4-1': `# 1-10 のラベル翻訳機と同じ働きを、命令名で書き直したものを読み込んだ状態。
+# やること：@x を2バイト（上、下）で出し、番地を2バイトで数える
+` + `# ラベル翻訳機（1-10 と同じ働きを、命令名で書き直したもの。番地は1バイト）
+# 名前 x の番地を x+60 番地（C1〜DA）にしまう
+# 変数：F6 いまの番地、F7 何周目、F8 F9 作業用
+:w IN JZ @e CMP 21 JLT @w          # 区切りなら読み直し
+   CMP 3A JEQ @c CMP 40 JEQ @r      # :x と @x
+   ST F8 LD F7 JZ @s                # 1周目は16進を読み捨てる
+   LD F8 CALL @v SHL SHL SHL SHL ST F9
+   IN CALL @v ADD F9 OUT JMP @o     # 2周目：16進2桁を1バイトに
+:s IN JMP @o                        # 1周目：2文字目を読み捨て
+:c IN ADI 60 TAX LD F6 STX JMP @w   # :x の番地をしまう
+:r IN ST F8 LD F7 JZ @o             # @x：1周目は数えるだけ
+   LD F8 ADI 60 TAX LDX OUT         # 2周目：番地を出す
+:o LD F6 ADI 01 ST F6 JMP @w        # 番地 +1
+# e：テープの終わり。1周目なら巻き戻して2周目へ
+:e LD F7 JNZ @z RWD LDI 01 ST F7 LDI 00 ST F6 JMP @w
+:z HLT
+# v：16進の文字を数に
+:v CMP 41 JLT @n SBI 37 RET
+:n SBI 30 RET
+`,
+  '4-2': `# 2-9 のアセンブラの見本を読み込んだ状態。表の最後に SEED-16 の5命令を足す
+` + SAMPLES['2-9'],
+  '4-3': `# SEED-16 のプログラム（命令名で書く。@x は2バイトの番地になる）
+     # LDI 00 PHA で目印を積む
+:r   # IN → 00 なら p へ。でなければ PHA して r へ
+:p   # PLA → 00 なら z へ。でなければ OUT して p へ
+:z HLT
+`,
 };
 P.forEach(p => { if (GUIDED[p.id]) p.guided = GUIDED[p.id]; });
 const MODES = {guided:'手引きあり', scratch:'ゼロから', expert:'腕試し'};
@@ -1533,15 +1570,18 @@ const STAGES = [
   {n:1, name:'第1段階　16進', lang:'10 48 02 00', desc:'メモリに数を直接書き込む。番地は全部、自分で数える。'},
   {n:2, name:'第2段階　ラベル付き16進', lang:':l 01 31 @e 02 30 @l', desc:'番地に名前をつける。翻訳はあなたが書いた翻訳機がする。'},
   {n:3, name:'第3段階　ニーモニック', lang:':l IN JZ @e OUT JMP @l', desc:'命令を名前で書く。翻訳はあなたのアセンブラとラベル翻訳機がする。'},
-  {n:4, name:'第4段階　小さなC', lang:'c = getc(); while (c) { putc(c); c = getc(); }', desc:'変数と式と while で書く。翻訳はあなたのコンパイラ（字句解析器と構文解析器）とラベル翻訳機がする。'},
-  {n:5, name:'第？段階　拾ったコンパイラ', lang:'cc: ELF 64-bit, stripped', desc:'廃墟のサーバに、完成品の C コンパイラが残っているという。', locked:true},
+  {n:4, name:'第4段階　新しい機械', lang:'SEED-16：番地は2バイト、メモリ 64KB', desc:'大きな機械に、道具を引っ越す。番地を2バイトで書けるようにし、新しい命令を教える。'},
+  {n:5, name:'第5段階　小さなC', lang:'if (c < 97) { putc(c); }', desc:'比較・if・while・配列を持つ C。準備中。', locked:true},
+  {n:6, name:'第6段階　セルフホスト', lang:'cc cc.c', desc:'C で書いたコンパイラを、自分のコンパイラでコンパイルする。準備中。', locked:true},
+  {n:7, name:'第？段階　拾ったコンパイラ', lang:'cc: ELF 64-bit, stripped', desc:'廃墟のサーバに、完成品の C コンパイラが残っているという。', locked:true},
 ];
+const TR16_ID = '4-1', ASM16_ID = '4-2';
 const STEP_LIMIT = 20000, TR_LIMIT = 300000, TR_ID = '1-10', ASM_ID = '2-9', LEX_ID = '3-5', PAR_ID = '3-8', END_ID = '4-3';
-const stageOpen = n => n === 1 || (n >= 2 && !!SAVE.translator && (n === 2 || (!!SAVE.assembler && (n === 3 || (n === 4 && !!SAVE.lexer && !!SAVE.parser)))));
+const stageOpen = n => n === 1 || (n >= 2 && !!SAVE.translator && (n === 2 || (!!SAVE.assembler && (n === 3 || (n === 4 && !!SAVE.solved['3-3'])))));
 
 /* ================= 保存 ================= */
 const KEY = 'bootstrap-proto-v1';
-let SAVE = {ver:5, code:{}, solved:{}, notes:{}, translator:null, assembler:null};
+let SAVE = {ver:6, code:{}, solved:{}, notes:{}, translator:null, assembler:null};
 try { const j = JSON.parse(localStorage.getItem(KEY)); if (j && j.code) SAVE = Object.assign({code:{}, solved:{}, notes:{}, translator:null}, j); } catch(e){}
 // 古い形のセーブを今の課題番号に合わせる
 function migrate(sv){
@@ -1576,6 +1616,13 @@ if (sv.ver === 4){
   if ('2-8' in n){ n['2-9'] = n['2-8']; }
   if (d['2-8']){ d['2-9'] = d['2-8']; }
   sv.ver = 5;
+}
+if (sv.ver === 5){
+  // 旧 3-4〜3-8（SEED-8 のコンパイラ）と旧 4-1〜4-3（小さなC）は作り直しのため外した。書いたものは保管しておく
+  sv.archive = sv.archive || {code:{}, notes:{}, solved:{}};
+  for (const id of ['3-4','3-5','3-6','3-7','3-8','4-1','4-2','4-3']) for (const k of ['code', 'notes', 'solved']){
+    if (sv[k] && id in sv[k]){ sv.archive[k][id] = sv[k][id]; delete sv[k][id]; } }
+  sv.ver = 6;
 }
   return sv;
 }
@@ -1660,18 +1707,18 @@ function getNotes(p){
   n.length = len; return n;
 }
 // 先頭から命令として読み下し、各バイトが「命令」か「その引数」かを決める
-function decode(b){
+function decode(b, w16){
   const r = []; let i = 0;
-  while (i < b.length){ const o = OP[b[i]]; r[i] = {k:'op', at:i}; if (o && o.arg && i + 1 < b.length) r[i + 1] = {k:'arg', at:i}; i += 1 + (o ? o.arg : 0); }
+  while (i < b.length){ const w = argw(b[i], w16); r[i] = {k:'op', at:i}; for (let k = 1; k <= w && i + k < b.length; k++) r[i + k] = {k:'arg', at:i}; i += 1 + w; }
   return r;
 }
 const JUMPS = [0x30,0x31,0x32,0x33,0x34,0x35], MEMS = {0x11:'読む', 0x12:'書く', 0x21:'読んで足す', 0x23:'読んで引く'};
-function target(b, c){
-  const r = decode(b)[c]; if (!r) return null;
-  const op = b[r.at], n = b[r.at + 1];
-  if (r.at + 1 >= b.length) return null;
-  if (JUMPS.includes(op)) return {at:n, text:`${OP[op].m} の行き先 → ${hex2(n)}番地`};
-  if (op in MEMS) return {at:n, text:`${hex2(n)}番地を${MEMS[op]}`};
+function target(b, c, w16){
+  const r = decode(b, w16)[c]; if (!r) return null;
+  const op = b[r.at], w = argw(op, w16), n = w === 2 ? (b[r.at + 1] << 8) | b[r.at + 2] : b[r.at + 1], H = w === 2 ? hex4 : hex2;
+  if (r.at + w >= b.length) return null;
+  if (JUMPS.includes(op)) return {at:n, text:`${OP[op].m} の行き先 → ${H(n)}番地`};
+  if (op in MEMS) return {at:n, text:`${H(n)}番地を${MEMS[op]}`};
   return null;
 }
 function getCode(p){
@@ -1800,6 +1847,11 @@ const RECORDS = [
   <div class="tools"><button data-demo="asm">アセンブラで試す</button></div><div id="demo-asm"></div>
   <p style="margin-top:10px">ここまで来れば、次の版の道具は、いまの道具の言葉で書ける。16進で書くのは、最初の一回だけでよかった。</p>
   <div class="real"><b class="h">現実では</b>GCC などのコンパイラは、作るときに「前の版で新しい版をコンパイルし、できた新しい版で自分をもう一度コンパイルし、さらにもう一度コンパイルする」。2回目と3回目の結果が一致するかを比べて、正しく作り直せたことを確かめる（3段階のブートストラップ）。</div>`},
+ {id:'m1', at:'3-3', title:'大きな機械', body:`
+  <p>廃墟の奥で、大きな機械を見つけた。電源は入るが、中身は空だ。メモリは 64KB——SEED-8 の 256 倍ある。仮に SEED-16 と呼ぶ。</p>
+  <p>調べると、SEED-8 の命令はそのまま動く。違いは、番地が2バイトになること。だから SEED-8 のために作った道具は、ここでも使える。ただ、その道具が書き出す番地は1バイトなので、大きなプログラムは作れない。</p>
+  <p>コンパイラを作るには、256 バイトは狭すぎた。まず道具をこの機械に引っ越す。</p>
+  <div class="real"><b class="h">現実では</b>C 言語は、機械の乗り換えの中で生まれた。Unix とその前身の B 言語は小さな機械（PDP-7）で作られ、もっと大きな機械（PDP-11）に移ってから C が生まれた。新しい CPU に道具を移すことも、いまでもよく行われる。既存の機械の上で新しい CPU 用の機械語を出す道具を作り（クロスコンパイル）、それで道具を移す。古い CPU のプログラムがそのまま動く大きな CPU もある（Z80 は 8080 のプログラムを動かせた）。<br>一方、現実のブートストラップの取り組み（stage0 など）は、最初から普通のパソコンの上で行う。最初の道具が小さいのは、メモリのせいではなく、人が手で打ち、全部を読んで確かめられる大きさにするためだ。</div>`},
  {id:'r4', at:'3-3', title:'電卓からコンパイラへ', body:`
   <p>式を読んで、答えを出せるようになった。<code>12+34-5</code> を左から読み、数を読み、足し、引く。</p>
   <p>ふと思う。答えを出す代わりに、「答えを出す機械語」を書き出したらどうなるか。<code>12+34</code> を読んだら、「12 を A に入れ、34 を足す」という命令を出力する。それはもう、式のコンパイラだ。</p>
@@ -1810,7 +1862,7 @@ const RECORDS = [
   <p>理由は単純で、256 バイトのメモリに入りきらなかったからだ。だから仕事を分けた。字句解析器は文字を「字句」に分けることだけを、構文解析器は字句を読んで命令を書き出すことだけをする。間は、字句の列というテキストでつなぐ。</p>
   <p>小さなC のプログラムは、字句解析器 → 構文解析器 → ラベル翻訳機 と3つの道具を通って機械語になる。その字句解析器と構文解析器は命令名で書き、アセンブラが組み立てた。どの道具も、わたしが書いた。</p>
   <div class="real"><b class="h">現実では</b>メモリの小さかった時代のコンパイラは、実際にいくつものプログラム（パス）に分かれていた。数十の段階に分かれていたものもある。いまのコンパイラも、中では「字句解析 → 構文解析 → コード生成」と段階を分けて考える。メモリが足りるようになった今でも、分けた方が作りやすく、直しやすいからだ。</div>`},
- {id:'r5', at:'4-3', title:'信頼という問題', body:`
+ {id:'r5', at:'7-9', title:'信頼という問題', body:`
   <p>噂を聞いた。廃墟になったデータセンターのサーバに、完成品の C コンパイラが残っているという。それを使えば、ここから先の何段もを飛ばせる。</p>
   <p>だが、それを作ったのは誰だ。</p>
   <p>ソースも残っているらしい。読んでみて、怪しいところがなければ安心できるだろうか。</p>
@@ -1818,7 +1870,8 @@ const RECORDS = [
   <p>わたしの道具は、全部わたしが書いた。16進の1バイトまで、何をしているか分かる。拾ったコンパイラについては、それが言えない。</p>
   <div class="real"><b class="h">現実では</b>この話は Thompson のチューリング賞講演「Reflections on Trusting Trust」（1984年）で広く知られるようになった。現実のブートストラップの取り組みが「中身を全部読める小さな種」から始めるのは、この問題への答えでもある。別々のコンパイラ2つで作り直して結果を比べる方法（David A. Wheeler の Diverse Double-Compiling）も考えられている。</div>`},
 ];
-const recOpen = r => !r.at || !!SAVE.solved[r.at];
+const recLive = r => !r.at || !!PZ[r.at];
+const recOpen = r => recLive(r) && (!r.at || !!SAVE.solved[r.at]);
 const recUnread = () => RECORDS.some(r => recOpen(r) && !(SAVE.read || {})[r.id]);
 // ---- コラム用：見本を書き直したソースを作る ----
 // 16進の機械語を、跳び先をラベルにしたラベル付き16進にする（並びはそのまま）
@@ -1875,7 +1928,7 @@ function showRecord(id){
   if (S.screen === 'map') renderMap();
 }
 function showRecords(){
-  const d = modal(`<h2>再建記録</h2><div class="reclist">${RECORDS.map((r, i) => recOpen(r)
+  const d = modal(`<h2>再建記録</h2><div class="reclist">${RECORDS.filter(recLive).map((r, i) => recOpen(r)
     ? `<button data-r="${r.id}">${i}. ${r.title}${(SAVE.read || {})[r.id] ? '' : '<span class="new">新しい</span>'}</button>`
     : `<button disabled>${i}. ？？？ <span class="dim" style="font-size:12px">（${r.at} をクリアすると読める）</span></button>`).join('')}</div>
     <div class="row"><button class="pri" data-close>閉じる</button></div>`);
@@ -1901,7 +1954,7 @@ function renderMap(){
   app.innerHTML = `<div class="bar"><button data-act="title">≡</button><div class="ttl">再建の道のり</div><button data-act="records">記録${recUnread() ? '<span class="dot"></span>' : ''}</button><button data-act="manual">命令表</button></div>` +
   `<div class="card" style="padding:10px 12px"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b style="font-size:14px;margin-right:4px">遊び方</b>${Object.entries(MODES).map(([k, t]) => `<button data-act="mode" data-m="${k}" class="${modeNow() === k ? 'pri' : ''}" style="font-size:13px;padding:5px 10px">${t}</button>`).join('')}</div>
     <div class="dim" style="font-size:12px;margin-top:6px">${{guided:'部品を組み合わせる課題は、必要な部品を必要な形に直して読み込んだ状態から始まる。', scratch:'部品は自分で読み込んで、直して使う。', expert:'ゼロからに加えて、段階の中のどの課題からでも挑める。★の翻訳機にいきなり挑んでもいい。'}[modeNow()]}書いたコードは消えない（「初期状態に戻す」で、いまの遊び方の初期状態になる）。</div></div>` +
-  STAGES.filter(s => s.n !== 5 || SAVE.solved[END_ID]).map(s => {
+  STAGES.filter(s => s.n !== 7).map(s => {
     const ps = P.filter(p => p.st === s.n);
     const open = !s.locked && stageOpen(s.n);
     return `<div class="stage ${open ? '' : 'locked'}">
@@ -1911,7 +1964,7 @@ function renderMap(){
         const ok = unlocked(p);
         return `<button data-act="open" data-id="${p.id}" class="${SAVE.solved[p.id] ? 'done' : ''} ${p.big ? 'big' : ''}" ${ok ? '' : 'disabled'}>
           <span class="n">${p.id}${p.big ? (p.id === END_ID ? '　★' : '　★翻訳機') : ''}</span>${ok ? p.title : '？？？'}</button>`; }).join('')}</div>` :
-        (s.n === 2 ? '<p class="mono" style="color:var(--amber)">解放条件：1-10 ラベル翻訳機</p>' : s.n === 3 ? '<p class="mono" style="color:var(--amber)">解放条件：2-9 アセンブラ</p>' : s.n === 4 ? '<p class="mono" style="color:var(--amber)">解放条件：3-5 字句解析器と 3-8 構文解析器</p>' : '')}
+        (s.n === 2 ? '<p class="mono" style="color:var(--amber)">解放条件：1-10 ラベル翻訳機</p>' : s.n === 3 ? '<p class="mono" style="color:var(--amber)">解放条件：2-9 アセンブラ</p>' : s.n === 4 ? '<p class="mono" style="color:var(--amber)">解放条件：3-3 電卓</p>' : '')}
     </div>`;
   }).join('') + `<p class="dim" style="font-size:12px;text-align:center">${CLOUD.ref ? '進み具合は claude.ai のあなたのアカウントにも保存されています（あなただけが読めます）。' : '進み具合はこの端末のブラウザに保存されます。消えることがあるので、ときどき引き継ぎコードを控えておくと安心です。'}</p>
   <p style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap"><button data-act="exp" style="font-size:12px;padding:4px 9px">引き継ぎコードを書き出す</button><button data-act="imp" style="font-size:12px;padding:4px 9px">読み込む</button><button data-act="wipe" style="font-size:12px;padding:4px 9px">最初から</button></p>`;
@@ -2005,8 +2058,8 @@ function drawAll(){ drawTests(); if (S.p.mode === 'hex'){ drawGrid(); drawInfo()
 
 function fmtBytes(a, max = 40){ if (!a.length) return '<span class="dim">（なし）</span>'; const s = a.slice(0, max).map(hex2).join(' '); return s + (a.length > max ? ' …' : ''); }
 // テープ・出力を文字として読む課題（それ以外は数として 16 進だけ見せる）
-const TAPE_TEXT = new Set(['1-2','1-5','1-6','1-7','1-8','1-9','1-10','2-2','2-3','2-4','2-5','2-6','2-8','2-9','3-2','3-3','3-4','3-5','3-6','3-7','3-8','4-1']);
-const OUT_TEXT = new Set(['1-1','1-2','2-2','2-3','2-7','2-8','2-9','3-1','3-3','3-4','3-5','3-6','3-7','3-8','4-1']);
+const TAPE_TEXT = new Set(['1-2','1-5','1-6','1-7','1-8','1-9','1-10','2-2','2-3','2-4','2-5','2-6','2-8','2-9','3-2','3-3','4-1','4-2','4-3']);
+const OUT_TEXT = new Set(['1-1','1-2','2-2','2-3','2-7','2-8','2-9','3-1','3-3','4-2','4-3']);
 const chOf = c => c === 0x0A ? '↵' : c === 0x20 ? '␣' : c > 0x20 && c < 0x7F ? String.fromCharCode(c) : '·';
 function textOf(a, on){ return on && a.length ? ` <span class="dim">"${esc(a.map(chOf).join(''))}"</span>` : ''; }
 function drawTests(){
@@ -2136,12 +2189,12 @@ function srcCaret(){
   if (!k){ el.innerHTML = '<span class="dim">数やラベルをタップすると、ここに中身が出ます。</span>'; drawBuilt(); return; }
   const b = L.bytes, at = labs => { const n = Object.keys(L.labels).filter(x => L.labels[x] === labs); return n.length ? `（<span style="color:var(--blue)">:${n.join(' :')}</span> の場所）` : ''; };
   let h = '';
-  if (k.t === ':') h = `<b>:${k.l}</b>　ここに名前 ${k.l} をつける ＝ ${hex2(k.addr)}番地。バイトにはならない`;
+  if (k.t === ':') h = `<b>:${k.l}</b>　ここに名前 ${k.l} をつける ＝ ${(L.w16 ? hex4 : hex2)(k.addr)}番地。バイトにはならない`;
   else {
     S.selAddr = k.addr;
-    const r = decode(b)[k.addr], v = b[k.addr], o = OP[v], tg = target(b, k.addr);
-    h = `[${hex2(k.addr)}] = ${hex2(v)}　`;
-    if (k.t === '@') h += `<b>@${k.l}</b> → 名前 ${k.l} の番地 ${hex2(v)}　`;
+    const W = !!L.w16, r = decode(b, W)[k.addr], v = b[k.addr], o = OP[v], tg = target(b, k.addr, W), H = W ? hex4 : hex2;
+    h = `[${H(k.addr)}] = ${hex2(v)}　`;
+    if (k.t === '@') h += `<b>@${k.l}</b> → 名前 ${k.l} の番地 ${W ? hex4((v << 8) | b[k.addr + 1]) : hex2(v)}　`;
     if (r && r.k === 'arg') h += `<b>${OP[b[r.at]].m}</b> の引数`;
     else if (k.t === 'm') h += `<b>${k.w}</b> → 番号 ${hex2(v)}：${o.d}`;
     else if (k.t === 'b') h += o ? `<b>${o.m}${o.arg ? ' nn' : ''}</b>：${o.d}` : '<span class="dim">命令ではない数</span>';
@@ -2222,13 +2275,24 @@ function drawBuilt(){
   const B = S.built;
   if (B.errors){ el.innerHTML = B.errors.slice(0, 6).map(e => `<div class="msg err">✗ ${esc(e)}</div>`).join(''); return; }
   const midHTML = (B.mids || []).map(([t, x]) => `<div class="msg dim" style="margin-bottom:6px">${t}</div><div class="strip mono" style="margin:0 0 8px;font-size:12px">${esc(x)}</div>`).join('') + (B.mids ? '<div class="msg dim" style="margin-bottom:6px">ラベル翻訳機の出力（機械語）</div>' : '');
+  if (B.w16){
+    const dec = decode(B.bytes, true), vm = S.vm && S.vm.steps ? S.vm : null; let rows = '';
+    for (let a = 0; a < B.bytes.length && a < 4096;){ const w = argw(B.bytes[a], true), o = OP[B.bytes[a]];
+      const bs = B.bytes.slice(a, a + 1 + w).map(hex2).join(' '), lab = Object.keys(B.labels || {}).filter(x => B.labels[x] === a).map(x => ':' + x).join(' ');
+      const on = vm && !vm.halted && vm.pc === a, sel = S.selAddr === a;
+      rows += `<div class="mono" style="font-size:13px;padding:1px 4px;border-radius:4px;${on ? 'background:#1d4a24;' : sel ? 'outline:1px solid var(--amber);' : ''}"><span class="dim">${hex4(a)}</span>  ${bs.padEnd(8, ' ')}　${o ? o.m + (w ? ' ' + bs.slice(3) : '') : ''}${lab ? ` <span style="color:var(--blue)">${lab}</span>` : ''}</div>`;
+      a += 1 + w; }
+    el.innerHTML = midHTML + `<div style="background:#0e150f;border-radius:8px;padding:6px;max-height:40vh;overflow:auto;white-space:pre">${rows}</div>` +
+      `<div class="msg dim">${B.bytes.length} バイト　/ 2つの翻訳機で合わせて ${B.steps} 歩で翻訳</div>` + (B.warn ? `<div class="msg warn">⚠ ${B.warn}</div>` : '');
+    return;
+  }
   el.innerHTML = midHTML + gridHTML(B.bytes, {cur:S.selAddr ?? -1, vm:S.vm && S.vm.steps ? S.vm : null, edit:false, labels:B.labels}) +
     (B.labels && Object.keys(B.labels).length ? `<div class="msg dim">名前：${Object.keys(B.labels).sort().map(k => `<span class="mono" style="color:var(--blue)">${k}</span>=${hex2(B.labels[k])}`).join('　')}</div>` : '') +
     `<div class="msg dim">${B.bytes.length} バイト　/ ${B.mids ? (B.mids.length + 1) + 'つの翻訳機で合わせて' : '翻訳機は'} ${B.steps} 歩で翻訳</div>` +
     (B.warn ? `<div class="msg warn">⚠ ${B.warn}</div>` : '');
 }
 function ensureVM(){
-  if (!S.vm){ const b = curBytes(); if (!b) return null; S.vm = newVM(b, S.p.tests[S.ti].tape); }
+  if (!S.vm){ const b = curBytes(); if (!b) return null; S.vm = newVM(b, S.p.tests[S.ti].tape, S.p.mode === 'asm16'); }
   return S.vm;
 }
 // 名前の表（61〜7A 番地）のうち、このテープで :x される名前だけを見せる
@@ -2246,13 +2310,13 @@ function drawMach(){
   const t = S.p.tests[S.ti];
   const status = v.err ? `<span style="color:var(--red)">エラー</span>` : v.halted ? '<span style="color:var(--acc)">停止</span>' : v.steps ? '実行中' : '待機';
   const o = OP[v.mem[v.pc]];
-  const next = v.halted || v.err ? '—' : o ? o.m + (o.arg ? ' ' + hex2(v.mem[(v.pc + 1) & 255]) : '') : '??';
+  const aw = argw(v.mem[v.pc], v.w16), next = v.halted || v.err ? '—' : o ? o.m + (aw === 2 ? ' ' + hex4((v.mem[(v.pc + 1) & v.mask] << 8) | v.mem[(v.pc + 2) & v.mask]) : aw ? ' ' + hex2(v.mem[(v.pc + 1) & v.mask]) : '') : '??';
   const tape = t.tape.length ? t.tape.map((c, i) => `<span class="t ${i === v.tp ? 'now' : i < v.tp ? 'used' : ''}">${TAPE_TEXT.has(S.p.id) ? esc(chOf(c)) : hex2(c)}</span>`).join('') + `<span class="t ${v.tp >= t.tape.length ? 'now' : ''}">■</span>` : '<span class="t now">■</span><span class="dim">（空）</span>';
   const outs = v.out.map((c, i) => `<span class="t ${t.out[i] === c ? '' : 'bad'}">${hex2(c)}</span>`).join(' ');
   el.innerHTML = `<div class="regs">
-    <div>PC <b>${hex2(v.pc)}</b></div><div>A <b>${hex2(v.a)}</b></div><div>X <b>${hex2(v.x)}</b></div>
+    <div>PC <b>${fmtA(v, v.pc)}</b></div><div>A <b>${hex2(v.a)}</b></div><div>X <b>${fmtA(v, v.x)}</b></div>
     <div>EQ <b>${v.eq ? '1' : '0'}</b> LT <b>${v.lt ? '1' : '0'}</b></div><div>歩数 <b>${v.steps}</b></div><div>${status}</div></div>
-    <div class="strip"><span class="lbl">次</span>${next}${v.rs.length ? `　<span class="lbl">戻り先</span>${v.rs.map(hex2).join(' ')}` : ''}</div>
+    <div class="strip"><span class="lbl">次</span>${next}${v.rs.length ? `　<span class="lbl">戻り先</span>${v.rs.map(x => fmtA(v, x)).join(' ')}` : ''}</div>${v.ds.length ? `<div class="strip"><span class="lbl">スタック（${v.ds.length}）</span>${v.ds.slice(-12).map(hex2).join(' ')}${v.ds.length > 12 ? ' …' : ''} <span class="dim">← いちばん上</span></div>` : ''}
     <div class="strip"><span class="lbl">テープ #${S.ti + 1}</span>${tape}</div>${tableHTML(v, t)}
     <div class="strip"><span class="lbl">出力</span>${outs || '<span class="dim">（なし）</span>'}${textOf(v.out, OUT_TEXT.has(S.p.id))}</div>
     ${v.err ? `<div class="msg err">✗ ${esc(v.err)}</div>` : ''}`;
@@ -2291,7 +2355,7 @@ function check(){
   const p = S.p, b = curBytes();
   if (!b){ S.msg = {cls:'err', html:'翻訳エラーを直してください。'}; drawResult(); document.getElementById('result').scrollIntoView({behavior:'smooth', block:'center'}); return; }
   S.results = p.tests.map(t => {
-    const v = runVM(b, t.tape, STEP_LIMIT);
+    const v = runVM(b, t.tape, STEP_LIMIT, p.mode === 'asm16');
     const pass = !v.err && v.out.length === t.out.length && v.out.every((c, i) => c === t.out[i]);
     return {pass, v};
   });
@@ -2305,6 +2369,8 @@ function check(){
     if (p.id === ASM_ID) SAVE.assembler = b.slice();
     if (p.id === LEX_ID) SAVE.lexer = b.slice();
     if (p.id === PAR_ID) SAVE.parser = b.slice();
+    if (p.id === TR16_ID) SAVE.tr16 = b.slice();
+    if (p.id === ASM16_ID) SAVE.asm16 = b.slice();
     persist();
     S.msg = {cls:'ok', html:`✓ 全テスト通過　<span class="stats">${b.length} バイト / 合計 ${steps} 歩</span>`};
     drawResult();
@@ -2598,9 +2664,15 @@ function clearModal(p, size, steps, first){
     <p>あなたが一字一字、番地を数えて書いた ${size} バイト。これがあなたの最初の本格的な翻訳機だ。</p>
     <p>第2段階からのコードは、<b>この翻訳機</b>が機械語に直す。もう番地は数えなくていい。</p>`;
   }
+  if (p.id === '3-3'){
+    body += `<div class="unlock">▼ 段階解放 ▼<br>新しい機械</div><p>大きな機械 SEED-16 が使えるようになった。</p>`;
+  }
+  if (p.id === ASM16_ID){
+    body += `<p style="margin-top:10px">SEED-16 用の道具がそろった。4-3 からは、SEED-16 で動くプログラムを書ける。</p>`;
+  }
   if (p.id === END_ID){
     body += `<div class="unlock">ここまで</div>
-    <p>小さなC で、くり返しの中にくり返しのあるプログラムが書けた。16進を1バイトずつ打っていたころから、ずいぶん遠くまで来た。</p>`;
+    <p>大きな機械で、プログラムが動いた。第5段階（比較と if を持つ小さなC）は準備中。</p>`;
   }
   const newRecs = RECORDS.filter(r => r.at === p.id && !(SAVE.read || {})[r.id]);
   if (newRecs.length) body += `<p style="margin:12px 0 0">新しい記録が読めるようになった。</p><div class="reclist" style="margin-top:6px">${newRecs.map(r => `<button class="amb" data-rec="${r.id}">記録：${r.title}</button>`).join('')}</div>`;
@@ -2628,7 +2700,7 @@ app.addEventListener('click', e => {
     case 'exp': exportSave(); break;
     case 'imp': importSave(); break;
     case 'wipe':
-      ask('すべての進み具合とコードを消して、最初からにしますか？', '消して最初から', () => { SAVE = {ver:5, code:{}, solved:{}, notes:{}, translator:null, assembler:null}; persist(); go('title'); });
+      ask('すべての進み具合とコードを消して、最初からにしますか？', '消して最初から', () => { SAVE = {ver:6, code:{}, solved:{}, notes:{}, translator:null, assembler:null}; persist(); go('title'); });
       break;
     case 'k': key(t.dataset.k); break;
     case 'left': case 'right': case 'ins': case 'del': case 'undo': editOp(a); break;
@@ -2674,7 +2746,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'Enter'){ e.preventDefault(); check(); }
 });
 
-window.__boot = {blueprint3, lexSC, parseSC, lintC, build4, selfHostDemo, hexToLabeled, toMnemonicSrc, charNumHint, build3, lint3, HASH, refAsmText, enc, dec, migrate, SAMPLES, P, PZ, runVM, asmTape, lint, build, SAVE: () => SAVE};
+window.__boot = {asmTape16, build16, blueprint3, lexSC, parseSC, lintC, build4, selfHostDemo, hexToLabeled, toMnemonicSrc, charNumHint, build3, lint3, HASH, refAsmText, enc, dec, migrate, SAMPLES, P, PZ, runVM, asmTape, lint, build, SAVE: () => SAVE};
 render();
 cloudInit();
 </script>
