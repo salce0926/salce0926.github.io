@@ -43,6 +43,8 @@ details.card[open]>summary::before{content:"▾ ";}
 .reclist button{text-align:left}
 .reclist button .new{color:var(--amber);font-size:12px;margin-left:6px}
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);margin-left:5px;vertical-align:2px}
+.zg{background:#16142a;border:1px solid #3a3466;border-radius:8px;padding:8px 10px;margin:8px 0}
+.zg > b.h{display:block;color:#c3b8ff;margin-bottom:4px}
 .learn{margin-top:10px;font-size:14px;background:#0e1a1f;border:1px solid #23404c;border-radius:8px;padding:8px 10px}
 .learn summary{color:var(--blue);cursor:pointer;font-weight:700}
 .learn p{margin:6px 0}
@@ -418,8 +420,9 @@ function parseSC(t, end){
 // 小さなCの書き方を点検する（// から行末は注釈として取り除く）
 function lintC(src){
   const lines = src.split('\n').map(l => { const h = l.indexOf('//'); return h >= 0 ? l.slice(0, h) : l; });
-  const toks = [];
-  lines.forEach((l, li) => { for (const m of l.matchAll(/[a-z]+|[0-9]+|[=+\-;(){}]|\S/g)) toks.push({v:m[0], ln:li + 1}); });
+  const toks = []; let off = 0;
+  src.split('\n').forEach((raw, li) => { const base = off; off += raw.length + 1;
+    for (const m of lines[li].matchAll(/[a-z]+|[0-9]+|[=+\-;(){}]|\S/g)) toks.push({v:m[0], ln:li + 1, s:base + m.index, e:base + m.index + m[0].length}); });
   let i = 0;
   const cur = () => toks[i] || {v:'', ln:lines.length};
   const err = m => { throw new Error(`${cur().ln}行目: ${m}`); };
@@ -439,7 +442,20 @@ function lintC(src){
   const errors = [];
   try { while (i < toks.length) stmt(); } catch(e){ errors.push(e.message); }
   const tape = lines.join('\n'), lx = lexSC(tape), mid = parseSC(lx, true);
-  return {errors, tape, toks:[], labels:{}, lx, mid, bytes: errors.length ? [] : asmTape(mid)};
+  // どの字句が、どの番地の命令になるか（構文解析器の仕様と同じ順に数える）
+  const map = [];
+  if (!errors.length){
+    let j = 0, pc = 0;
+    const at = (k, n) => { map.push({s:k.s, e:k.e, ln:k.ln, from:pc, to:pc + n}); pc += n; };
+    const tm = (opk) => { const k = toks[j++]; if (opk) map.push({s:opk.s, e:opk.e, ln:opk.ln, from:pc, to:pc + 2}); at(k, 2); };
+    const ex = () => { if (toks[j].v === 'getc'){ at(toks[j], 1); j += 3; return; } tm(null); while (toks[j] && (toks[j].v === '+' || toks[j].v === '-')){ const o = toks[j++]; tm(o); } };
+    const st = () => { const k = toks[j];
+      if (k.v === 'putc'){ j += 2; ex(); j++; at(k, 1); j++; }
+      else if (k.v === 'while'){ j += 2; ex(); j++; at(k, 2); j++; while (toks[j] && toks[j].v !== '}') st(); at(toks[j], 2); j++; }
+      else { j += 2; ex(); at(k, 2); j++; } };
+    while (j < toks.length) st();
+  }
+  return {errors, tape, toks:[], cmap:map, labels:{}, lx, mid, bytes: errors.length ? [] : asmTape(mid)};
 }
 // 第4段階：あなたの字句解析器（3-5）→ 構文解析器（3-8）→ ラベル翻訳機（1-10）
 function build4(src){
@@ -843,6 +859,13 @@ const P = [
  {id:'1-1', st:1, mode:'hex', title:'最初の一声',
   story:'機械はまだ何も知らない。メモリに直接書き込んだ数が、そのまま命令になる。いまメモリには「H と言って止まる」プログラムが入っている。',
   task:'機械に <b>HI</b>（48 49）と出力させよう。',
+  learn:`<div class="zg"><b class="h">座学：機械語とメモリ</b>
+   <ul>
+   <li><b>機械語</b>：機械（CPU）に分かるのは数だけ。命令も数で表す。この機械では <code>10</code> が「A に次の数を入れる」、<code>02</code> が「A を出力する」（右上の「命令表」に全部ある）。</li>
+   <li><b>メモリと番地</b>：メモリは、数を1つずつ入れておく箱が 256 個並んだもの。箱の通し番号を<b>番地</b>という（00〜FF）。プログラムもデータも同じメモリに入り、機械は 00 番地から順に命令として読んでいく。</li>
+   <li><b>A</b>：計算に使う作業台（レジスタ）。数を入れたり、足したり、出力したりするときは、いったん A に置く。</li>
+   <li><b>16進</b>：0〜9 の後に A〜F を使い、16 で桁が上がる数え方。箱1つに入る数（0〜255）がちょうど2桁（00〜FF）で書けるので、機械語ではよく使う。<code>48</code> は10進の 72 で、文字の H。</li>
+   </ul></div>`,
   hint:'<code>10 48</code> は「A に 48 を入れる」、<code>02</code> は「A を出力」、<code>00</code> は「停止」。最後の <code>00</code> の位置に何を足せばいいだろう？',
   prefill:[0x10,0x48,0x02,0x00],
   tests:[{tape:[], out:str('HI')}]},
@@ -1057,6 +1080,13 @@ A0 読み捨て（新しい区画。1-8 の 30 をそのまま貼れる）
  {id:'2-1', st:2, mode:'label', title:'掛け算',
   story:'あなたの翻訳機が動いた。ここからのコードは、あなたが16進で書いたあの翻訳機が機械語に直す。ラベルがあれば、ループはもうこわくない。',
   task:'テープには数が2つずつ並ぶ。各組の積を出力する（積は 256 未満）。テープが終われば止まる。',
+  learn:`<p><b>ラベルの書き方</b>：<code>:x</code> は「次のバイトの番地に名前 x をつける」（:x 自体はバイトにならない）。<code>@x</code> は「名前 x の番地」の1バイトに置き換わる。名前は a〜z の1文字。</p>
+   <pre>:s 01 31 @e    ← s は 00 番地、@e は e の番地に
+...
+30 @s          ← s へ跳ぶ
+:e 00</pre>
+   <p>あなたの 1-10 の翻訳機が、このソースを読んで番地を数え、機械語にする。翻訳した結果は「翻訳結果」に出る。命令を途中に差し込んでも、翻訳し直せば番地は合う。</p>
+   <p><code>#</code> から行末は注釈。ゲームが取り除いてから翻訳機に渡す。</p>`,
   hint:'掛け算命令はない。a を b 回足す。a, b, 合計をメモリ（80, 81, 82 番地など）に置き、b が 0 になるまでループ。',
   prefill:`# ラベルの書き方
 #   :x  … 次のバイトの番地に名前 x をつける（:x 自体はバイトにならない）
@@ -1072,16 +1102,35 @@ A0 読み捨て（新しい区画。1-8 の 30 をそのまま貼れる）
  {id:'2-2', st:2, mode:'label', title:'逆さま',
   story:'翻訳機の2周目は、テープを巻き戻して読み直す。今度はメモリに貯めて、逆から読み出してみよう。',
   task:'テープの文字列を逆順に出力する。',
+  learn:`<p><b>たくさんの値をしまう</b>：A は1つしか入らない。文字をいくつも覚えておくには、メモリに順に並べる。並べる場所を X（しおり）で指す。</p>
+   <ul>
+   <li><code>STX</code>：X が指す番地に A をしまう。<code>INX</code>：X を1つ進める</li>
+   <li><code>DEX</code>：X を1つ戻す。<code>LDX</code>：X が指す番地から A に取り出す</li>
+   </ul>
+   <p>並べた順に進めてしまい、逆に戻りながら取り出せば、逆さまに出せる。</p>`,
   hint:'X をしおりにする。<code>10 A0 04</code>（X=A0）から、読むたび <code>STX</code> → <code>INX</code>。終わったら <code>DEX</code> → <code>LDX</code> → <code>OUT</code> を、X が A0 に戻るまで（<code>TXA</code> して <code>CMP A0</code>）。',
   tests:[W('ABC'), W('BOOTSTRAP'), W(''), W('Z')].map(t => ({...t, out:t.tape.slice().reverse()}))},
  {id:'2-3', st:2, mode:'label', title:'大文字',
   story:'これから先の翻訳機は、もっと文字を扱う。文字の小手調べ。',
   task:'テープを出力する。ただし小文字 a〜z（61〜7A）は大文字（20 引く）にする。それ以外はそのまま。',
+  learn:`<p><b>範囲を見分ける</b>：比べる命令は「等しい（JEQ）」と「小さい（JLT）」しかない。「a 以上 z 以下」は2回に分けて調べる。</p>
+   <ul>
+   <li><code>CMP 61</code> → <code>JLT</code>：a（61）より小さいなら、小文字ではない</li>
+   <li><code>CMP 7B</code> → <code>JLT</code>：z の次（7B）より小さいなら、小文字</li>
+   </ul>
+   <p>CMP は A を変えないので、続けて何度でも比べられる。</p>`,
   hint:'<code>CMP 61</code> + <code>JLT</code> で「a より前」、<code>CMP 7B</code> + <code>JLT</code> で「z 以下」。CMP は A を変えない。',
   tests:[W('hello, World!'), W('abc xyz'), W('`a{z'), W('')].map(t => ({...t, out:t.tape.map(c => c >= 0x61 && c <= 0x7A ? c - 0x20 : c)}))},
  {id:'2-4', st:2, mode:'label', title:'名前で呼ぶ',
   story:'ラベルのおかげで番地は数えなくてよくなった。それでも 31 が JZ で 33 が JEQ……と表を引き続けるのはつらい。命令を名前で呼びたい。次の翻訳機の心臓部、「名前 → 番号」を作ろう。',
   task:'テープには命令名が空白か改行で区切られて並ぶ（<code>HLT IN OUT JMP JZ JNZ</code> のどれか）。それぞれの番号（00 01 02 30 31 32）を出力する。',
+  learn:`<p><b>文字で枝分かれする</b>：1文字目を読んで <code>CMP</code> と <code>JEQ</code> で行き先を分ける。1文字目で決まらない名前（JMP・JZ・JNZ）は、2文字目を読んでもう一度分ける。決まったら、名前の残りの文字は読み捨てていい。</p>
+   <pre>1文字目 ─ H → HLT（00）
+        ├ I → IN（01）
+        ├ O → OUT（02）
+        └ J ─ 2文字目 ─ M → JMP（30）
+                       ├ Z → JZ（31）
+                       └ N → JNZ（32）</pre>`,
   hint:'1文字目で H / I / O / J に分かれる。J なら2文字目で M / Z / N。残りの文字は読み捨てればいい。',
   tests:['HLT','IN OUT HLT','JMP JZ JNZ\nOUT','IN\nJZ OUT JMP'].map(s => {
     const T = {HLT:0,IN:1,OUT:2,JMP:0x30,JZ:0x31,JNZ:0x32}; return {tape:str(s), out:s.split(/\s+/).map(w => T[w])}; }),
@@ -1250,7 +1299,14 @@ SHL SHL ADD t    8n + 2n = 10n</pre>
    <li><code>+ - { }</code> → そのまま</li>
    <li>空白・改行と <code>( ) ; =</code> → 捨てる</li></ul>
    例：<code>12 + 34 - 5;</code> → <code>"#0C+#22-#05"</code>`,
-  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">コンパイラまでの道のり：<b style="color:var(--amber)">3-4 字句①</b>　→　3-5 字句②　→　3-6 式と代入　→　3-7 入れて出す　→　3-8 くり返し</p><p><b>これから作るもの</b>：小さなC のコンパイラ。</p>
+  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">コンパイラまでの道のり：<b style="color:var(--amber)">3-4 字句①</b>　→　3-5 字句②　→　3-6 式と代入　→　3-7 入れて出す　→　3-8 くり返し</p><div class="zg"><b class="h">座学：コンパイラの仕事</b>
+   <p>コンパイラの仕事は、大きく3つに分けられる。</p>
+   <ol><li><b>字句解析</b>：文字の並びを、意味のある単語（字句、トークン）に区切る</li>
+   <li><b>構文解析</b>：字句の並びから、文の組み立て（構文）を読み取る</li>
+   <li><b>コード生成</b>：組み立てに合わせて、命令を書き出す</li></ol>
+   <p>このゲームでは、1 を字句解析器が、2 と 3 を構文解析器がまとめて受け持つ。</p></div><div class="zg"><b class="h">座学：字句解析とは</b>
+   <p>日本語でいえば、文字の並びを単語に区切る作業。<code>while (c)</code> の w・h・i・l・e は5文字だが、意味の上では「while」という1つの単語。字句解析器はこれを1つの字句にまとめ、<code>(</code>、変数 <code>c</code>、<code>)</code> も1つずつの字句にする。空白や改行のような、意味を持たないものはここで捨てる。</p>
+   <p>字句に分けておくと、後ろの構文解析器は「1文字ずつ」ではなく「1語ずつ」考えればよくなる。</p></div><p><b>これから作るもの</b>：小さなC のコンパイラ。</p>
    <pre>c = getc();
 while (c) { putc(c); c = getc(); }</pre>
    <p>こう書いたものを、機械語にする。ただ、256 バイトの機械にコンパイラ1本は入りきらない。そこで2本に分ける。</p>
@@ -1287,7 +1343,15 @@ $E2GW$E2{P$E2$E2G}
    <li><code>+</code> の後の項：<code>20 HH</code>（ADI）か <code>21 HH</code>（ADD）。<code>-</code> の後：<code>22 HH</code>（SBI）か <code>23 HH</code>（SUB）</li>
    <li>代入 <code>$HH 式</code> → 式の命令の後に <code>12 HH</code>（ST）</li></ul>
    例：<code>$E0#0C+$E1</code>（<code>a = 12 + b;</code>）→ <code>"10 0C 21 E1 12 E0 "</code>`,
-  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">コンパイラまでの道のり：3-4 字句①　→　3-5 字句②　→　<b style="color:var(--amber)">3-6 式と代入</b>　→　3-7 入れて出す　→　3-8 くり返し</p><p><b>項の訳し方</b>：命令の番号は「数なら土台、変数なら土台 + 1」になっている（LDI 10 / LD 11、ADI 20 / ADD 21、SBI 22 / SUB 23）。<code>#</code> は 23、<code>$</code> は 24 なので、「印 − 23」を土台に足せば、枝分かれせずに番号が決まる。</p>
+  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">コンパイラまでの道のり：3-4 字句①　→　3-5 字句②　→　<b style="color:var(--amber)">3-6 式と代入</b>　→　3-7 入れて出す　→　3-8 くり返し</p><div class="zg"><b class="h">座学：構文解析と文法</b>
+   <p>構文解析は、字句の並びから文の組み立てを読み取る作業。日本語でいえば、単語の並びから主語や述語を見分けるようなもの。組み立ての決まりを<b>文法</b>という。小さなC の文法を書くとこうなる。</p>
+   <pre>文 ＝ 変数 = 式 ;
+   ｜ putc ( 式 ) ;
+   ｜ while ( 式 ) { 文 … }
+式 ＝ 項 に「+ 項」か「- 項」が続く
+   ｜ getc ( )
+項 ＝ 数 ｜ 変数</pre>
+   <p>構文解析器は、この決まりをそのままプログラムにする。「式」を読む部品、「項」を読む部品……と、決まり1つにつき部品1つ。while の中には文があり、文の中にはまた while がありうる。決まりが自分自身を含むので、部品も自分自身を呼ぶ。このやり方を<b>再帰下降構文解析</b>という。</p></div><p><b>項の訳し方</b>：命令の番号は「数なら土台、変数なら土台 + 1」になっている（LDI 10 / LD 11、ADI 20 / ADD 21、SBI 22 / SUB 23）。<code>#</code> は 23、<code>$</code> は 24 なので、「印 − 23」を土台に足せば、枝分かれせずに番号が決まる。</p>
    <p><b>+ と − の訳し方</b>：<code>+</code> は 2B、<code>-</code> は 2D。土台は 20 と 22。「文字 − 0B」がちょうど土台になる。</p>
    <p><b>代入</b>：<code>$HH</code> の2文字を覚えておき、式を訳し終えてから <code>12</code> と覚えた2文字を出す。字句解析器が <code>=</code> と <code>;</code> を捨てているので、式の終わりは「+ でも - でもない字句が来たとき」。</p>
    <p>出力する命令の番号は 0〜3 の数字しか使わないので、2文字にする部品は A〜F を考えなくていい。</p>`,
@@ -1309,7 +1373,9 @@ $E2GW$E2{P$E2$E2G}
    <li>テープの終わりで、最後に <code>00</code>（HLT）を出す</li></ul>
    ラベル L・M は、<code>a</code> から順に2つずつ使う（1つ目の while は a と b、2つ目は c と d…）。<br>
    例：<code>W$E2{P$E2}</code> → <code>":a 11 E2 31 @b 11 E2 02 30 @a :b 00 "</code>`,
-  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">コンパイラまでの道のり：3-4 字句①　→　3-5 字句②　→　3-6 式と代入　→　3-7 入れて出す　→　<b style="color:var(--amber)">3-8 くり返し</b></p><pre>:L       ← くり返しの頭
+  learn:`<p class="mono" style="font-size:12px;color:var(--dim)">コンパイラまでの道のり：3-4 字句①　→　3-5 字句②　→　3-6 式と代入　→　3-7 入れて出す　→　<b style="color:var(--amber)">3-8 くり返し</b></p><div class="zg"><b class="h">座学：入れ子とスタック</b>
+   <p><b>スタック</b>は、後から積んだものを先に取り出す置き場。本を積み重ねて、上から取るのと同じ。入れ子の構造は、スタックで扱うとうまくいく。外の while のラベルを積み、中の while のラベルをその上に積む。中が終わったら上から取り出せば、ちょうど外のラベルが残っている。</p>
+   <p>CALL と RET も、戻り先をスタックに積んでいる（だから部品の中から別の部品を呼んでも、正しく戻れる）。</p></div><pre>:L       ← くり返しの頭
   式      A に結果
   31 @M   JZ：0 なら抜ける
   中の文
@@ -1324,7 +1390,9 @@ $E2GW$E2{P$E2$E2G}
  {id:'4-1', st:4, mode:'c', title:'こだま',
   story:'小さなC で書ける。1-2 で7バイトを番地を数えて打ったあのプログラムを、もう一度。',
   task:'テープの文字を、終わり（00）まで順に出力する。',
-  learn:`<p><b>小さなC の書き方</b></p>
+  learn:`<div class="zg"><b class="h">座学：高水準言語</b>
+   <p>小さなC のように、番地や命令を意識せず、変数や式で書ける言語を<b>高水準言語</b>という。逆に、機械語やアセンブリ言語のように機械に近い言語を<b>低水準言語</b>という。</p>
+   <p>高水準言語の1行は、何個もの命令になる。<code>s = s + a;</code> は「LD s → ADD a → ST s」の3命令。その変換をするのがコンパイラ。ソースの言葉をタップすると、どの命令になったかが見られる。</p></div><p><b>小さなC の書き方</b></p>
    <ul>
    <li>変数は英小文字1文字（a〜z）。数は 0〜255 の10進</li>
    <li>式は数と変数を <code>+</code> <code>-</code> でつなぐ。<code>getc()</code> はテープから1文字読む（式の中で単独で使う）</li>
@@ -1634,6 +1702,26 @@ const PARTS = {
   '1-1':'出力する', '1-2':'テープを読む', '1-3':'メモリに覚える', '1-4':'ループと番地ずれ',
   '1-5':'文字 → 数', '1-6':'2文字 → 1バイト', '1-7':'区切りを読み飛ばす',
   '1-8':'見分けて番地を数える', '1-9':'名前を覚え、番地に置き換える', '1-10':'2回読む（まだ出てこない名前も）'};
+const PARTS3 = {
+  '3-1':'10進で出す', '3-2':'10進を読む', '3-3':'式を読む（電卓）',
+  '3-4':'数と記号を字句に', '3-5':'変数と予約語を字句に', '3-6':'式と代入を命令に', '3-7':'putc と getc', '3-8':'while（入れ子）'};
+function blueprint3(newId, open){
+  const part = id => `<div class="bp-p ${SAVE.solved[id] ? 'on' : ''} ${id === newId ? 'new' : ''}"><span class="n">${id}</span>${PARTS3[id]}</div>`;
+  const done = Object.keys(PARTS3).filter(id => SAVE.solved[id]).length, all = Object.keys(PARTS3).length;
+  return `<details class="bp" ${open ? 'open' : ''}><summary><span class="bpt">コンパイラの完成図</span><span class="mono">${done} / ${all}</span></summary>
+  <div class="bp-body">
+    <div class="bp-io">入：小さなC<br><b>c = getc(); while (c) { putc(c); … }</b></div>
+    <div class="bp-ar">↓ 字句解析器</div>
+    <div class="bp-2"><div class="bp-col">${part('3-4')}</div><div class="bp-col">${part('3-5')}</div></div>
+    <div class="bp-io">字句の列<br><b>$E2GW$E2{P$E2…}</b></div>
+    <div class="bp-ar">↓ 構文解析器</div>
+    ${part('3-6')}${part('3-7')}${part('3-8')}
+    <div class="bp-ar">↓</div>
+    <div class="bp-io">出：ラベル付き16進<br><b>01 12 E2 :a 11 E2 31 @b …</b><br>→ あなたのラベル翻訳機（1-10）へ</div>
+    <div class="bp-lbl">土台（命令名で書く練習）</div>
+    <div class="bp-base">${part('3-1')}${part('3-2')}${part('3-3')}</div>
+  </div></details>`;
+}
 const PARTS2 = {
   '2-1':'ループで計算する', '2-2':'X でメモリに並べる', '2-3':'文字の範囲を見分ける', '2-4':'名前で枝分かれする',
   '2-5':'名前を数に（×24 して足す）', '2-6':'表を引く', '2-7':'数を2文字に', '2-8':'見分けて写す', '2-9':'部品をつないで完成'};
@@ -1818,7 +1906,7 @@ function renderMap(){
     const open = !s.locked && stageOpen(s.n);
     return `<div class="stage ${open ? '' : 'locked'}">
       <h2>${open ? '' : '🔒 '}${s.name}</h2><div class="lang">${esc(s.lang)}</div><p>${s.desc}</p>
-      ${open && s.n === 1 ? blueprint(null, !SAVE.solved[TR_ID]) : ''}${open && s.n === 2 ? blueprint2(null, !SAVE.solved[ASM_ID]) : ''}
+      ${open && s.n === 1 ? blueprint(null, !SAVE.solved[TR_ID]) : ''}${open && s.n === 2 ? blueprint2(null, !SAVE.solved[ASM_ID]) : ''}${open && s.n === 3 ? blueprint3(null, !SAVE.solved[PAR_ID]) : ''}
       ${open ? `<div class="plist">${ps.map(p => {
         const ok = unlocked(p);
         return `<button data-act="open" data-id="${p.id}" class="${SAVE.solved[p.id] ? 'done' : ''} ${p.big ? 'big' : ''}" ${ok ? '' : 'disabled'}>
@@ -1998,7 +2086,14 @@ function drawSrcBg(){
   const bg = document.getElementById('srcbg'), ta = document.getElementById('src'); if (!bg || !ta) return;
   const src = ta.value, marks = [];
   const v = S.vm, L = curLint();
-  if (v && v.steps && L && !L.errors.length){
+  if (v && v.steps && L && !L.errors.length && L.cmap){
+    const hits = L.cmap.filter(m => m.from <= v.pc && v.pc < m.to);
+    if (hits.length){
+      const h0 = hits[hits.length - 1], ls = src.lastIndexOf('\n', h0.s - 1) + 1, le = src.indexOf('\n', h0.s);
+      marks.push({s:ls, e:le < 0 ? src.length : le, c:'xl'});
+      hits.forEach(m => marks.push({s:m.s, e:m.e, c:'xo'}));
+    }
+  } else if (v && v.steps && L && !L.errors.length){
     const op = L.toks.find(k => k.t !== ':' && k.addr === v.pc);
     if (op){
       const o = OP[v.mem[v.pc]];
@@ -2024,8 +2119,18 @@ function srcCaret(){
   const ta = document.getElementById('src'), el = document.getElementById('sinfo'); if (!ta || !el) return;
   S.caret = ta.selectionStart;
   S.selAddr = -1;
-  if (S.p.mode === 'c'){ el.innerHTML = ''; drawBuilt(); return; }
   const L = curLint(), c = S.caret;
+  if (S.p.mode === 'c'){
+    if (!L || L.errors.length){ el.innerHTML = '<span class="dim">翻訳できない状態なので、中身は表示できません。</span>'; drawBuilt(); return; }
+    const ms = L.cmap.filter(m => m.s <= c && c <= m.e);
+    if (!ms.length){ el.innerHTML = '<span class="dim">数・変数・予約語・+ や - をタップすると、どの命令になったかが出ます。</span>'; drawBuilt(); return; }
+    const m = ms[ms.length - 1], b = L.bytes, word = getCode(S.p).slice(m.s, m.e);
+    S.selAddr = m.from;
+    let h = `<b>${esc(word)}</b> は、次の命令になった：`;
+    for (let a = m.from; a < m.to;){ const o = OP[b[a]]; h += `<br>[${hex2(a)}] ${hex2(b[a])}${o && o.arg ? ' ' + hex2(b[a + 1]) : ''}　${o ? o.m + (o.arg ? ' ' + hex2(b[a + 1]) : '') + '：' + o.d : ''}`; a += 1 + (o ? o.arg : 0); }
+    if (/^[a-z]$/.test(word)) h += `<br><span style="color:var(--acc)">変数 ${word} は ${hex2(word.charCodeAt(0) + 0x7F)} 番地に置かれる</span>`;
+    el.innerHTML = h; drawBuilt(); return;
+  }
   if (!L || L.errors.length){ el.innerHTML = '<span class="dim">翻訳できない状態なので、中身は表示できません。</span>'; drawBuilt(); return; }
   const k = L.toks.find(k => k.s <= c && c < k.e) || L.toks.find(k => k.e === c);
   if (!k){ el.innerHTML = '<span class="dim">数やラベルをタップすると、ここに中身が出ます。</span>'; drawBuilt(); return; }
@@ -2472,6 +2577,10 @@ function clearModal(p, size, steps, first){
     const left = Object.keys(PARTS).filter(id => !SAVE.solved[id]).length;
     body += `<p style="margin:10px 0 0">${first ? 'ラベル翻訳機に部品がはまった。' : ''}${left ? `完成まで、あと <b class="mono" style="color:var(--amber)">${left}</b> 個。` : '部品がすべてそろった。'}</p>` + blueprint(p.id, true);
   }
+  if (p.st === 3 && PARTS3[p.id]){
+    const left = Object.keys(PARTS3).filter(id => !SAVE.solved[id]).length;
+    body += `<p style="margin:10px 0 0">${first ? 'コンパイラに部品がはまった。' : ''}${left ? `完成まで、あと <b class="mono" style="color:var(--amber)">${left}</b> 個。` : '部品がすべてそろった。'}</p>` + blueprint3(p.id, true);
+  }
   if (p.st === 2 && PARTS2[p.id]){
     const left = Object.keys(PARTS2).filter(id => !SAVE.solved[id]).length;
     body += `<p style="margin:10px 0 0">${first ? 'アセンブラに部品がはまった。' : ''}${left ? `完成まで、あと <b class="mono" style="color:var(--amber)">${left}</b> 個。` : '部品がすべてそろった。'}</p>` + blueprint2(p.id, true);
@@ -2565,7 +2674,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'Enter'){ e.preventDefault(); check(); }
 });
 
-window.__boot = {lexSC, parseSC, lintC, build4, selfHostDemo, hexToLabeled, toMnemonicSrc, charNumHint, build3, lint3, HASH, refAsmText, enc, dec, migrate, SAMPLES, P, PZ, runVM, asmTape, lint, build, SAVE: () => SAVE};
+window.__boot = {blueprint3, lexSC, parseSC, lintC, build4, selfHostDemo, hexToLabeled, toMnemonicSrc, charNumHint, build3, lint3, HASH, refAsmText, enc, dec, migrate, SAMPLES, P, PZ, runVM, asmTape, lint, build, SAVE: () => SAVE};
 render();
 cloudInit();
 </script>
