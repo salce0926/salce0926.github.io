@@ -983,7 +983,7 @@ ADD c           24h + 文字</pre>
 
  {id:'3-1', st:3, mode:'asm', title:'10進で出す',
   story:'命令を名前で書ける。あなたのアセンブラが番号に直し、あなたのラベル翻訳機が番地を数える。二つの道具が、あなたの代わりに働く。',
-  task:'テープの各バイトを、10進の数字（先頭の 0 は付けない）と空白にして出力する。数字は<b>文字</b>として出す（各桁に 30 を足す。1-5 の逆）。例：<code>2A</code> → <code>"42␣"</code>（<code>34 32 20</code>）、<code>07</code> → <code>"7␣"</code>（<code>37 20</code>）',
+  task:'テープの各バイトを、10進の数字（先頭の 0 は付けない）と空白にして出力する。例：<code>2A</code> → <code>"42␣"</code>、<code>07</code> → <code>"7␣"</code>',
   learn:`<p><b>第3段階の書き方</b>：命令を名前で書く。引数は16進2桁か <code>@名前</code>。ラベルはこれまでどおり。</p>
    <pre>:l IN JZ @e    # こだま
    OUT JMP @l
@@ -1321,6 +1321,20 @@ const RECORDS = [
   <p>考えてみると妙な連なりだ。16進で書いたラベル翻訳機が、ラベルで書いたアセンブラを機械語にした。そのアセンブラが、これから書く命令名を読む。そしてアセンブラの出力を、またラベル翻訳機が読む。</p>
   <p>どの道具も、自分の仕事は1つだけだ。アセンブラは名前を番号に直すだけで、番地は数えない。番地はラベル翻訳機に任せる。小さな道具をつなげれば、大きな仕事ができる。</p>
   <div class="real"><b class="h">現実では</b>本物のコンパイラも、同じように段を重ねている。C のソースはコンパイラでアセンブリになり、アセンブラで機械語の部品になり、リンカで1つの実行ファイルにまとめられる。いまのパソコンでも、プログラムを作るたびにこの流れが動いている。名前を数（ハッシュ）にしてから表で引く工夫も、現実のコンパイラが名前を探すときに使っている。</div>`},
+ {id:'c1', at:'2-9', title:'コラム：自分で自分を翻訳する', body:`
+  <p>C のコンパイラは、C で書かれていることが多い。自分の言語で自分を書き、それを自分で翻訳できる状態を<b>セルフホスト</b>と呼ぶ。</p>
+  <p>あなたの道具も、そうできる。ラベル翻訳機は16進で書いたが、同じものをラベル付き16進で書き直せば、それを自分自身で翻訳できる。アセンブラも、命令名で書き直せば、自分で自分を組み立てられる。</p>
+  <p>確かめ方は単純だ。</p>
+  <ol>
+  <li>いまの道具で、書き直したソースを翻訳する。新しい道具ができる</li>
+  <li>新しい道具で、同じソースをもう一度翻訳する</li>
+  <li>1回目と2回目の結果が1バイト残らず同じなら、その道具は自分で自分を作り直せている</li>
+  </ol>
+  <p>見本を書き直したソースを用意した。あなたの道具で試してみる。</p>
+  <div class="tools"><button data-demo="label">ラベル翻訳機で試す</button></div><div id="demo-label"></div>
+  <div class="tools"><button data-demo="asm">アセンブラで試す</button></div><div id="demo-asm"></div>
+  <p style="margin-top:10px">ここまで来れば、次の版の道具は、いまの道具の言葉で書ける。16進で書くのは、最初の一回だけでよかった。</p>
+  <div class="real"><b class="h">現実では</b>GCC などのコンパイラは、作るときに「前の版で新しい版をコンパイルし、できた新しい版で自分をもう一度コンパイルし、さらにもう一度コンパイルする」。2回目と3回目の結果が一致するかを比べて、正しく作り直せたことを確かめる（3段階のブートストラップ）。</div>`},
  {id:'r4', at:'3-3', title:'電卓からコンパイラへ', body:`
   <p>式を読んで、答えを出せるようになった。<code>12+34-5</code> を左から読み、数を読み、足し、引く。</p>
   <p>ふと思う。答えを出す代わりに、「答えを出す機械語」を書き出したらどうなるか。<code>12+34</code> を読んだら、「12 を A に入れ、34 を足す」という命令を出力する。それはもう、式のコンパイラだ。</p>
@@ -1336,6 +1350,43 @@ const RECORDS = [
 ];
 const recOpen = r => !r.at || !!SAVE.solved[r.at];
 const recUnread = () => RECORDS.some(r => recOpen(r) && !(SAVE.read || {})[r.id]);
+// ---- コラム用：見本を書き直したソースを作る ----
+// 16進の機械語を、跳び先をラベルにしたラベル付き16進にする（並びはそのまま）
+function hexToLabeled(b, nt){
+  const dec = decode(b), tg = new Set();
+  dec.forEach((r, i) => { if (r && r.k === 'op' && JUMPS.includes(b[i]) && i + 1 < b.length && b[i + 1] < b.length) tg.add(b[i + 1]); });
+  const names = {}; [...tg].sort((x, y) => x - y).forEach((a, i) => names[a] = 'abcdefghijklmnopqrstuvwxyz'[i]);
+  const lines = []; let cur = [], note = '';
+  const flush = () => { if (cur.length) lines.push(cur.join(' ') + (note ? '   # ' + note : '')); cur = []; note = ''; };
+  for (let i = 0; i < b.length; i++){
+    if (nt[i] || i in names || cur.length >= 12) flush();
+    if (nt[i]) note = nt[i];
+    if (i in names) cur.push(':' + names[i]);
+    const r = dec[i];
+    cur.push(r && r.k === 'arg' && JUMPS.includes(b[r.at]) && b[i] in names ? '@' + names[b[i]] : hex2(b[i]));
+  }
+  flush();
+  return lines.join('\n') + '\n';
+}
+// ラベル付き16進の命令の番号を命令名に置き換える（表 :t より前だけ）
+function toMnemonicSrc(src){
+  const L = lint(src), dec = decode(L.bytes), lim = 't' in L.labels ? L.labels.t : L.bytes.length;
+  let out = src;
+  [...L.toks].reverse().forEach(k => { if (k.t === 'b' && k.addr < lim && dec[k.addr] && dec[k.addr].k === 'op' && OP[k.v]) out = out.slice(0, k.s) + OP[k.v].m + out.slice(k.e); });
+  return out;
+}
+function selfHostDemo(kind){
+  const same = (x, y) => x.length === y.length && x.every((c, i) => c === y[i]);
+  if (kind === 'label'){
+    const src = hexToLabeled(SAMPLES['1-10'].b, SAMPLES['1-10'].nt), tape = str(lint(src).tape);
+    const t1 = runVM(SAVE.translator, tape, TR_LIMIT).out, t2 = runVM(t1, tape, TR_LIMIT).out;
+    return {src, a:t1, b:t2, ok:same(t1, t2) && t1.length > 0, what:'翻訳機'};
+  }
+  const src = toMnemonicSrc(SAMPLES['2-9']), tape = str(lint3(src).tape);
+  const chain = asm => runVM(SAVE.translator, runVM(asm, tape, TR_LIMIT).out, TR_LIMIT).out;
+  const a1 = chain(SAVE.assembler), a2 = chain(a1);
+  return {src, a:a1, b:a2, ok:same(a1, a2) && a1.length > 0, what:'アセンブラ'};
+}
 function showRecord(id){
   const r = RECORDS.find(x => x.id === id);
   SAVE.read = SAVE.read || {}; if (!SAVE.read[id]){ SAVE.read[id] = true; persist(); }
@@ -1343,6 +1394,13 @@ function showRecord(id){
   const d = modal(`<div class="rec"><div class="who">再建記録 ${i}</div><h2>${r.title}</h2>${r.body}</div>
     <div class="row"><button data-close>閉じる</button><button id="rlist">記録の一覧</button>${next ? `<button class="pri" id="rnext">次：${next.title}</button>` : ''}</div>`);
   d.querySelector('#rlist').onclick = () => { d.remove(); showRecords(); };
+  d.querySelectorAll('[data-demo]').forEach(btn => btn.onclick = () => {
+    const out = d.querySelector('#demo-' + btn.dataset.demo);
+    const r = selfHostDemo(btn.dataset.demo);
+    out.innerHTML = `<details style="margin:6px 0"><summary class="dim" style="cursor:pointer">書き直したソースを見る</summary><pre style="font:12px/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;max-height:30vh;overflow:auto;background:#0b1316;padding:6px;border-radius:6px">${esc(r.src)}</pre></details>
+      <div class="mono" style="font-size:13px">1回目にできた${r.what}：${r.a.length} バイト<br>それで2回目にできた${r.what}：${r.b.length} バイト</div>
+      <div class="msg ${r.ok ? 'ok' : 'err'}">${r.ok ? '✓ 1バイト残らず一致。この' + r.what + 'は、自分で自分を作り直せる。' : '✗ 一致しなかった。あなたの道具か、書き直したソースのどこかが違うのかもしれない。'}</div>`;
+  });
   const nb = d.querySelector('#rnext'); if (nb) nb.onclick = () => { d.remove(); showRecord(next.id); };
   if (S.screen === 'map') renderMap();
 }
@@ -1716,6 +1774,21 @@ function doStep(n){
   if (v.halted || v.err) stopPlay();
   drawMach();
 }
+// 出力のずれがちょうど 30 か 37 なら、文字と数の取り違えを疑う
+function charNumHint(out, exp){
+  if (out.length !== exp.length) return '';
+  let toChar = 0, toNum = 0;
+  for (let i = 0; i < out.length; i++){
+    if (out[i] === exp[i]) continue;
+    const d = (exp[i] - out[i]) & 255;
+    if (d === 0x30 || d === 0x37) toChar++;
+    else if (d === 0xD0 || d === 0xC9) toNum++;
+    else return '';
+  }
+  if (toChar && !toNum) return 'ずれがちょうど 30（か 37）です。出力が「数」のままで、「文字」になっていないのかもしれません。';
+  if (toNum && !toChar) return 'ずれがちょうど 30（か 37）です。出力が「文字」のままで、「数」になっていないのかもしれません。';
+  return '';
+}
 function check(){
   stopPlay();
   const p = S.p, b = curBytes();
@@ -1740,6 +1813,8 @@ function check(){
   } else {
     const r = S.results[bad], t = p.tests[bad];
     let why = r.v.err ? esc(r.v.err) : `出力が違います。<br><span class="mono">期待 ${fmtBytes(t.out)}<br>実際 ${fmtBytes(r.v.out)}</span>`;
+    const off = r.v.err ? '' : charNumHint(r.v.out, t.out);
+    if (off) why += `<br><span style="color:var(--amber)">${off}</span>`;
     S.msg = {cls:'err', html:`✗ テスト #${bad + 1} で失敗：${why}<br><small>テスト #${bad + 1} を機械に読み込みました。「1歩」で追いかけられます。</small>`};
     S.ti = bad; S.vm = null; drawAll();
     document.getElementById('result').scrollIntoView({behavior:'smooth', block:'center'});
@@ -2094,7 +2169,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'Enter'){ e.preventDefault(); check(); }
 });
 
-window.__boot = {build3, lint3, HASH, refAsmText, enc, dec, migrate, SAMPLES, P, PZ, runVM, asmTape, lint, build, SAVE: () => SAVE};
+window.__boot = {selfHostDemo, hexToLabeled, toMnemonicSrc, charNumHint, build3, lint3, HASH, refAsmText, enc, dec, migrate, SAMPLES, P, PZ, runVM, asmTape, lint, build, SAVE: () => SAVE};
 render();
 cloudInit();
 </script>
