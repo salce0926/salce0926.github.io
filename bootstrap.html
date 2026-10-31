@@ -706,7 +706,6 @@ CALL @n CALL @z HLT
 :e ST F6 LDI 30 ST F7
 :i LD F6 CMP 10 JLT @j SBI 10 ST F6 LD F7 ADI 01 ST F7 JMP @i
 :j LD F7 OUT LD F6 ADI 30 OUT LDI 20 OUT RET
-# q：「:」とラベル A と空白、o：「@」とラベル A と空白
 # c：# や $ の後ろの2文字を写して空白、次の字句へ
 :c CALL @n OUT CALL @n OUT LDI 20 OUT JMP @n
 # t：項を訳す。A = 命令の土台。# (23) なら土台、$ (24) なら土台+1
@@ -730,7 +729,6 @@ CALL @n CALL @z HLT
 :e ST F6 LDI 30 ST F7
 :i LD F6 CMP 10 JLT @j SBI 10 ST F6 LD F7 ADI 01 ST F7 JMP @i
 :j LD F7 OUT LD F6 ADI 30 OUT LDI 20 OUT RET
-# q：「:」とラベル A と空白、o：「@」とラベル A と空白
 # c：# や $ の後ろの2文字を写して空白、次の字句へ
 :c CALL @n OUT CALL @n OUT LDI 20 OUT JMP @n
 # t：項を訳す。A = 命令の土台。# (23) なら土台、$ (24) なら土台+1
@@ -1434,7 +1432,6 @@ CALL @n CALL @z HLT
 :e ST F6 LDI 30 ST F7
 :i LD F6 CMP 10 JLT @j SBI 10 ST F6 LD F7 ADI 01 ST F7 JMP @i
 :j LD F7 OUT LD F6 ADI 30 OUT LDI 20 OUT RET
-# q：「:」とラベル A と空白、o：「@」とラベル A と空白
 # c：# や $ の後ろの2文字を写して空白、次の字句へ
 :c CALL @n OUT CALL @n OUT LDI 20 OUT JMP @n
 `,
@@ -1718,12 +1715,12 @@ const RECORDS = [
  {id:'r4', at:'3-3', title:'電卓からコンパイラへ', body:`
   <p>式を読んで、答えを出せるようになった。<code>12+34-5</code> を左から読み、数を読み、足し、引く。</p>
   <p>ふと思う。答えを出す代わりに、「答えを出す機械語」を書き出したらどうなるか。<code>12+34</code> を読んだら、「12 を A に入れ、34 を足す」という命令を出力する。それはもう、式のコンパイラだ。</p>
-  <p>電卓は読んだその場で計算する。コンパイラは計算せず、計算する手順を機械語にして書き出す。その違いは紙一重だ。変数を足し、「もし」と「くり返し」を足し、関数を足せば、小さな C になる。</p>
+  <p>電卓は読んだその場で計算する。コンパイラは計算せず、計算する手順を機械語にして書き出す。その違いは紙一重だ。変数を足し、くり返しを足せば、小さな C になる。</p>
   <div class="real"><b class="h">現実では</b>読んだその場で実行するものを<b>インタプリタ</b>、機械語に直して書き出すものを<b>コンパイラ</b>と呼ぶ。1950年代に作られた最初期の高水準言語のコンパイラも、まず「式を機械語に直す」ところから始まった。</div>`},
  {id:'r6', at:'3-8', title:'コンパイラが動いた', body:`
   <p>小さなC のコンパイラができた。ただし1本のプログラムではない。字句解析器と構文解析器の2本に分かれている。</p>
   <p>理由は単純で、256 バイトのメモリに入りきらなかったからだ。だから仕事を分けた。字句解析器は文字を「字句」に分けることだけを、構文解析器は字句を読んで命令を書き出すことだけをする。間は、字句の列というテキストでつなぐ。</p>
-  <p>これで道具は4つになった。小さなC → 字句解析器 → 構文解析器 → ラベル翻訳機 → 機械語。どれも、わたしが書いた。</p>
+  <p>小さなC のプログラムは、字句解析器 → 構文解析器 → ラベル翻訳機 と3つの道具を通って機械語になる。その字句解析器と構文解析器は命令名で書き、アセンブラが組み立てた。どの道具も、わたしが書いた。</p>
   <div class="real"><b class="h">現実では</b>メモリの小さかった時代のコンパイラは、実際にいくつものプログラム（パス）に分かれていた。数十の段階に分かれていたものもある。いまのコンパイラも、中では「字句解析 → 構文解析 → コード生成」と段階を分けて考える。メモリが足りるようになった今でも、分けた方が作りやすく、直しやすいからだ。</div>`},
  {id:'r5', at:'4-3', title:'信頼という問題', body:`
   <p>噂を聞いた。廃墟になったデータセンターのサーバに、完成品の C コンパイラが残っているという。それを使えば、ここから先の何段もを飛ばせる。</p>
@@ -1859,7 +1856,7 @@ function renderPuzzle(){
     <div class="story">${p.story}</div>
     <div class="task">${p.task}</div>
     ${p.learn ? `<details class="learn" ${SAVE.solved[p.id] ? '' : 'open'}><summary>しくみ</summary>${p.learn}</details>` : ''}
-    <details class="hint"><summary>ヒント</summary><div>${p.hint}</div></details>
+    <details class="hint"><summary>ヒント</summary><div>${guidedStart(p) ? '<span class="dim">（手引きありなので、必要な部品は最初から読み込まれている。下で「読込」とあるところは飛ばしていい）</span><br>' : ''}${p.hint}</div></details>
   </details>
   <div class="card"><h3>テスト <small>（タップで機械に読み込む）</small></h3><div class="tests" id="tests"></div></div>
   <div class="card"><h3>${hexMode ? 'メモリ（16進エディタ）' : p.mode === 'c' ? 'ソース（小さなC）' : p.mode === 'asm' ? 'ソース（命令名）' : 'ソース（ラベル付き16進）'}</h3>
