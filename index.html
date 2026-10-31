@@ -1,10 +1,16 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="manifest" href="/manifest.json">
     <title>Salce's pages</title>
+    <script>
+        // 前回選んだ言語を描画前に反映する（英語が一瞬表示されるのを防ぐ）
+        try {
+            if (localStorage.getItem('lang') === 'ja') document.documentElement.lang = 'ja';
+        } catch (e) {}
+    </script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,7 +21,7 @@
         <a href="#top" class="top">Top</a><!-- href="#"で一番上へ移動できるが、スクロールさせる-->
         <a href="#games" class="game">Games</a>
         <a href="#pages" class="page">Pages</a>
-        <a class="languageToggle" onclick="toggleLanguage()">日本語</a>
+        <button type="button" class="languageToggle" onclick="toggleLanguage()">日本語</button>
     </nav>
 </header>
 <header class="mobile-header">
@@ -28,7 +34,7 @@
       <li class="top"><a href="#top">Top</a></li>
       <li><a href="#games">Games</a></li>
       <li><a href="#pages">Pages</a></li>
-      <li><a class="languageToggle" onclick="toggleLanguage()">日本語</a></li>
+      <li><button type="button" class="languageToggle" onclick="toggleLanguage()">日本語</button></li>
     </ul>
 </header>
 
@@ -36,12 +42,12 @@
     <div class="text-overlay">
         <h2>The Die is Cast</h2>
         <p class="en">Once the die is cast, there's no turning back.</p>
-        <p class="ja" style="display: none;">一度投げられた賽を、戻すことはできない。</p>
+        <p class="ja">一度投げられた賽を、戻すことはできない。</p>
         <div class="scroll">
             <span class="scroll-down-message">Scroll down for more</span>
         </div>
     </div>
-    <img src="./images/image.jpg">
+    <img src="./images/image.jpg" alt="">
     <!-- スクロールを促すメッセージやアイコンなどもここに追加できます -->
 </div>
 
@@ -49,173 +55,226 @@
 
     <div class="game-container" id="games">
         <h2 class="en">Games</h2>
-        <h2 class="ja" style="display:none;">ゲーム</h2>
+        <h2 class="ja">ゲーム</h2>
 
-        <div class="content">
-            <h2 class="en">Shut The Box</h2>
-            <h2 class="ja" style="display:none;">シャットザボックス</h2>
-            <p class="en">A classic dice game. Can you close the box?</p>
-            <p class="ja" style="display:none;">クラシックなサイコロゲーム。ボックスを閉じることができますか？</p>
-            <a href="./shut-the-box/index.html" class="en">Play Now</a>
-            <a href="./shut-the-box/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
+        <nav class="category-nav">
+            <a href="#puzzle"><span class="en">Puzzle</span><span class="ja">パズル</span></a>
+            <a href="#action"><span class="en">Action</span><span class="ja">アクション</span></a>
+            <a href="#tabletop"><span class="en">Cards &amp; Board</span><span class="ja">カード・ボード</span></a>
+            <a href="#rpg"><span class="en">RPG</span><span class="ja">RPG</span></a>
+        </nav>
 
-        <div class="content">
-            <h2 class="en">Suica Fall</h2>
-            <h2 class="ja" style="display:none;">スイカフォール</h2>
-            <p class="en">Strategically drop and merge fruits to harvest juicy watermelons!</p>
-            <p class="ja" style="display:none;">戦略的に果物を落として統合し、ジューシーなスイカを収穫しましょう！</p>
-            <a href="./suica-fall/index.html" class="en">Play Now</a>
-            <a href="./suica-fall/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>        
+        <section class="category" id="puzzle">
+            <h3 class="en">Puzzle</h3>
+            <h3 class="ja">パズル</h3>
+            <div class="card-grid">
+                <div class="content">
+                    <h2 class="en">Suica Fall</h2>
+                    <h2 class="ja">スイカフォール</h2>
+                    <p class="en">Strategically drop and merge fruits to harvest juicy watermelons!</p>
+                    <p class="ja">戦略的に果物を落として統合し、ジューシーなスイカを収穫しましょう！</p>
+                    <a href="./suica-fall/index.html" class="en">Play Now</a>
+                    <a href="./suica-fall/index.html" class="ja">今すぐプレイ</a>
+                </div>
 
-        <div class="content">
-            <h2 class="en">Tetris</h2>
-            <h2 class="ja" style="display:none;">テトリス</h2>
-            <p class="en">Arrange falling blocks to complete lines and score points.</p>
-            <p class="ja" style="display:none;">落ちてくるブロックを配置してラインを完成させ、ポイントを獲得しましょう。</p>
-            <a href="./tetris/index.html" class="en">Play Now</a>
-            <a href="./tetris/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
-        
-        <div class="content">
-            <h2 class="en">Avoid Game (Keyboard)</h2>
-            <h2 class="ja" style="display:none;">避けゲー（キーボード）</h2>
-            <p class="en">Use your keyboard to navigate and avoid obstacles.</p>
-            <p class="ja" style="display:none;">キーボードを使って自機を操作し、障害物を回避します。</p>
-            <a href="./avoid-game/index.html" class="en">Play Now</a>
-            <a href="./avoid-game/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
-        
-        <div class="content">
-            <h2 class="en">Coming Soon...</h2>
-            <h2 class="ja" style="display:none;">近日公開...</h2>
-            <p class="en">Coming Soon...</p>
-            <p class="ja" style="display:none;">近日公開...</p>
-            <a href="./rock-paper-scissors/index.html" class="en">Play Now</a>
-            <a href="./rock-paper-scissors/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>        
+                <div class="content">
+                    <h2 class="en">2048</h2>
+                    <h2 class="ja">2048</h2>
+                    <p class="en">Slide and merge numbered tiles to reach 2048. Swipe and undo supported.</p>
+                    <p class="ja">数字のタイルをスライドして合体させ、2048を目指そう。スワイプ操作・Undo対応。</p>
+                    <a href="./2048/index.html" class="en">Play Now</a>
+                    <a href="./2048/index.html" class="ja">今すぐプレイ</a>
+                </div>
 
-        <div class="content">
-            <h2 class="en">Salt Quest</h2>
-            <h2 class="ja" style="display:none;">ソルトクエスト</h2>
-            <p class="en">A new legend is about to be born. Yet, it feels strangely familiar...</p>
-            <p class="ja" style="display:none;">今、新たな伝説が生まれようとしている。しかし、どこかで見たような...</p>
-            <a href="./salt-quest-1/index.html" class="en">Play Now</a>
-            <a href="./salt-quest-1/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
+                <div class="content">
+                    <h2 class="en">Tetris</h2>
+                    <h2 class="ja">テトリス</h2>
+                    <p class="en">Arrange falling blocks to complete lines and score points.</p>
+                    <p class="ja">落ちてくるブロックを配置してラインを完成させ、ポイントを獲得しましょう。</p>
+                    <a href="./tetris/index.html" class="en">Play Now</a>
+                    <a href="./tetris/index.html" class="ja">今すぐプレイ</a>
+                </div>
 
-        <div class="content">
-            <h2 class="en">Hit & Blow</h2>
-            <h2 class="ja" style="display:none;">ヒットアンドブロー</h2>
-            <p class="en">Test your deductive skills against the CPU in this classic logic game.</p>
-            <p class="ja" style="display:none;">このクラシックな論理ゲームでCPUに挑戦し、推理力を試しましょう。</p>
-            <a href="./hit-and-blow/index.html" class="en">Play Now</a>
-            <a href="./hit-and-blow/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
+                <div class="content">
+                    <h2 class="en">Trap the Cat</h2>
+                    <h2 class="ja">ネコを囲め</h2>
+                    <p class="en">Place walls on a hex board and trap the hopping cat before it reaches the edge. Daily puzzle included.</p>
+                    <p class="ja">六角形の盤に壁を置いて、跳ねて逃げるネコを閉じ込めよう。今日の一問つき。</p>
+                    <a href="./cat-trap/index.html" class="en">Play Now</a>
+                    <a href="./cat-trap/index.html" class="ja">今すぐプレイ</a>
+                </div>
 
-        <div class="content">
-            <h2 class="en">Pong</h2>
-            <h2 class="ja" style="display:none;">ポン</h2>
-            <p class="en">Challenge the CPU in this classic Pong game. Try to score points by bouncing the ball past your opponent's paddle!</p>
-            <p class="ja" style="display:none;">クラシックなポンゲームでCPUに挑戦してみましょう。ボールを相手のパドルを越えさせて得点を競いましょう！</p>
-            <a href="./pong/index.html" class="en">Play Now</a>
-            <a href="./pong/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
+                <div class="content">
+                    <h2 class="en">Hit &amp; Blow</h2>
+                    <h2 class="ja">ヒットアンドブロー</h2>
+                    <p class="en">Test your deductive skills against the CPU in this classic logic game.</p>
+                    <p class="ja">このクラシックな論理ゲームでCPUに挑戦し、推理力を試しましょう。</p>
+                    <a href="./hit-and-blow/index.html" class="en">Play Now</a>
+                    <a href="./hit-and-blow/index.html" class="ja">今すぐプレイ</a>
+                </div>
+            </div>
+        </section>
 
-        <div class="content">
-            <h2 class="en">Napoleon</h2>
-            <h2 class="ja" style="display:none;">ナポレオン</h2>
-            <p class="en">A 5-player trick-taking card game. Bid for trump, find your secret ally, and collect face cards to win!</p>
-            <p class="ja" style="display:none;">5人用トリックテイキングカードゲーム。切り札を宣言し、秘密の副官と協力して絵札を集めよう！オンライン対戦対応。</p>
-            <a href="./napoleon/index.html" class="en">Play Now</a>
-            <a href="./napoleon/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
+        <section class="category" id="action">
+            <h3 class="en">Action</h3>
+            <h3 class="ja">アクション</h3>
+            <div class="card-grid">
+                <div class="content">
+                    <h2 class="en">Isshun</h2>
+                    <h2 class="ja">イッシュン</h2>
+                    <p class="en">Clear a new 5-second task every few seconds. Plus an endless juggling mode. Made for phones.</p>
+                    <p class="ja">5秒のお題を次々さばく暇つぶしゲーム。ジャグリング耐久モードつき。スマホ向け。</p>
+                    <a href="./isshun/index.html" class="en">Play Now</a>
+                    <a href="./isshun/index.html" class="ja">今すぐプレイ</a>
+                </div>
 
-        <div class="content">
-            <h2 class="en">Zombie Chess</h2>
-            <h2 class="ja" style="display:none;">ゾンビチェス</h2>
-            <p class="en">Stop the zombie horde from reaching town! Command the Sheriff and Dogs against 11 zombies in this strategy game.</p>
-            <p class="ja" style="display:none;">ゾンビの群れが町に到達する前に阻止せよ！保安官と犬を駆使して11体のゾンビに立ち向かうストラテジーゲーム。</p>
-            <a href="./zombie-chess/index.html" class="en">Play Now</a>
-            <a href="./zombie-chess/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
+                <div class="content">
+                    <h2 class="en">Pong</h2>
+                    <h2 class="ja">ポン</h2>
+                    <p class="en">Challenge the CPU in this classic Pong game. Try to score points by bouncing the ball past your opponent's paddle!</p>
+                    <p class="ja">クラシックなポンゲームでCPUに挑戦してみましょう。ボールを相手のパドルを越えさせて得点を競いましょう！</p>
+                    <a href="./pong/index.html" class="en">Play Now</a>
+                    <a href="./pong/index.html" class="ja">今すぐプレイ</a>
+                </div>
 
-        <div class="content">
-            <h2 class="en">Poker Flip</h2>
-            <h2 class="ja" style="display:none;">ポーカーフリップ</h2>
-            <p class="en">Experience the thrill of poker with a unique twist in Poker Flip!</p>
-            <p class="ja" style="display:none;">ポーカーフリップでユニークなひねりを加えたポーカーのスリルを体験しよう！</p>
-            <a href="./poker-flip/index.html" class="en">Play Now</a>
-            <a href="./poker-flip/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
+                <div class="content">
+                    <h2 class="en">Avoid Game</h2>
+                    <h2 class="ja">避けゲー</h2>
+                    <span class="badge en">PC only (keyboard)</span>
+                    <span class="badge ja">PC専用（キーボード操作）</span>
+                    <p class="en">Use your keyboard to navigate and avoid obstacles.</p>
+                    <p class="ja">キーボードを使って自機を操作し、障害物を回避します。</p>
+                    <a href="./avoid-game/index.html" class="en">Play Now</a>
+                    <a href="./avoid-game/index.html" class="ja">今すぐプレイ</a>
+                </div>
+            </div>
+        </section>
 
-        <div class="content">
-            <h2 class="en">Retro Quest</h2>
-            <h2 class="ja" style="display:none;">レトロクエスト レガリアの勇者</h2>
-            <p class="en">An original 8-bit style RPG. Cross the rainbow bridge and defeat the Demon King Gald!</p>
-            <p class="ja" style="display:none;">オリジナル8bit風RPG。にじのかけ橋を渡り、魔王ガルドを倒せ！スマホ対応。</p>
-            <a href="./retro-quest/index.html" class="en">Play Now</a>
-            <a href="./retro-quest/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
+        <section class="category" id="tabletop">
+            <h3 class="en">Cards &amp; Board</h3>
+            <h3 class="ja">カード・ボード</h3>
+            <div class="card-grid">
+                <div class="content">
+                    <h2 class="en">Napoleon</h2>
+                    <h2 class="ja">ナポレオン</h2>
+                    <p class="en">A 5-player trick-taking card game. Bid for trump, find your secret ally, and collect face cards to win!</p>
+                    <p class="ja">5人用トリックテイキングカードゲーム。切り札を宣言し、秘密の副官と協力して絵札を集めよう！オンライン対戦対応。</p>
+                    <a href="./napoleon/index.html" class="en">Play Now</a>
+                    <a href="./napoleon/index.html" class="ja">今すぐプレイ</a>
+                </div>
 
-        <div class="content">
-            <h2 class="en">Isshun</h2>
-            <h2 class="ja" style="display:none;">イッシュン</h2>
-            <p class="en">Clear a new 5-second task every few seconds. Plus an endless juggling mode. Made for phones.</p>
-            <p class="ja" style="display:none;">5秒のお題を次々さばく暇つぶしゲーム。ジャグリング耐久モードつき。スマホ向け。</p>
-            <a href="./isshun/index.html" class="en">Play Now</a>
-            <a href="./isshun/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
+                <div class="content">
+                    <h2 class="en">Poker Flip</h2>
+                    <h2 class="ja">ポーカーフリップ</h2>
+                    <p class="en">Experience the thrill of poker with a unique twist in Poker Flip!</p>
+                    <p class="ja">ポーカーフリップでユニークなひねりを加えたポーカーのスリルを体験しよう！</p>
+                    <a href="./poker-flip/index.html" class="en">Play Now</a>
+                    <a href="./poker-flip/index.html" class="ja">今すぐプレイ</a>
+                </div>
 
-        <div class="content">
-            <h2 class="en">Trap the Cat</h2>
-            <h2 class="ja" style="display:none;">ネコを囲め</h2>
-            <p class="en">Place walls on a hex board and trap the hopping cat before it reaches the edge. Daily puzzle included.</p>
-            <p class="ja" style="display:none;">六角形の盤に壁を置いて、跳ねて逃げるネコを閉じ込めよう。今日の一問つき。</p>
-            <a href="./cat-trap/index.html" class="en">Play Now</a>
-            <a href="./cat-trap/index.html" class="ja" style="display:none;">今すぐプレイ</a>
-        </div>
+                <div class="content">
+                    <h2 class="en">Zombie Chess</h2>
+                    <h2 class="ja">ゾンビチェス</h2>
+                    <p class="en">Stop the zombie horde from reaching town! Command the Sheriff and Dogs against 11 zombies in this strategy game.</p>
+                    <p class="ja">ゾンビの群れが町に到達する前に阻止せよ！保安官と犬を駆使して11体のゾンビに立ち向かうストラテジーゲーム。</p>
+                    <a href="./zombie-chess/index.html" class="en">Play Now</a>
+                    <a href="./zombie-chess/index.html" class="ja">今すぐプレイ</a>
+                </div>
+
+                <div class="content">
+                    <h2 class="en">Shut The Box</h2>
+                    <h2 class="ja">シャットザボックス</h2>
+                    <p class="en">A classic dice game. Can you close the box?</p>
+                    <p class="ja">クラシックなサイコロゲーム。ボックスを閉じることができますか？</p>
+                    <a href="./shut-the-box/index.html" class="en">Play Now</a>
+                    <a href="./shut-the-box/index.html" class="ja">今すぐプレイ</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="category" id="rpg">
+            <h3 class="en">RPG</h3>
+            <h3 class="ja">RPG</h3>
+            <div class="card-grid">
+                <div class="content">
+                    <h2 class="en">Retro Quest</h2>
+                    <h2 class="ja">レトロクエスト レガリアの勇者</h2>
+                    <p class="en">An original 8-bit style RPG. Cross the rainbow bridge and defeat the Demon King Gald!</p>
+                    <p class="ja">オリジナル8bit風RPG。にじのかけ橋を渡り、魔王ガルドを倒せ！スマホ対応。</p>
+                    <a href="./retro-quest/index.html" class="en">Play Now</a>
+                    <a href="./retro-quest/index.html" class="ja">今すぐプレイ</a>
+                </div>
+
+                <div class="content">
+                    <h2 class="en">Salt Quest</h2>
+                    <h2 class="ja">ソルトクエスト</h2>
+                    <p class="en">A new legend is about to be born. Yet, it feels strangely familiar...</p>
+                    <p class="ja">今、新たな伝説が生まれようとしている。しかし、どこかで見たような...</p>
+                    <a href="./salt-quest-1/index.html" class="en">Play Now</a>
+                    <a href="./salt-quest-1/index.html" class="ja">今すぐプレイ</a>
+                </div>
+            </div>
+        </section>
     </div>
 
     <div class="page-container" id="pages">
         <h2 class="en">Pages</h2>
-        <h2 class="ja" style="display:none;">ページ</h2>
+        <h2 class="ja">ページ</h2>
 
-        <div class="content">
-            <h2 class="en">Lecture Name Extraction</h2>
-            <h2 class="ja" style="display:none;">講義名抽出</h2>
-            <p class="en">Extract lecture names from the text of the report card.</p>
-            <p class="ja" style="display:none;">成績表のテキストから講義名を抽出します。</p>
-            <a href="./lecture-name-extraction/index.html" class="en">Go to Page</a>
-            <a href="./lecture-name-extraction/index.html" class="ja" style="display: none;">ページに移動</a>
+        <div class="card-grid">
+            <div class="content">
+                <h2 class="en">Lecture Name Extraction</h2>
+                <h2 class="ja">講義名抽出</h2>
+                <p class="en">Extract lecture names from the text of the report card.</p>
+                <p class="ja">成績表のテキストから講義名を抽出します。</p>
+                <a href="./lecture-name-extraction/index.html" class="en">Go to Page</a>
+                <a href="./lecture-name-extraction/index.html" class="ja">ページに移動</a>
+            </div>
+
+            <div class="content">
+                <h2 class="en">Character Count</h2>
+                <h2 class="ja">文字数カウント</h2>
+                <p class="en">Counting the number of characters in the entered text.</p>
+                <p class="ja">入力したテキストの文字数をカウントします。</p>
+                <a href="./character-count/index.html" class="en">Go to Page</a>
+                <a href="./character-count/index.html" class="ja">ページに移動</a>
+            </div>
+
+            <div class="content">
+                <h2 class="en">Poker Blind Timer</h2>
+                <h2 class="ja">ポーカーブラインドタイマー</h2>
+                <p class="en">Manage and display blinds for a poker game with a countdown timer.</p>
+                <p class="ja">ポーカーゲームのブラインドをカウントダウンタイマーで管理し表示します。</p>
+                <a href="./poker-blind-timer/index.html" class="en">Go to Page</a>
+                <a href="./poker-blind-timer/index.html" class="ja">ページに移動</a>
+            </div>
+
+            <div class="content">
+                <h2 class="en">Poker Preflop Quiz</h2>
+                <h2 class="ja">ポーカー プリフロップ クイズ</h2>
+                <p class="en">Test your knowledge of poker hand ranges and actions in different positions.</p>
+                <p class="ja">ポーカーのハンドレンジと異なるポジションでのアクションに関する知識をテストします。</p>
+                <a href="./poker-preflop-quiz/index.html" class="en">Go to Page</a>
+                <a href="./poker-preflop-quiz/index.html" class="ja">ページに移動</a>
+            </div>
         </div>
+    </div>
 
-        <div class="content">
-            <h2 class="en">Caracter Count</h2>
-            <h2 class="ja" style="display:none;">文字数カウント</h2>
-            <p class="en">Counting the number of characters in the entered text.</p>
-            <p class="ja" style="display:none;">入力したテキストの文字数をカウントします。</p>
-            <a href="./character-count/index.html" class="en">Go to Page</a>
-            <a href="./character-count/index.html" class="ja" style="display: none;">ページに移動</a>
-        </div>
+    <div class="lab-container" id="lab">
+        <h2 class="en">Lab</h2>
+        <h2 class="ja">実験室</h2>
 
-        <div class="content">
-            <h2 class="en">Poker Blind Timer</h2>
-            <h2 class="ja" style="display:none;">ポーカーブラインドタイマー</h2>
-            <p class="en">Manage and display blinds for a poker game with a countdown timer.</p>
-            <p class="ja" style="display:none;">ポーカーゲームのブラインドをカウントダウンタイマーで管理し表示します。</p>
-            <a href="./poker-blind-timer/index.html" class="en">Go to Page</a>
-            <a href="./poker-blind-timer/index.html" class="ja" style="display: none;">ページに移動</a>
-        </div>
-
-        <div class="content">
-            <h2 class="en">Poker Preflop Quiz</h2>
-            <h2 class="ja" style="display:none;">ポーカー プリフロップ クイズ</h2>
-            <p class="en">Test your knowledge of poker hand ranges and actions in different positions.</p>
-            <p class="ja" style="display:none;">ポーカーのハンドレンジと異なるポジションでのアクションに関する知識をテストします。</p>
-            <a href="./poker-preflop-quiz/index.html" class="en">Go to Page</a>
-            <a href="./poker-preflop-quiz/index.html" class="ja" style="display: none;">ページに移動</a>
+        <div class="card-grid">
+            <div class="content">
+                <h2 class="en">Online Rock-Paper-Scissors</h2>
+                <h2 class="ja">オンラインじゃんけん</h2>
+                <span class="badge en">Experiment</span>
+                <span class="badge ja">実験</span>
+                <p class="en">A test of real-time online play over WebSocket, made in Dec 2023. It only works while the test server is running.</p>
+                <p class="ja">WebSocketでのリアルタイム対戦を試すために作った実験（2023年12月）。テスト用サーバーが動いているときだけ遊べます。</p>
+                <a href="./rock-paper-scissors/index.html" class="en">Open</a>
+                <a href="./rock-paper-scissors/index.html" class="ja">開く</a>
+            </div>
         </div>
     </div>
 
