@@ -933,20 +933,20 @@ ADD c           24h + 文字</pre>
    <li>そうでなければ命令名。区切りまで読み捨てて、<code>??</code> を出す</li>
    </ul>
    <p><b>なぜ「G より前」で分かるのか</b>：16進2桁の1文字目は 0〜9 か A〜F。2文字の命令名は IN・LD・ST・JZ で、1文字目の I・L・S・J はどれも G より後ろ。ADD・DEX・CALL のように16進の文字で始まる命令名もあるが、どれも3文字以上なので、3文字目で区別がつく。</p>
-   <p><b>流れ</b>（変数は 2-9 で使う番地に合わせて F1〜F3 に置いておく）：</p>
-   <pre>:w  IN → 00 なら z ／ 区切りなら w
-    : か @ なら k
-    F1 にしまう
-    IN → F2 にしまう
-    IN → F3 にしまう。区切りなら p
-:q  IN → F3 にしまう。区切りなら e。そうでなければ q
-:p  F1 が 47 より前なら c
-    （そうでなければ下の e へ）
-:e  「??」を出力 → s
-:c  F1、F2 を出力 → s
-:k  A（: か @）を出力。IN して出力。F3 = 20 → s
-:s  空白を出力。F3 が 00 なら z、でなければ w
-:z  HLT</pre>
+   <p><b>流れ</b>（変数は 2-9 で使う番地に合わせて F1〜F3 に置いておく）。下の骨組みは注釈になっているので、そのままソースに貼って、各行の <code>#</code> の前に命令を書き足していける。</p>
+   <pre class="copy"># 見分けて写す の骨組み（変数：F1 1文字目、F2 2文字目、F3 区切り）
+:w   # IN → 00 なら z ／ 区切りなら w
+     # : か @ なら k
+     # F1 にしまう
+     # IN → F2 にしまう
+     # IN → F3 にしまう。区切りなら p
+:q   # IN → F3 にしまう。区切りなら e。そうでなければ q
+:p   # F1 が 47 より前なら c（そうでなければ下の e へ）
+:e   # 「??」を出力 → s
+:c   # F1、F2 を出力 → s
+:k   # A（: か @）を出力。IN して出力。F3 = 20 → s
+:s   # 空白を出力。F3 が 00 なら z、でなければ w
+:z   # HLT</pre>
    <p>F3 には「単語の後ろの区切り」を覚えておく。テープの終わり（00）で単語が終わったときも、その単語を出してから止まれる。</p>
    <p><b>少しずつ確かめる</b>：テストは簡単な順に並んでいる。#1 は16進2桁だけ、#2 はラベルも入り、#3 から命令名が入る。まず <code>:e</code> を空にしたまま #1・#2 を通し、それから命令名に進むといい。</p>`,
   hint:'k の区画：A には : か @ が入ったままなので、そのまま <code>02</code>（OUT）できる。次に <code>01 02</code>（IN して OUT）。<code>??</code> は <code>10 3F 02 02</code>（? は 3F）。',
@@ -1379,7 +1379,32 @@ function renderPuzzle(){
     try { ta.setSelectionRange(S.caret, S.caret); } catch(e){}
     drawLpad(); requestAnimationFrame(fitSrc);
   }
+  document.querySelectorAll('.learn pre.copy').forEach(pre => {
+    const bar = document.createElement('div'); bar.className = 'tools'; bar.style.marginTop = '-2px';
+    bar.innerHTML = `<button class="cp">コピー</button>${hexMode ? '' : '<button class="ps">ソースに貼る</button>'}<span class="msg ok" style="align-self:center"></span>`;
+    pre.after(bar);
+    const say = t => { bar.querySelector('.msg').textContent = t; };
+    bar.querySelector('.cp').onclick = async () => {
+      try { await navigator.clipboard.writeText(pre.textContent); say('コピーしました'); }
+      catch(e){ const r = document.createRange(); r.selectNodeContents(pre); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); say('選択しました。長押しでコピーしてください'); }
+    };
+    const ps = bar.querySelector('.ps');
+    if (ps) ps.onclick = () => { insertSrc(pre.textContent + '\n'); say('ソースのカーソル位置に貼りました'); };
+  });
   drawAll();
+}
+// ソースのカーソル位置（行の途中なら次の行の頭）に差し込む
+function insertSrc(t){
+  const cur = getCode(S.p);
+  let at = Math.min(S.caret ?? cur.length, cur.length);
+  const ls = cur.lastIndexOf('\n', at - 1) + 1;
+  if (at !== ls){ const le = cur.indexOf('\n', at); at = le < 0 ? cur.length : le + 1; }
+  const before = cur.slice(0, at);
+  if (before && !before.endsWith('\n')) t = '\n' + t;
+  SAVE.code[S.p.id] = before + t + cur.slice(at); persist();
+  S.caret = at + t.length; S.built = null; S.vm = null; S.results = null;
+  const ta = document.getElementById('src');
+  if (ta){ ta.value = SAVE.code[S.p.id]; try { ta.setSelectionRange(S.caret, S.caret); } catch(e){} fitSrc(); drawBuilt(); drawMach(); drawTests(); srcCaret(); }
 }
 function drawAll(){ drawTests(); if (S.p.mode === 'hex'){ drawGrid(); drawInfo(); } else drawBuilt(); drawMach(); drawResult(); }
 
