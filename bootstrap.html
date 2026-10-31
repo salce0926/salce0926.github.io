@@ -1009,7 +1009,7 @@ SHL SHL ADD t    8n + 2n = 10n</pre>
   tests:['42 7', '200\n100 0 255', '1', '9 10 99 100\n'].map(w => ({tape:str(w), out:w.split(/\s+/).filter(Boolean).map(Number)}))},
  {id:'3-3', st:3, mode:'asm', big:true, title:'電卓',
   story:'数を読めて、数を書ける。ならば式を読んで計算できる。これは「プログラムを読んで意味を取る」——コンパイラの最初の一歩だ。',
-  task:'テープには1行に1つずつ、<code>+</code> と <code>-</code> だけの式が並ぶ（例：<code>12+34-5</code>）。左から順に計算し、答えを10進と空白で出力する。答えは 0〜255 に収まる。<br>例：<code>"12+34-5↵3"</code> → <code>"41␣3␣"</code>',
+  task:'テープには1行に1つずつ、<code>+</code> と <code>-</code> だけの式が並ぶ（例：<code>12+34-5</code>）。左から順に計算し、答えを10進と空白で出力する。答えは 0〜255 に収まる。<code>+</code> の文字コードは 2B、<code>-</code> は 2D。<br>例：<code>"12+34-5↵3"</code> → <code>"41␣3␣"</code>',
   learn:`<p>3-1 の「10進で出す」と 3-2 の「10進を読む」を部品（CALL）にして組み合わせる。</p>
    <pre>行の頭：1つ目の数を読む → 答えにする
 くり返し：数の後ろの文字を見る
@@ -1866,13 +1866,11 @@ function manual(){
   2バイト命令は「命令 nn」の順に並べる。例：<code>10 48</code> = A に 48 を入れる。</p>
   <table class="ops"><tr><th>番号</th><th>名前</th><th>働き</th></tr>
   ${OPS.map(o => `<tr><td>${hex2(o[0])}${o[2] ? ' nn' : ''}</td><td>${o[1]}</td><td>${o[3]}</td></tr>`).join('')}</table>
-  <h3 style="color:var(--acc);font-size:15px;margin:14px 0 4px">メモリ地図（1-8〜1-10）</h3>
-  <p style="font-size:14px;margin:0">00 開始 ／ 08 振り分け ／ 20 :x ／ 28 @x ／ 30 16進 ／ 48 番地+1 ／ 50 部品 ／ 61〜7A 名前の表 ／ 80 番地・81 上の桁 ／ 90 1周目</p>
   <h3 style="color:var(--acc);font-size:15px;margin:14px 0 4px">テープ</h3>
   <p style="font-size:14px;margin:0">入力用の紙で、メモリとは別の装置。<code>IN</code> で1文字読むたびに読み取り位置が自動で進む。後戻りは <code>RWD</code>（先頭へ巻き戻し）だけ。読み終わると <code>IN</code> は 00 を返す。</p>
   <h3 style="color:var(--acc);font-size:15px;margin:14px 0 4px">文字コード</h3>
   <p style="font-size:14px;margin:0">文字は背番号（数）として届く。文字「C」は <code>43</code> で、数の C（= 12, <code>0C</code>）とは別物。数字の文字は 30 を引くと、英字 A〜F は 37 を引くと、表す数になる。</p>
-  <p style="font-size:13px" class="dim">文字コード：空白 20 / 改行 0A / "0"〜"9" 30〜39 / "A"〜"Z" 41〜5A / "a"〜"z" 61〜7A / ":" 3A / "@" 40<br>
+  <p style="font-size:13px" class="dim">文字コード：空白 20 / 改行 0A / "+" 2B / "-" 2D / "0"〜"9" 30〜39 / ":" 3A / "?" 3F / "@" 40 / "A"〜"Z" 41〜5A / "a"〜"z" 61〜7A<br>
   命令名は人間向けのあだ名。機械が分かるのは番号だけ。</p>
   <div class="row"><button class="pri" data-close>閉じる</button></div>`);
 }
