@@ -410,6 +410,7 @@ const S19 = [[0,'30 08','開始：振り分けへ'],
   [0x28,'01','@x の区画：名前を読む'],[0x29,'04','X ← 名前'],[0x2A,'13','表から取り出す'],[0x2B,'02','出力'],[0x2C,'30 48','番地+1 へ'],
   [0x30,'35 50','16進の区画：上の桁を数に'],[0x32,'24 24 24 24','×16'],[0x36,'12 81','81 にしまう'],[0x38,'01','下の桁を読む'],[0x39,'35 50','数に'],[0x3B,'21 81','上の桁を足す'],[0x3D,'02','出力'],[0x3E,'30 48','番地+1 へ'],
   ...COUNT(0x48, 8), ...SUB(0x50)];
+const SAMPLES_SRC = {};
 const SAMPLES = {
   '1-1': mk([[0,'10 48','A に H'],[2,'02','出力'],[3,'10 49','A に I'],[5,'02','出力'],[6,'00','停止']]),
   '1-2': mk([[0,'01','1文字読む'],[1,'31 06','終わり（00）なら 06 へ'],[3,'02','出力'],[4,'30 00','最初へ'],[6,'00','停止']]),
@@ -418,7 +419,7 @@ const SAMPLES = {
   '1-5': mk([[0,'01','1文字読む'],[1,'31 10','終わりなら 10 へ'],[3,'40 41','A と比べる'],[5,'34 0B','小さければ数字 → 0B'],[7,'22 37','英字：37 を引く'],[9,'30 0D','出力へ'],[0xB,'22 30','数字：30 を引く'],[0xD,'02','出力'],[0xE,'30 00','最初へ'],[0x10,'00','停止']]),
   '1-6': mk([[0,'01','上の桁を読む'],[1,'31 13','終わりなら 13 へ'],[3,'35 20','部品で数に'],[5,'24 24 24 24','×16'],[9,'12 80','80 にしまう'],[0xB,'01','下の桁を読む'],[0xC,'35 20','部品で数に'],[0xE,'21 80','上の桁を足す'],[0x10,'02','出力'],[0x11,'30 00','最初へ'],[0x13,'00','停止'], ...SUB(0x20)]),
   '1-7': mk([[0,'01','上の桁を読む'],[1,'31 17','終わりなら 17 へ'],[3,'40 21','区切り？'],[5,'34 00','区切りなら読み直し'],[7,'35 20','部品で数に'],[9,'24 24 24 24','×16'],[0xD,'12 80','80 にしまう'],[0xF,'01','下の桁を読む'],[0x10,'35 20','部品で数に'],[0x12,'21 80','上の桁を足す'],[0x14,'02','出力'],[0x15,'30 00','最初へ'],[0x17,'00','停止'], ...SUB(0x20)]),
-  '1-8': mk([[0,'30 08','開始：振り分けへ'],
+  '1-8': mk(SAMPLES_SRC['1-8'] = [[0,'30 08','開始：振り分けへ'],
     [8,'01','振り分け：1文字読む'],[9,'32 0C','終わりでなければ 0C へ'],[0xB,'00','終わり：停止'],[0xC,'40 21','区切り？'],[0xE,'34 08','区切りなら読み直し'],[0x10,'40 3A',': ？'],[0x12,'33 20',': なら 20 へ'],[0x14,'30 30','それ以外は 30 へ'],
     [0x20,'01',':x の区画：名前を読み捨て'],[0x21,'11 80','いまの番地'],[0x23,'02','出力'],[0x24,'30 08','振り分けへ'],
     [0x30,'01','それ以外の区画：2文字目を読み捨て'],[0x31,'30 48','番地+1 へ'],
@@ -1022,6 +1023,67 @@ SHL SHL ADD t    8n + 2n = 10n</pre>
     out:str(w.split('\n').filter(Boolean).map(l => (l.match(/[+-]?\d+/g).reduce((a, x) => (a + Number(x)) & 255, 0)) + ' ').join(''))}))},
 ];
 const PZ = {}; P.forEach(p => PZ[p.id] = p);
+
+/* ---------- 手引きあり：部品を組み合わせる課題は、必要な形に直した部品を読み込んだ状態から ---------- */
+const PARTS_29 = `
+# ---- 部品（そのまま呼べる形にしてある） ----
+# h：A の文字を名前の数（F0）に足す。F0 = F0×24 + 文字
+:h 12 F4 11 F0 12 F5 24 21 F5  # 3倍
+24 24 24 21 F4 12 F0 36        # 24倍 + 文字
+# b：名前の数（F0）で表を引き、命令番号を A に入れて戻る
+:b 10 @t 04
+:f 13 23 F0 31 @g 06 06 30 @f
+:g 06 13 36
+# r：A の1バイトを2文字の16進で出す（空白は出さない）
+:r 12 F6 10 00 12 F7
+:i 11 F6 40 10 34 @j 22 10 12 F6 11 F7 20 01 12 F7 30 @i
+:j 11 F7 35 @d 11 F6 35 @d 36
+:d 40 0A 34 @n 20 37 02 36
+:n 20 30 02 36
+`;
+const GUIDED = {
+  '1-7': SAMPLES['1-6'],
+  '1-9': mk([...SAMPLES_SRC['1-8'], ...SUB(0x50)]),
+  '1-10': mk([...S19, [0x90,'00','90〜9F テープの終わり：ここに書く'], [0xA0,'01','読み捨て（1-8 の 30 と同じ）：2文字目'], [0xA1,'30 48','番地+1 へ']]),
+  '2-6': `# 2-5 の見本を読み込んだ状態。
+# :o で名前の数を出力しているところを、表を引いて命令番号を出すように変える。
+` + SAMPLES['2-5'] + '\n' + TABLE_SRC,
+  '2-8': `# 骨組み。各行の # の前に命令を書き足していく
+# 変数：F1 1文字目、F2 2文字目、F3 区切り
+:w   # IN → 00 なら z ／ 区切りなら w
+     # : か @ なら k
+     # F1 にしまう
+     # IN → F2 にしまう
+     # IN → F3 にしまう。区切りなら p
+:q   # IN → F3 にしまう。区切りなら e。そうでなければ q
+:p   # F1 が 47 より前なら c（そうでなければ下の e へ）
+:e   # 「??」を出力 → s
+:c   # F1、F2 を出力 → s
+:k   # A（: か @）を出力。IN して出力。F3 = 20 → s
+:s   # 空白を出力。F3 が 00 なら z、でなければ w
+:z   # HLT
+`,
+  '2-9': `# 2-8 の見本と、部品 h・b・r・表を読み込んだ状態。やることは2つ：
+#   1. 文字を読むたびに名前の数に足す（F0 を 00 にしてから、1文字目・2文字目・3文字目以降で CALL h）
+#   2. :e で ?? を出す代わりに、CALL b → CALL r → 30 @s
+` + SAMPLES['2-8'] + PARTS_29 + '\n' + TABLE_SRC,
+  '3-3': `# 電卓。部品はそろえてある。本体（:s〜:m）を書く
+#   g … 数を読む（1文字目から）。h … 1文字目を読んだ後から続きを読む
+#       どちらも、数は F0 に、数の次の文字（+ や改行）は F1 に残る
+#   o … A を10進と空白で出す
+:s   # IN → 00 なら z。30 を引いて F0 に。CALL h。答え F3 = F0
+:l   # F1 が + なら p、- なら m。それ以外：答えを CALL o。F1 が 00 なら z、でなければ s
+:p   # CALL g → F3 = F3 + F0 → l
+:m   # CALL g → F3 = F3 − F0 → l
+:z HLT
+
+# ---- 部品 ----
+` + SAMPLES['3-3'].slice(SAMPLES['3-3'].indexOf('# 部品：数を読む')).replace(/\n:z HLT\n?$/, '\n'),
+};
+P.forEach(p => { if (GUIDED[p.id]) p.guided = GUIDED[p.id]; });
+const MODES = {guided:'手引きあり', scratch:'ゼロから', expert:'腕試し'};
+const modeNow = () => SAVE.mode || 'guided';
+const guidedStart = p => modeNow() === 'guided' && p.guided;
 const STAGES = [
   {n:1, name:'第1段階　16進', lang:'10 48 02 00', desc:'メモリに数を直接書き込む。番地は全部、自分で数える。'},
   {n:2, name:'第2段階　ラベル付き16進', lang:':l 01 31 @e 02 30 @l', desc:'番地に名前をつける。翻訳はあなたが書いた翻訳機がする。'},
@@ -1140,13 +1202,14 @@ function importSave(){
 
 function unlocked(p){
   if (!stageOpen(p.st)) return false;
+  if (modeNow() === 'expert') return true;
   const same = P.filter(q => q.st === p.st);
   const i = same.indexOf(p);
   return i === 0 || !!SAVE.solved[same[i - 1].id];
 }
 function getNotes(p){
   const n = p.id in SAVE.notes ? SAVE.notes[p.id].slice() : (() => {
-    const a = []; if (p.prefillNotes) for (const k in p.prefillNotes) a[+k] = p.prefillNotes[k]; return a; })();
+    const a = [], src = guidedStart(p) ? p.guided.notes : p.prefillNotes; if (src) for (const k in src) a[+k] = src[k]; return a; })();
   const len = getCode(p).length;
   for (let i = 0; i < len; i++) n[i] = n[i] || '';
   n.length = len; return n;
@@ -1168,7 +1231,9 @@ function target(b, c){
 }
 function getCode(p){
   if (p.id in SAVE.code) return SAVE.code[p.id];
-  return p.mode === 'hex' ? (p.prefill || []).slice() : (p.prefill || '');
+  const g = guidedStart(p);
+  if (p.mode === 'hex') return g ? g.b.slice() : (p.prefill || []).slice();
+  return g || p.prefill || '';
 }
 
 /* ================= 画面状態 ================= */
@@ -1306,6 +1371,8 @@ function renderTitle(){
 
 function renderMap(){
   app.innerHTML = `<div class="bar"><button data-act="title">≡</button><div class="ttl">再建の道のり</div><button data-act="records">記録${recUnread() ? '<span class="dot"></span>' : ''}</button><button data-act="manual">命令表</button></div>` +
+  `<div class="card" style="padding:10px 12px"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><b style="font-size:14px;margin-right:4px">遊び方</b>${Object.entries(MODES).map(([k, t]) => `<button data-act="mode" data-m="${k}" class="${modeNow() === k ? 'pri' : ''}" style="font-size:13px;padding:5px 10px">${t}</button>`).join('')}</div>
+    <div class="dim" style="font-size:12px;margin-top:6px">${{guided:'部品を組み合わせる課題は、必要な部品を必要な形に直して読み込んだ状態から始まる。', scratch:'部品は自分で読み込んで、直して使う。', expert:'ゼロからに加えて、段階の中のどの課題からでも挑める。★の翻訳機にいきなり挑んでもいい。'}[modeNow()]}書いたコードは消えない（「初期状態に戻す」で、いまの遊び方の初期状態になる）。</div></div>` +
   STAGES.filter(s => s.n !== 5 || SAVE.solved[END_ID]).map(s => {
     const ps = P.filter(p => p.st === s.n);
     const open = !s.locked && stageOpen(s.n);
@@ -1976,6 +2043,7 @@ app.addEventListener('click', e => {
     case 'map': go('map'); break;
     case 'manual': manual(); break;
     case 'records': showRecords(); break;
+    case 'mode': SAVE.mode = t.dataset.m; persist(); renderMap(); break;
     case 'open': go('puzzle', t.dataset.id); break;
     case 'exp': exportSave(); break;
     case 'imp': importSave(); break;
