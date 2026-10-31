@@ -1026,8 +1026,8 @@ const STAGES = [
   {n:1, name:'第1段階　16進', lang:'10 48 02 00', desc:'メモリに数を直接書き込む。番地は全部、自分で数える。'},
   {n:2, name:'第2段階　ラベル付き16進', lang:':l 01 31 @e 02 30 @l', desc:'番地に名前をつける。翻訳はあなたが書いた翻訳機がする。'},
   {n:3, name:'第3段階　ニーモニック', lang:':l IN JZ @e OUT JMP @l', desc:'命令を名前で書く。翻訳はあなたのアセンブラとラベル翻訳機がする。'},
-  {n:4, name:'第4段階　小さなC', lang:'while (c = getc()) putc(c);', desc:'式と変数と関数。ここからは、言語が言語を育てる。', locked:true},
-  {n:5, name:'第？段階　拾ったコンパイラ', lang:'cc: ELF 64-bit, stripped', desc:'廃墟のサーバに、完成品のCコンパイラが残っているという。使えば何段階も飛ばせる。だが、それを作ったのは誰だ？', locked:true},
+  {n:4, name:'第4段階　小さなC', lang:'while (c = getc()) putc(c);', desc:'式・変数・関数を書ける、小さな C。', locked:true},
+  {n:5, name:'第？段階　拾ったコンパイラ', lang:'cc: ELF 64-bit, stripped', desc:'廃墟のサーバに、完成品の C コンパイラが残っているという。', locked:true},
 ];
 const STEP_LIMIT = 20000, TR_LIMIT = 300000, TR_ID = '1-10', ASM_ID = '2-9', END_ID = '3-3';
 const stageOpen = n => n === 1 || (n === 2 && !!SAVE.translator) || (n === 3 && !!SAVE.translator && !!SAVE.assembler);
@@ -1249,7 +1249,7 @@ const RECORDS = [
   <div class="real"><b class="h">現実では</b>1940年代の終わりから50年代のはじめ、最初期のプログラマも機械語を手で書き、番地を数えていた。行き先を名前で書いて、番地は機械に数えさせる道具（アセンブラ）は、まさにこの苦労から生まれた。</div>`},
  {id:'r2', at:'1-10', title:'最初の翻訳機', body:`
   <p>16進で書いた翻訳機が、ラベルを番地に置き換えた。テープを2回読み、1回目で名前と番地を表に書き、2回目で機械語を書き出す。</p>
-  <p>この翻訳機は、1バイト残らず自分で打った。何をしているか、全部分かる。それがどれほど心強いことか、このときはまだ分かっていなかった。</p>
+  <p>この翻訳機は、1バイト残らず自分で打った。何をしているか、全部分かる。</p>
   <p>これからは、この翻訳機が番地を数える。わたしは名前を書くだけでいい。</p>
   <div class="real"><b class="h">現実では</b>実際に、数百バイトの手書きの機械語（hex0 と呼ばれる）を種にして、ラベル付きの16進、アセンブラ、小さな C、そして本物の C コンパイラまで積み上げる取り組みがある（stage0 や Bootstrappable Builds、GNU Mes など）。GNU Guix などでは、この方法で小さな種からシステム全体を組み上げられるようになっている。あなたがやったのは、その最初の段とほぼ同じことだ。</div>`},
  {id:'r3', at:'2-9', title:'道具が道具を作る', body:`
@@ -1307,7 +1307,7 @@ function renderTitle(){
 
 function renderMap(){
   app.innerHTML = `<div class="bar"><button data-act="title">≡</button><div class="ttl">再建の道のり</div><button data-act="records">記録${recUnread() ? '<span class="dot"></span>' : ''}</button><button data-act="manual">命令表</button></div>` +
-  STAGES.map(s => {
+  STAGES.filter(s => s.n !== 5 || SAVE.solved[END_ID]).map(s => {
     const ps = P.filter(p => p.st === s.n);
     const open = !s.locked && stageOpen(s.n);
     return `<div class="stage ${open ? '' : 'locked'}">
@@ -1910,21 +1910,16 @@ function clearModal(p, size, steps, first){
   }
   if (p.id === ASM_ID){
     body += `<div class="unlock">▼ 段階解放 ▼<br>ニーモニック</div>
-    <p>第3段階からは、命令を名前で書ける。あなたのアセンブラが番号に直し、あなたのラベル翻訳機が番地を数える。</p>
-    <div class="story">16進で書いたラベル翻訳機が、ラベルで書いたアセンブラを機械語にした。そのアセンブラが、これからあなたの書く命令名を読む。道具が道具を作り、その道具がまた次を作る。</div>`;
+    <p>第3段階からは、命令を名前で書ける。あなたのアセンブラが番号に直し、あなたのラベル翻訳機が番地を数える。</p>`;
   }
   if (p.id === TR_ID){
     body += `<div class="unlock">▼ 段階解放 ▼<br>ラベル付き16進</div>
     <p>あなたが一字一字、番地を数えて書いた ${size} バイト。これがあなたの最初の本格的な翻訳機だ。</p>
-    <p>第2段階からのコードは、<b>この翻訳機</b>が機械語に直す。もう番地は数えなくていい。</p>
-    <div class="story">この翻訳機は、あなたが書いた。だから信じられる。<br>……あなたが書いたものなら。</div>`;
+    <p>第2段階からのコードは、<b>この翻訳機</b>が機械語に直す。もう番地は数えなくていい。</p>`;
   }
   if (p.id === END_ID){
     body += `<div class="unlock">試作版はここまで</div>
-    <p>式を読んで計算できた。次は、式を読んで<b>計算する機械語を書き出す</b>——それがコンパイラだ。小さなCは、この電卓の延長にある。</p>
-    <div class="story">道の先、廃墟のサーバに「完成品のCコンパイラ」のバイナリが残っているという噂がある。使えば、何段階も飛ばせる。<br>
-    だが、そのコンパイラのソースに何も怪しいところがなくても——コンパイラ自身が、自分をコンパイルするたびに裏口を仕込み直していたら？<br>
-    <span class="dim">（Ken Thompson「Reflections on Trusting Trust」1984）</span></div>`;
+    <p>式を読んで計算できた。この先は、小さな C に続く。</p>`;
   }
   const newRecs = RECORDS.filter(r => r.at === p.id && !(SAVE.read || {})[r.id]);
   if (newRecs.length) body += `<p style="margin:12px 0 0">新しい記録が読めるようになった。</p><div class="reclist" style="margin-top:6px">${newRecs.map(r => `<button class="amb" data-rec="${r.id}">記録：${r.title}</button>`).join('')}</div>`;
