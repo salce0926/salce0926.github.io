@@ -1355,10 +1355,10 @@ function renderPuzzle(){
   <div class="card"><h3>${hexMode ? 'メモリ（16進エディタ）' : p.mode === 'asm' ? 'ソース（命令名）' : 'ソース（ラベル付き16進）'}</h3>
     ${hexMode ? `<div id="grid"></div><div class="info" id="info"></div>
       <div id="notes" class="notes"></div>
-      <div class="tools"><button data-act="memo">メモ</button><button data-act="text">テキストで編集</button><button data-act="import">読込</button><button data-act="reset">初期状態に戻す</button></div>`
+      <div class="tools"><button data-act="memo">メモ</button><button data-act="text">テキストで編集</button><button data-act="copy">コピー</button><button data-act="import">読込</button><button data-act="reset">初期状態に戻す</button></div>`
     : `<div class="ed"><pre class="ed-bg" id="srcbg" aria-hidden="true"></pre><textarea class="src" id="src" inputmode="${S.nativeKb ? 'text' : 'none'}" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off">${esc(getCode(p))}</textarea></div>
       <div class="info" id="sinfo"></div>
-      <div class="tools"><button data-act="import">読込</button><button data-act="reset">初期状態に戻す</button></div>`}
+      <div class="tools"><button data-act="copy">コピー</button><button data-act="import">読込</button><button data-act="reset">初期状態に戻す</button></div>`}
   </div>
   ${hexMode ? '' : `<div class="card"><h3>翻訳結果 <small>（${p.mode === 'asm' ? 'あなたのアセンブラ → ラベル翻訳機' : 'あなたの翻訳機による'}）</small></h3><div id="built"></div></div>`}
   <div class="card"><h3>機械 SEED-8</h3>
@@ -1773,6 +1773,16 @@ function textEdit(){
     pushUndo(); setCode(r.b, r.nt); S.cur = 0; d.remove(); drawAll();
   };
 }
+// 書いたコードをクリップボードへ（16進はメモ付きのテキストにする）
+async function copyCode(){
+  const t = S.p.mode === 'hex' ? serialize(getCode(S.p), getNotes(S.p)) : getCode(S.p);
+  try { await navigator.clipboard.writeText(t); modal('<p>コードをコピーしました。</p><div class="row"><button class="pri" data-close>閉じる</button></div>'); }
+  catch(e){
+    const d = modal(`<h2>コピー</h2><p style="font-size:14px">うまくコピーできなかったので、全体を選択しました。長押しなどでコピーしてください。</p>
+      <textarea class="src" style="min-height:200px;font-size:13px" readonly>${esc(t)}</textarea><div class="row"><button class="pri" data-close>閉じる</button></div>`);
+    const ta = d.querySelector('textarea'); ta.focus(); ta.select();
+  }
+}
 function memoEdit(){
   const b = getCode(S.p);
   if (S.cur >= b.length){ modal('<h2>メモ</h2><p>メモはバイトに付けます。数の入っているマスを選んでください。</p><div class="row"><button class="pri" data-close>閉じる</button></div>'); return; }
@@ -1977,6 +1987,7 @@ app.addEventListener('click', e => {
     case 'cell': S.pend = null; S.cur = +t.dataset.i; drawGrid(); drawInfo(); break;
     case 'text': textEdit(); break;
     case 'memo': memoEdit(); break;
+    case 'copy': copyCode(); break;
     case 'import': importCode(); break;
     case 'reset':
       ask('この課題のコードを初期状態に戻しますか？', '初期状態に戻す', () => {
