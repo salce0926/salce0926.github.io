@@ -551,6 +551,12 @@ function build16(src){
   return {bytes, steps:a.steps + v.steps, L, labels:L.labels, w16:true, mids:[[(lng ? 'アセンブラ（長いラベル）' : 'アセンブラ16') + 'の出力（ラベル付き16進）', mid]], warn};
 }
 const buildCur = () => S.p.mode === 'asm16' ? build16(getCode(S.p)) : S.p.mode === 'c' ? build4(getCode(S.p)) : S.p.mode === 'asm' ? build3(getCode(S.p)) : build(getCode(S.p));
+// 前の翻訳に BUILD_SLOW ミリ秒以上かかった課題では、打つ手が BUILD_WAIT ミリ秒止まってから翻訳する
+const BUILD_SLOW = 16, BUILD_WAIT = 400;
+// 待っている間に「検証する」などで先に翻訳したときは、薄くしていた欄をすぐ描き直す
+function buildNow(){ const was = S.btimer; clearTimeout(S.btimer); S.btimer = null; const t0 = Date.now(); S.built = buildCur(); S.bms = Date.now() - t0; if (was) setTimeout(afterType, 0); return S.built; }
+const buildWaiting = () => !S.built && !!S.btimer;
+function afterType(){ S.btimer = null; if (!S.p || S.p.mode === 'hex' || S.btimer || !document.getElementById('src')) return; drawBuilt(); drawMach(); drawSrcBg(); srcCaret(); }
 // 2-6 の初期状態：名前の数 → 命令番号 の表
 const TABLE_SRC = '# 名前の数 → 命令番号 の表\n# 2バイトずつ：名前の数（2-5 の決まりで計算したもの）、命令番号\n# 表の終わりの印はない（テープには表にある名前しか来ない）\n:t\n' +
   OPS.filter(o => !NEW16.has(o[0])).map(o => `${hex2(HASH(o[1]))} ${hex2(o[0])}   # ${o[1]}`).join('\n') + '\n';
@@ -1907,9 +1913,9 @@ const app = document.getElementById('app');
 const S = {screen:'title', p:null, cur:0, pend:null, undo:[], vm:null, ti:0, timer:null, results:null, msg:null, built:null};
 
 function go(screen, id){
-  stopPlay();
+  stopPlay(); clearTimeout(S.btimer); S.btimer = null;
   S.screen = screen;
-  if (id){ S.caret = null; S.lpage = 'hex'; S.selAddr = -1; S.p = PZ[id]; S.cur = 0; S.pend = null; S.undo = []; S.vm = null; S.ti = 0; S.results = null; S.msg = null; S.built = null; }
+  if (id){ S.caret = null; S.lpage = 'hex'; S.selAddr = -1; S.p = PZ[id]; S.cur = 0; S.pend = null; S.undo = []; S.vm = null; S.ti = 0; S.results = null; S.msg = null; S.built = null; S.bms = 0; }
   render(); window.scrollTo(0, 0);
 }
 function render(){
@@ -2150,7 +2156,7 @@ function renderMap(){
 function curBytes(){
   const p = S.p;
   if (p.mode === 'hex') return getCode(p);
-  if (!S.built) S.built = buildCur();
+  if (!S.built) buildNow();
   return S.built.bytes || null;
 }
 // 第2段階：プレイヤーの翻訳機で翻訳する
@@ -2197,7 +2203,8 @@ function renderPuzzle(){
   : `<div id="lpad"></div><div class="ktool" style="margin-top:5px"><button class="pri" data-act="check">検証する</button></div>`}</div>`;
   if (!hexMode){
     const ta = document.getElementById('src');
-    ta.addEventListener('input', () => { SAVE.code[p.id] = ta.value; persist(); S.built = null; S.vm = null; S.results = null; stopPlay(); fitSrc(); drawBuilt(); drawMach(); drawTests(); srcCaret(); });
+    ta.addEventListener('input', () => { SAVE.code[p.id] = ta.value; persist(); S.built = null; S.vm = null; S.results = null; stopPlay();
+      clearTimeout(S.btimer); S.btimer = S.bms >= BUILD_SLOW ? setTimeout(afterType, BUILD_WAIT) : null; fitSrc(); drawBuilt(); drawMach(); drawTests(); srcCaret(); });
     ['click', 'keyup', 'select', 'focus'].forEach(ev => ta.addEventListener(ev, srcCaret));
     S.caret = Math.min(S.caret ?? ta.value.length, ta.value.length);
     try { ta.setSelectionRange(S.caret, S.caret); } catch(e){}
@@ -2309,7 +2316,7 @@ function drawInfo(){
 }
 /* ---------- 第2段階のソース編集：光る行・タップで中身・キーパッド ---------- */
 function fitSrc(){ const ta = document.getElementById('src'); if (!ta) return; ta.style.height = 'auto'; ta.style.height = Math.max(260, ta.scrollHeight) + 'px'; drawSrcBg(); }
-function curLint(){ if (!S.built) S.built = buildCur(); return S.built.L; }
+function curLint(){ if (!S.built){ if (S.btimer) return null; buildNow(); } return S.built.L; }
 // ソースの背景に、実行中の行と命令を描く
 function drawSrcBg(){
   const bg = document.getElementById('srcbg'), ta = document.getElementById('src'); if (!bg || !ta) return;
@@ -2348,6 +2355,7 @@ function srcCaret(){
   const ta = document.getElementById('src'), el = document.getElementById('sinfo'); if (!ta || !el) return;
   S.caret = ta.selectionStart;
   S.selAddr = -1;
+  if (buildWaiting()){ el.innerHTML = '<span class="dim">打つ手が止まったら翻訳します…</span>'; return; }
   const L = curLint(), c = S.caret;
   if (S.p.mode === 'c'){
     if (!L || L.errors.length){ el.innerHTML = '<span class="dim">翻訳できない状態なので、中身は表示できません。</span>'; drawBuilt(); return; }
@@ -2447,7 +2455,8 @@ function lkey(k){
 }
 function drawBuilt(){
   const el = document.getElementById('built'); if (!el) return;
-  if (!S.built) S.built = buildCur();
+  if (!S.built){ if (S.btimer){ el.style.opacity = '.45'; return; } buildNow(); }
+  el.style.opacity = '';
   const B = S.built;
   if (B.errors){ el.innerHTML = B.errors.slice(0, 6).map(e => `<div class="msg err">✗ ${esc(e)}</div>`).join(''); return; }
   const midHTML = (B.mids || []).map(([t, x]) => `<div class="msg dim" style="margin-bottom:6px">${t}</div><div class="strip mono" style="margin:0 0 8px;font-size:12px">${esc(x)}</div>`).join('') + (B.mids ? '<div class="msg dim" style="margin-bottom:6px">ラベル翻訳機の出力（機械語）</div>' : '');
@@ -2481,6 +2490,8 @@ function tableHTML(v, t){
 }
 function drawMach(){
   const el = document.getElementById('mach'); if (!el) return;
+  if (buildWaiting() && S.p.mode !== 'hex'){ el.style.opacity = '.45'; return; }
+  el.style.opacity = '';
   const v = ensureVM();
   if (!v){ el.innerHTML = '<div class="msg err">翻訳できないので動かせません。</div>'; return; }
   const t = S.p.tests[S.ti];
