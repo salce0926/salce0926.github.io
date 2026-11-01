@@ -1,0 +1,15 @@
+{
+  "name": "ネコを囲め",
+  "short_name": "ネコを囲め",
+  "description": "六角形の盤に壁を置いて、跳ねて逃げるネコを閉じ込めるパズル",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#edf0e4",
+  "theme_color": "#edf0e4",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

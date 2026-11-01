@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ネコを囲め</title>
+<meta name="description" content="六角形の盤に壁を置いて、跳ねて逃げるネコを閉じ込めるパズル。今日の一問と詰め問題つき。">
+<meta name="theme-color" content="#edf0e4">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ネコを囲め">
+<meta property="og:description" content="六角形の盤に壁を置いて、跳ねて逃げるネコを閉じ込めるパズル。今日の一問と詰め問題つき。">
+<meta property="og:url" content="https://salce0926.github.io/cat-trap/">
+<meta property="og:image" content="https://salce0926.github.io/cat-trap/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ネコを囲め">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap">
 <style>
@@ -54,7 +68,8 @@
     color: var(--ink);
     font-family: var(--font);
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-    padding-block: 12px;
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
     user-select: none; -webkit-user-select: none;
@@ -114,6 +129,7 @@
     display: grid; gap: 12px; justify-items: center; text-align: center;
   }
   .sheet-label { font-size: 12px; color: var(--sub); letter-spacing: .08em; margin-bottom: -6px; }
+  #tsumeBar { display: grid; grid-template-columns: repeat(4, auto); gap: 8px; justify-content: center; margin-top: 10px; }
   #replayBar { display: grid; grid-template-columns: repeat(3, auto); gap: 8px; justify-content: center; margin-top: 10px; }
   #info { font-size: 13px; color: var(--sub); text-align: center; font-variant-numeric: tabular-nums; }
   #bar { display: grid; grid-template-columns: repeat(4, auto); gap: 8px; justify-content: center; margin-top: 10px; }
@@ -127,12 +143,21 @@
   @media (max-width: 520px) {
     #bar { grid-template-columns: repeat(4, 1fr); width: 100%; gap: 6px; margin-top: 6px; }
     #bar button { font-size: 12px; padding: 4px 2px; min-height: 40px; }
+    #tsumeBar { grid-template-columns: repeat(4, 1fr); width: 100%; gap: 6px; margin-top: 6px; }
+    #tsumeBar button { font-size: 12px; padding: 4px 2px; min-height: 40px; }
   }
   #sheet.daily #level { opacity: .45; }
   .seg { display: inline-flex; border: 2px solid var(--ink); border-radius: 999px; overflow: hidden; }
   .seg button { border: 0; border-radius: 0; min-height: 32px; padding: 4px 10px; font-size: 12.5px; }
   .seg button + button { border-left: 2px solid var(--ink); }
   .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  /* 詰め問題の一覧 */
+  #tsumeGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; width: 100%; max-width: 360px; }
+  #tsumeGrid button { min-height: 44px; padding: 2px 0; border-radius: 12px; font-size: 14px; line-height: 1.1; display: grid; place-items: center; }
+  #tsumeGrid button small { font-size: 10px; color: var(--sub); }
+  #tsumeGrid button.solved { background: var(--cell); }
+  #tsumeGrid button.solved::after { content: "✓"; font-size: 10px; color: var(--win); }
+  #tsumeGrid button.current { outline: 3px solid var(--mark); outline-offset: 1px; }
   @media (prefers-reduced-motion: reduce) { .cell.pop { animation: none; } }
 </style>
 </head>
@@ -167,6 +192,15 @@
 <div id="sheet" hidden>
   <div id="sheetPanel" role="dialog" aria-label="設定">
     <p class="rule">マスを押して壁を置き、ネコが端に着く前に閉じ込めよう</p>
+    <div id="mode" class="seg" role="group" aria-label="あそびかた">
+      <button id="modeFree">ふつうに遊ぶ</button>
+      <button id="modeTsume">詰め問題</button>
+    </div>
+    <div id="tsumeOpts" hidden>
+      <p class="rule" style="margin-bottom:8px">ネコは一番うまく逃げます。決まった手数で閉じ込めよう</p>
+      <div id="tsumeGrid"></div>
+    </div>
+    <div id="freeOpts" style="display:grid;gap:12px;justify-items:center">
     <div class="sheet-label">最初の壁の数</div>
     <div id="level" class="seg" role="group" aria-label="難易度">
       <button id="lvEasy" data-level="easy">やさしい</button>
@@ -178,8 +212,15 @@
       <button id="catNormal" data-brain="normal">のんびり</button>
       <button id="catSmart" data-brain="smart">かしこい</button>
     </div>
+    </div>
     <button id="sheetClose">閉じる</button>
   </div>
+</div>
+<div id="tsumeBar" hidden>
+  <button id="tPrevBtn">前の問題</button>
+  <button id="tRetryBtn">やり直す</button>
+  <button id="tUndoBtn">1手戻す</button>
+  <button id="tNextBtn">次の問題</button>
 </div>
 <div id="replayBar" hidden>
   <button id="prevBtn">◀ 1手戻る</button>
@@ -202,6 +243,8 @@ let walls, initialWalls, cat, history, moves, over, busy;
 let log = [];              // この対局の手順 [{ wall, cat }]（catは手のあとのネコの位置）
 let replay = null;         // 振り返り中なら { steps, i, title }
 let daily = null;          // 今日の一問なら { seed, date, label, short, answers }
+let tsume = null;          // 詰め問題なら { i }
+let startCat = 60;         // ネコの最初のマス（ふだんは真ん中 5,5）
 let timer = null;
 
 const key = (r, c) => r * N + c;
@@ -367,6 +410,67 @@ async function solve(initial, br, seed, deadline) {
   }
   return null;
 }
+
+/* ---------- 詰め問題 ----------
+   [手数, ネコのマス, 正解の1手目, 壁のマス...]。ネコが一番うまく逃げても、その手数で閉じ込められることを総当たりで確かめてある */
+const PUZZLES = [[1,28,27,[3,7,9,10,16,17,19,20,29,31,32,37,40,41,43,48,49,50,52,53,59,61,62,63,71,73,74,75,76,83,84,87,88,97]],[1,58,48,[5,8,10,17,23,27,31,34,37,39,47,53,55,57,59,60,61,62,66,68,69,72,73,74,79,83,84,85,90,92,93,94,96,101,103,104,105,107,113,114,115,116]],[1,72,81,[14,16,28,29,38,41,58,59,60,61,62,66,67,68,71,73,75,77,78,79,84,85,90,92,95,97,100,103,104,105,106,107,109,110,111]],[1,82,81,[14,16,28,29,38,41,58,59,60,61,62,66,67,68,71,73,75,77,78,79,83,84,85,90,92,95,97,100,103,104,105,106,107,109,110,111]],[2,79,68,[2,13,20,27,34,35,40,42,45,48,50,58,59,61,64,67,69,70,73,75,78,81,82,83,88,89,91,92,102,103,105,111,112,113,114,115,116]],[2,39,50,[7,9,16,18,19,20,28,31,36,38,41,49,51,52,54,58,63,68,74,77,80,82,93,94,101,114,115]],[2,70,71,[15,27,31,36,37,46,47,48,49,51,56,58,59,61,73,78,79,81,82,90,91,92,99,103,113,114,118,120]],[2,49,60,[5,6,25,27,31,36,37,38,42,47,50,57,68,70,71,73,74,82,90,102,103,104,105,110,112,113,117]],[2,60,61,[5,6,25,27,31,36,37,38,42,47,50,57,68,70,71,72,73,74,80,82,90,102,103,104,105,110,112,113,117]],[2,29,39,[6,16,17,18,27,28,31,37,40,41,42,50,58,60,61,63,64,70,72,75,83,85,87,90,101,113]],[3,95,106,[2,12,17,27,28,29,40,42,48,50,53,54,60,63,65,67,70,72,80,82,84,85,86,93,96,105,112,113]],[3,58,57,[32,36,37,38,44,46,50,55,62,67,69,70,71,72,73,82,88,91,93,102,110]],[3,81,80,[2,13,20,27,34,35,40,42,48,50,58,59,61,64,67,70,73,75,78,83,88,89,91,92,102,105,112,113,114,115,116]],[3,79,68,[2,13,20,27,34,35,40,42,48,50,58,59,61,64,67,69,70,73,75,78,82,83,88,89,91,92,102,105,112,113,114,115,116]],[3,80,79,[2,13,20,27,34,35,40,42,45,48,50,58,59,61,64,67,69,70,73,75,78,82,83,88,89,91,92,102,105,112,113,114,115,116]],[3,79,68,[2,13,20,27,34,35,40,42,45,48,50,58,59,61,64,67,69,70,73,75,78,82,83,88,89,91,92,102,103,105,112,113,114,115,116]],[3,68,79,[2,13,20,27,34,35,40,42,45,48,50,58,59,61,64,67,69,70,73,75,78,82,83,88,89,91,92,102,103,105,111,112,113,114,115,116]],[3,70,69,[14,25,27,28,37,39,47,49,51,53,58,59,61,65,67,71,77,79,80,83,86,89,90,92,95,96,102,103,113,115,116]],[3,52,51,[3,4,28,29,32,40,41,43,49,54,61,63,64,73,76,77,83,84,91,103,107,112]],[3,39,40,[5,6,12,15,17,23,25,29,36,37,47,49,52,58,59,61,62,67,69,72,84,103,107,111]],[3,60,72,[3,6,23,24,25,26,32,33,35,37,44,45,49,50,58,61,66,67,69,80,81,86,90,92,94,104,116,120]],[3,72,73,[3,6,23,24,25,26,32,33,35,37,44,45,49,50,58,61,66,67,69,80,81,83,86,90,92,94,104,116,120]],[3,74,75,[11,18,49,50,51,52,53,61,62,64,71,72,78,81,85,92,96,97,105,106,108,116]],[3,69,58,[26,27,31,37,38,46,50,52,54,56,57,59,63,68,71,76,80,83,90,91,95,97,103,110,118]],[3,51,61,[3,4,9,29,38,40,41,46,47,48,50,53,57,59,63,64,70,74,83,86,94,104,115,118]],[3,94,104,[9,23,27,38,41,42,47,48,51,58,62,69,72,74,78,81,82,85,93,96,107,116,118,120]]].map(([k, c, sol, w]) => ({ k, c, sol, w }));
+
+// ネコから出口までの最短路のマス（1枚で閉じ込めるなら、この上のどこかしかない）
+function pathCells(wa, c) {
+  const par = new Int16Array(N * N).fill(-2), q = [c]; par[c] = -1;
+  for (let i = 0; i < q.length; i++) {
+    const x = q[i];
+    if (EDGEK[x]) { const p = []; for (let y = x; y !== c; y = par[y]) p.push(y); return p; }
+    for (const y of NBK[x]) if (!wa[y] && par[y] === -2) { par[y] = x; q.push(y); }
+  }
+  return [];
+}
+// 壁があと m 枚のとき、ネコがどう逃げても閉じ込められる最初の壁（なければ -1）
+function winWall(wa, c, m) {
+  const cands = m === 1 ? pathCells(wa, c) : reach(wa, c).cells.filter(k => k !== c);
+  for (const w of cands) {
+    wa[w] = 1;
+    const ok = enclosed(wa, c) || (m > 1 && !catSurvives(wa, c, m - 1));
+    wa[w] = 0;
+    if (ok) return w;
+  }
+  return -1;
+}
+// 壁を置いた直後のネコの番。壁が残り m 枚でも逃げ切れるなら true
+function catSurvives(wa, c, m) {
+  for (const n of NBK[c]) {
+    if (wa[n]) continue;
+    if (EDGEK[n] || m === 0 || winWall(wa, n, m) < 0) return true;
+  }
+  return false;
+}
+// 詰め問題のネコ：逃げ切れるマスがあればそこへ。なければ出口に近い方へ
+function tsumeCatMove(wa, c, m) {
+  const opts = NBK[c].filter(k => !wa[k]);
+  if (!opts.length) return -1;
+  const exit = opts.find(k => EDGEK[k]);
+  if (exit !== undefined) return exit;
+  const safe = m > 0 ? opts.filter(n => winWall(wa, n, m) < 0) : [];
+  const pool = safe.length ? safe : opts;
+  const od = oneDistArr(wa), td = twoDistArr(wa);
+  return pool.reduce((a, b) => (od[b] * 100 + td[b] < od[a] * 100 + td[a] ? b : a));
+}
+function tsumeAnswer(p) {
+  const wa = toArr(new Set(p.w)), steps = [];
+  let c = p.c;
+  for (let m = p.k; m > 0; m--) {
+    const w = m === p.k ? p.sol : winWall(wa, c, m);
+    if (w < 0) break;
+    wa[w] = 1;
+    if (enclosed(wa, c)) { steps.push({ wall: w, cat: c }); break; }
+    const n = tsumeCatMove(wa, c, m - 1);
+    steps.push({ wall: w, cat: n });
+    c = n;
+  }
+  return steps;
+}
+let solvedTsume = new Set();
+try { solvedTsume = new Set(JSON.parse(localStorage.getItem('cattrap-tsume-solved') || '[]')); } catch {}
 
 /* ---------- ネコの体と動き ---------- */
 
@@ -591,6 +695,11 @@ function updateCells() {
     infoEl.textContent = `${replay.title} ${replay.i}/${replay.steps.length}手目`;
     return;
   }
+  if (tsume) {
+    const p = PUZZLES[tsume.i];
+    infoEl.textContent = `詰め問題 ${tsume.i + 1}/${PUZZLES.length}・${p.k}手で閉じ込める ／ あと${p.k - moves}手`;
+    return;
+  }
   const best = loadBest();
   infoEl.textContent = daily
     ? `${daily.short}の一問・${brainShort()} ／ 壁${moves}手` + (best ? ` ／ 今日の記録${best}手` : '')
@@ -639,13 +748,36 @@ function syncButtons() {
     b.setAttribute('aria-pressed', String(b.dataset.brain === brain)));
   document.getElementById('sheet').classList.toggle('daily', !!daily);
   document.getElementById('dailyBtn').classList.toggle('on', !!daily);
-  document.getElementById('modeBtn').textContent =
-    `${daily ? '今日の一問' : LEVELS[level].name}・${brainName()} ▾`;
+  document.getElementById('modeBtn').textContent = tsume
+    ? `詰め問題 ${tsume.i + 1}（${PUZZLES[tsume.i].k}手）▾`
+    : `${daily ? '今日の一問' : LEVELS[level].name}・${brainName()} ▾`;
+  document.getElementById('modeFree').setAttribute('aria-pressed', String(!tsume));
+  document.getElementById('modeTsume').setAttribute('aria-pressed', String(!!tsume));
+  document.getElementById('freeOpts').hidden = !!tsume;
+  document.getElementById('tsumeOpts').hidden = !tsume;
+  document.getElementById('tsumeGrid').innerHTML = PUZZLES.map((p, i) =>
+    `<button data-i="${i}" class="${solvedTsume.has(i) ? 'solved' : ''}${tsume && tsume.i === i ? ' current' : ''}">${i + 1}<small>${p.k}手</small></button>`).join('');
+  showBars();
+}
+function showBars() {
+  document.getElementById('bar').hidden = !!replay || !!tsume;
+  document.getElementById('tsumeBar').hidden = !!replay || !tsume;
+  document.getElementById('replayBar').hidden = !replay;
+}
+function startTsume(i) {
+  i = (i + PUZZLES.length) % PUZZLES.length;
+  daily = null;
+  tsume = { i };
+  try { localStorage.setItem('cattrap-tsume-at', String(i)); } catch {}
+  initialWalls = new Set(PUZZLES[i].w);
+  startCat = PUZZLES[i].c;
+  syncButtons();
+  start(false);
 }
 
 function setLevel(lv) {
   level = lv;
-  daily = null;
+  daily = null; tsume = null;
   try { localStorage.setItem('cattrap-level', lv); } catch {}
   syncButtons();
   start(true);
@@ -685,6 +817,7 @@ async function startDaily() {
     try { localStorage.setItem('cattrap-daily-puzzle', JSON.stringify(cached)); } catch {}
   }
   daily = { seed: cached.seed, date, label, short, answers: cached.answers };
+  tsume = null;
   initialWalls = new Set(cached.walls);
   syncButtons();
   start(false);
@@ -708,6 +841,22 @@ function showResult(won, improved) {
   const t = document.getElementById('resTitle');
   t.textContent = won ? '閉じ込めました！' : '逃げられました';
   t.className = won ? 'win' : 'lose';
+  const againBtn = document.getElementById('againBtn');
+  againBtn.textContent = tsume && won ? '次の問題' : 'もう一回';
+  if (tsume) {
+    const p = PUZZLES[tsume.i];
+    if (won) t.textContent = '正解！';
+    else if (!isEdge(...cat)) t.textContent = '壁を使い切りました';
+    document.getElementById('resMoves').textContent = `詰め問題 ${tsume.i + 1}・${p.k}手で閉じ込める` + (won ? '' : ' ／ 答えを見てみよう');
+    document.getElementById('resNew').hidden = true;
+    document.getElementById('reviewBtn').hidden = log.length === 0;
+    document.getElementById('answerBtn').hidden = false;
+    document.getElementById('answerBtn').textContent = '答え';
+    document.getElementById('shareBtn').hidden = true;
+    resultEl.hidden = false; infoEl.hidden = true; setStatus('');
+    return;
+  }
+  document.getElementById('answerBtn').textContent = 'Claudeの解答';
   const best = loadBest();
   document.getElementById('resMoves').textContent = (daily ? `${daily.label}・${brainName()} ／ ` : '') +
     (won ? `${moves}手` : `${moves}手目で逃げられた`) + (best && !improved ? ` ／ ${daily ? '今日の記録' : '最少記録'} ${best}手` : '');
@@ -722,8 +871,9 @@ function showResult(won, improved) {
 
 function start(fresh) {
   if (fresh) initialWalls = randomWalls();
+  if (!tsume) startCat = 60;
   walls = new Set(initialWalls);
-  cat = [5, 5];
+  cat = rc(startCat);
   history = [];
   log = [];
   moves = 0;
@@ -768,6 +918,11 @@ function play(r, c) {
       busy = false;
       motion.caughtAt = performance.now();
       const improved = saveBest();
+      if (tsume) {
+        solvedTsume.add(tsume.i);
+        try { localStorage.setItem('cattrap-tsume-solved', JSON.stringify([...solvedTsume])); } catch {}
+        syncButtons();
+      }
       updateCells();
       timer = setTimeout(() => showResult(true, improved), 700);
     }, 900);
@@ -775,9 +930,16 @@ function play(r, c) {
     return;
   }
   updateCells();
+  // 詰め問題：決まった枚数を使い切ったら失敗
+  if (tsume && moves >= PUZZLES[tsume.i].k) {
+    log.push({ wall: k, cat: here });
+    over = true;
+    timer = setTimeout(() => { say('♪', 1200); busy = false; showResult(false, false); }, 500);
+    return;
+  }
   timer = setTimeout(() => {
     const rnd = daily ? () => stateRandom(daily.seed, wa, here) : Math.random;
-    const next = rc(moveCat(wa, here, brain, rnd));
+    const next = rc(tsume ? tsumeCatMove(wa, here, PUZZLES[tsume.i].k - moves) : moveCat(wa, here, brain, rnd));
     log.push({ wall: k, cat: key(...next) });
     const from = cat;
     cat = next;
@@ -838,8 +1000,8 @@ function undo() {
 /* ---------- 振り返り ---------- */
 
 function replayState() {
-  const w = new Set(initialWalls), mine = new Set(), trail = new Set([key(5, 5)]);
-  let c = key(5, 5), last = -1;
+  const w = new Set(initialWalls), mine = new Set(), trail = new Set([startCat]);
+  let c = startCat, last = -1;
   for (let i = 0; i < replay.i; i++) {
     const m = replay.steps[i];
     w.add(m.wall); mine.add(m.wall); last = m.wall;
@@ -862,8 +1024,7 @@ function showReplayStep(animate) {
 function openReplay(steps, title) {
   if (busy) return;
   replay = { steps, i: 0, title, saved: { rest: motion.rest.slice(), caughtAt: motion.caughtAt } };
-  document.getElementById('bar').hidden = true;
-  document.getElementById('replayBar').hidden = false;
+  showBars();
   resultEl.hidden = true;
   infoEl.hidden = false;
   setStatus('');
@@ -873,8 +1034,7 @@ function openReplay(steps, title) {
 function closeReplay() {
   const saved = replay.saved;
   replay = null;
-  document.getElementById('bar').hidden = false;
-  document.getElementById('replayBar').hidden = true;
+  showBars();
   if (lastResult) { resultEl.hidden = false; infoEl.hidden = true; }
   motion.queue = [];
   motion.rest = saved.rest;
@@ -889,9 +1049,10 @@ function bestKey() {
   const base = level === 'hard' ? 'cattrap-best' : `cattrap-best-${level}`;
   return brain === 'smart' ? `${base}-smart` : base;
 }
-function loadBest() { try { return Number(localStorage.getItem(bestKey())) || null; } catch { return null; } }
+function loadBest() { if (tsume) return null; try { return Number(localStorage.getItem(bestKey())) || null; } catch { return null; } }
 // 記録を更新したら true
 function saveBest() {
+  if (tsume) return false;
   const b = loadBest();
   if (b && moves >= b) return false;
   try { localStorage.setItem(bestKey(), String(moves)); } catch {}
@@ -909,11 +1070,29 @@ document.getElementById('retryBtn').onclick = () => { if (!preparing) start(fals
 document.getElementById('undoBtn').onclick = undo;
 document.getElementById('dailyBtn').onclick = startDaily;
 document.getElementById('reviewBtn').onclick = () => openReplay(log, 'あなたの手順');
-document.getElementById('answerBtn').onclick = () => openReplay(daily.answers[brain], 'Claudeの解答');
+document.getElementById('answerBtn').onclick = () =>
+  tsume ? openReplay(tsumeAnswer(PUZZLES[tsume.i]), '答え') : openReplay(daily.answers[brain], 'Claudeの解答');
 document.getElementById('prevBtn').onclick = () => { if (replay.i > 0) { replay.i--; showReplayStep(false); } };
 document.getElementById('nextBtn').onclick = () => { if (replay.i < replay.steps.length) { replay.i++; showReplayStep(true); } };
 document.getElementById('closeBtn').onclick = closeReplay;
-document.getElementById('againBtn').onclick = () => start(false);
+document.getElementById('againBtn').onclick = () => {
+  if (tsume && lastResult && lastResult.won) startTsume(tsume.i + 1); else start(false);
+};
+document.getElementById('tPrevBtn').onclick = () => startTsume(tsume.i - 1);
+document.getElementById('tNextBtn').onclick = () => startTsume(tsume.i + 1);
+document.getElementById('tRetryBtn').onclick = () => start(false);
+document.getElementById('tUndoBtn').onclick = undo;
+document.getElementById('modeFree').onclick = () => { if (!preparing && tsume) setLevel(level); };
+document.getElementById('modeTsume').onclick = () => {
+  if (preparing || tsume) return;
+  let at = PUZZLES.findIndex((_, i) => !solvedTsume.has(i));
+  try { const s = localStorage.getItem('cattrap-tsume-at'); if (s !== null && at < 0) at = Number(s); } catch {}
+  startTsume(Math.max(0, at));
+};
+document.getElementById('tsumeGrid').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) { startTsume(Number(b.dataset.i)); sheet.hidden = true; }
+});
 document.getElementById('resClose').onclick = () => { resultEl.hidden = true; infoEl.hidden = false; };
 const sheet = document.getElementById('sheet');
 document.getElementById('modeBtn').onclick = () => { if (!preparing && !replay) sheet.hidden = false; };
@@ -930,6 +1109,9 @@ shareBtn.onclick = () => {
 buildBoard();
 setLevel(level);
 requestAnimationFrame(loop);
+// ホーム画面に追加したとき、電波がなくても開けるようにする（公開版のみ）
+if ('serviceWorker' in navigator && location.protocol === 'https:' && location.pathname.includes('/cat-trap/'))
+  navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
 </html>
