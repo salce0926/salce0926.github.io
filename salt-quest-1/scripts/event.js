@@ -1294,9 +1294,22 @@ function huntingSpots() {
 }
 
 // いまの強さで一番おいしい狩り場を選ぶ。
-// 死亡率が高い所は経験値が多くても除く（全滅すると所持金半分＋やり直しで結局遅い）
+// ものさしは「1歩あたりに稼げる経験値」ひとつ。宿の近さは別の都合ではなく、
+// このものさしに入るコスト——休むたびの往復の歩数と、倒れて城から歩き直す損——
+// なので、「効率を取るか安全を取るか」を決める必要はない。
+// 以前は (1戦の経験値)×(遭遇率)×(1-道中の危険) で、往復の歩数そのものが
+// 入っていなかった。宿から100歩の狩り場と10歩の狩り場が同点になっていた。
+// 全滅の損も歩数に直す：城から歩き直す歩数＋半分になる所持金を
+// 「その狩り場で稼ぎ直すのに要る歩数」に換算する（本家は経験値は減らない）。
+// こうすると「所持金が多いときほど死の損が大きい」が自然に入り、
+// 決め打ちの係数がいらなくなる
 function bestHuntingSpot(opt) {
     const avoidZone = opt && opt.avoidZone !== undefined ? opt.avoidZone : null;
+    // 死亡率だけは「ものさし」ではなく「制約」として残す。
+    // 本家は全滅しても経験値が減らないので、経験値/歩を素直に最大化すると
+    // 「1戦に1割で死ぬ場所でも割に合う」という答えが出る。実測でもそうなり、
+    // 序盤の全滅が倍に増えた。遊ぶ人から見てそれは成立していないので、
+    // 「1戦あたり5%以上 死ぬ場所では遊ばない」を外枠にして、その中で最大化する
     const maxDeath  = opt && opt.maxDeath  !== undefined ? opt.maxDeath  : RISK_SPOT;
     const reach = reachableSet();
     const key = (x, y) => y * mapWidth + x;
@@ -1304,46 +1317,52 @@ function bestHuntingSpot(opt) {
         atk: player.attack, def: player.defense, hp: player.maxHp, mp: player.maxMp,
         agi: player.agility, str: player.strength, spells: player.spells
     };
+    const castle = CASTLE_ENTRANCE.split(',').map(Number);
     let best = null;
     for (const spot of huntingSpots()) {
         if (!reach.has(key(spot.x, spot.y))) continue;
         if (avoidZone !== null && spot.zone === avoidZone) continue;
-        // 宿から遠い／宿までの道が危ない狩り場は、休むたびに死ぬので選ばない。
-        // 狩り場そのものが安全でも、往復で全滅していては意味がない
         const inn = INN_SPOTS.reduce((b, s) => {
             const d = Math.abs(s.x - spot.x) + Math.abs(s.y - spot.y);
             return (!b || d < b.d) ? { ...s, d } : b;
         }, null);
-        // 宿との往復は何度も繰り返すので、「1戦あたりの危なさ」ではなく
-        // 「その道で何回戦うか」まで込みで見る。ここを見ていなかったため、
-        // 狩り場は安全でも往復の途中で全滅を積み上げていた
         const innPath = findPath(spot, inn);
         if (!innPath) continue;
-        const tripRisk = pathRisk(innPath);
-        if (tripRisk > RISK_PATH) continue;
-        // そこへ辿り着くまでの道も見る。行き帰りで死んでいては意味がない
+        // そこへ辿り着くまでの道だけは関門に残す。行きで死ぬ場所は候補にしない
         const approach = findPath(playerPosition, spot);
-        if (!approach || pathRisk(approach) > RISK_PATH) continue;
+        if (!approach || pathRisk(approach) > 0.5) continue;
         const set = zoneEnemySets[spot.zone].map(i => enemyTable[i]);
-        let dead = 0, exp = 0;
+        let dead = 0, exp = 0, gold = 0, rests = 0;
         const N = 150;
         // 毎回満タンから始めると実際より死ににくく出る。傷を持ち越して、
         // 半分を切ったら宿に戻る——という実際の動きに合わせて数える
         let hp = st.hp, mp = st.mp;
         for (let i = 0; i < N; i++) {
-            if (hp < st.hp * 0.5) { hp = st.hp; mp = st.mp; }
             const e = set[Math.floor(Math.random() * set.length)];
             const r = simulateBattle(st, e, hp, mp);
-            if (r.r === 'lose') { dead++; hp = st.hp; mp = st.mp; }
-            else { hp = r.hp; mp = r.mp; if (r.r === 'win') exp += e.exp; }
+            if (r.r === 'lose') { dead++; rests++; hp = st.hp; mp = st.mp; continue; }
+            hp = r.hp; mp = r.mp;
+            if (r.r === 'win') { exp += e.exp; gold += e.gold; }
+            if (hp < st.hp * 0.5) { rests++; hp = st.hp; mp = st.mp; }
         }
         const death = dead / N;
         if (death > maxDeath) continue;
-        // 1歩あたりの期待経験値（ゾーン0の割引は encounterRateAt が見ている）
-        const rate = autoRateAt(spot.x, spot.y);
-        // 往復が危ない狩り場は、同じ稼ぎでも割に合わないので下げる
-        const score = (exp / N) * rate * (1 - tripRisk);
-        if (!best || score > best.score) best = { ...spot, score, death, exp: exp / N };
+        // 休憩1回でこなせる戦闘数。これが「1周期」の長さを決める
+        const perRest = rests ? N / rests : N;
+        const rate = Math.max(autoRateAt(spot.x, spot.y), 1 / 64);
+        const huntSteps = perRest / rate;                 // 稼いでいる歩数
+        const tripSteps = innPath.length * 2;             // 休むための往復（稼ぎは無い）
+        const tripDeath = 1 - Math.pow(1 - pathRisk(innPath), 2);
+        const backSteps = Math.abs(castle[0] - spot.x) + Math.abs(castle[1] - spot.y);
+        // 半分になる所持金を、ここで稼ぎ直すのに要る歩数に直す
+        const goldPerStep = (gold / N) * rate;
+        const goldSteps = goldPerStep > 0 ? (player.gold / 2) / goldPerStep : 0;
+        const deaths = perRest * death + tripDeath;       // 1周期で倒れる回数の見込み
+        const steps = huntSteps + tripSteps + deaths * (backSteps + goldSteps);
+        const score = (perRest * (exp / N)) / Math.max(steps, 1);
+        if (!best || score > best.score)
+            best = { ...spot, score, death, exp: exp / N,
+                     innSteps: innPath.length, perRest, huntSteps, tripSteps, deaths };
     }
     return best;
 }
