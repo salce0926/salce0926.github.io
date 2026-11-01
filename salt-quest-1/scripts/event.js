@@ -1206,8 +1206,11 @@ function simulateBattle(st, e0, startHp, startMp) {
     return { r: 'draw', hp, mp };
 }
 
-function recommendedLevel(x, y) {
-    const set = zoneEnemySets[zoneAt(x, y)].map(i => enemyTable[i]);
+function recommendedLevel(x, y) { return levelForZone(zoneAt(x, y)); }
+// そのゾーンの敵と戦っても無理のないレベル。町の用事（ドムドーラなど）も
+// 行き先のゾーンで同じように測る
+function levelForZone(zone) {
+    const set = zoneEnemySets[zone].map(i => enemyTable[i]);
     for (let lv = Math.max(1, player.level); lv <= 30; lv++) {
         const s = playerStatus.find(p => p.level === lv);
         if (!s) break;
@@ -1865,15 +1868,26 @@ function levelForCaveDragon() {
     return 30;
 }
 
-// りゅうおうに挑めるレベル。本家でも装備を整えてから挑む相手なので、
-// 勝てる見込みが立つまでは挑まない（挑んで負けると所持金が半分になるだけ）
+// りゅうおうの前に立つとき、最低これだけは持っていたい状態。
+// 城の B1〜B7 を歩くあいだに削られるので、話しかける前にここまで立て直す
+const DRAGON_HP_RATIO = 0.9;
+function dragonLordMpNeed() {
+    return player.spells.includes('ベホイミ') ? 30     // ベホイミ3回ぶん
+         : player.spells.includes('ホイミ')   ? 12 : 0;
+}
+// りゅうおうに挑めるレベル。本家でも全快してから挑む相手。
+// 見積りを HP・MP満タンでやると甘くなる（実際は城を踏破した状態で着く）ので、
+// 「挑む直前に満たす状態」＝HP9割・立て直しに使い残したMP で見積もる
 function levelForDragonLord() {
+    const mpNeed = dragonLordMpNeed();
     for (let lv = player.level; lv <= 30; lv++) {
         let lose = 0; const N = 40;
         for (let i = 0; i < N; i++) {
             const st = statsAtLevel(lv);
+            const hp0 = Math.max(1, Math.floor(st.hp * DRAGON_HP_RATIO));
+            const mp0 = Math.min(st.mp, mpNeed);
             // 本家どおり人の姿→竜の姿と続けて戦う。HPとMPは引き継ぐ
-            const a = simulateBattle(st, dragonLordHuman);
+            const a = simulateBattle(st, dragonLordHuman, hp0, mp0);
             if (a.r !== 'win') { lose++; continue; }
             if (simulateBattle(st, dragonLordDragon, a.hp, a.mp).r !== 'win') lose++;
         }
@@ -2101,6 +2115,21 @@ function errandIsRisky(kind) {
         return d && d.zone !== undefined && !d.noEncounter;
     });
 }
+// その用事に行くのに要るレベル。敵の出る階を含む用事（ドムドーラの
+// ロトのよろい、ガライの墓など）は、りゅうおうや洞窟のドラゴンと同じように
+// 「勝てる見込みが立つまで行かない」。これが無いと、強い敵のいる場所へ
+// 削られる前提で踏み込んで、全滅→城→やり直しを延々とくり返していた
+function errandLevelNeeded(kind) {
+    const e = TOWN_ERRANDS[kind];
+    if (!e) return 0;
+    let need = 0;
+    for (const t of e.targets || []) {
+        const d = DUNGEONS[t.map];
+        if (!d || d.zone === undefined || d.noEncounter) continue;
+        need = Math.max(need, levelForZone(d.zone));
+    }
+    return need;
+}
 // 削られたまま踏み込むと、入ってすぐ引き返し→外でまた用事を始める、の往復になる。
 // 敵の出る階へ行く用事は、体力と回復手段を整えてから始める
 function errandReady(kind) {
@@ -2258,6 +2287,31 @@ function autoTourStep() {
     if (leg.act === 'shop' || leg.act === 'inn') {
         autoShopping = { tries: 0 };
         if (leg.act === 'inn') { autoPilot.rests++; autoPilot.battlesAtRest = autoPilot.battles; }
+    }
+    // りゅうおうは、削られたまま話しかけると見積りより ずっと よく負ける。
+    // 本家と同じく立て直してから声をかける。立て直せないなら いったん城を出る
+    if (t.kind === 'dragonLord' && leg.act === 'talk') {
+        if (player.hp < player.maxHp * DRAGON_HP_RATIO) {
+            // MPは戦いのために残したいので、まず やくそう でHPを埋める
+            if (player.herb > 0) {
+                autoStand(); autoBusy = true;
+                Promise.resolve(useFieldItem('やくそう')).then(() => { autoBusy = false; });
+                return;
+            }
+            const spell = player.spells.includes('ベホイミ') ? 'ベホイミ'
+                        : player.spells.includes('ホイミ')   ? 'ホイミ' : null;
+            const cost = spell === 'ベホイミ' ? 10 : 4;
+            if (spell && !player.sealed && player.mp >= cost + dragonLordMpNeed()) {
+                autoStand(); autoBusy = true;
+                Promise.resolve(castFieldSpell(spell)).then(() => { autoBusy = false; });
+                return;
+            }
+        }
+        if (player.hp < player.maxHp * DRAGON_HP_RATIO || player.mp < dragonLordMpNeed()) {
+            t.targets = []; t.retreat = true;   // 宿で立て直して出直す
+            rebuildTour(true);
+            return;
+        }
     }
     autoStand(); autoBusy = true;
     Promise.resolve(interactField()).then(() => {
@@ -2439,7 +2493,16 @@ function autoTick(now) {
                 if (q.tour === 'castleKing' || q.tour === 'castleStone') {
                     if (startCastleErrand(q.tour)) return;
                 }
-                if (TOWN_ERRANDS[q.tour]) { if (startTownErrand(q.tour)) return; }
+                if (TOWN_ERRANDS[q.tour]) {
+                    const need = errandLevelNeeded(q.tour);
+                    if (need > player.level) {       // 勝てないうちは鍛えてから
+                        autoPilot.grindUntil = need;
+                        autoPilot.path = null; autoPilot.goal = null;
+                        autoPilot.lastLine = '';
+                        return;
+                    }
+                    if (startTownErrand(q.tour)) return;
+                }
                 if (q.tour === 'rora') {                 // 洞窟の奥まで行く
                     const need = levelForCaveDragon();
                     if (need > player.level) {           // ドラゴンに勝てないうちは鍛えてから
@@ -2621,10 +2684,11 @@ function healingPool() {
 // この道を渡り切れそうか。危険度のつまみ(RISK_PATH)は「HP満タンでの1戦の死亡率」
 // しか見ておらず、実際に死ぬのは削られた状態なので当てにならなかった。
 // いまの体力・やくそう・MPと、道中で食らいそうな量を直接くらべる
-function tripSurvivable(path) {
-    if (!path || !path.length) return true;
+// この道を渡り切るには回復手段が足りない、と見るか
+function tripRisky(path) {
+    if (!path || !path.length) return false;
     const fights = battlesOnPath(path);
-    if (fights <= 0) return true;
+    if (fights <= 0) return false;
     let sum = 0, n = 0;
     for (const z of pathZones(path)) {
         for (const i of zoneEnemySets[z]) {
@@ -2634,28 +2698,40 @@ function tripSurvivable(path) {
             sum += Math.min(rounds, 4) * expectedHit(e.attack, player.defense); n++;
         }
     }
-    if (!n) return true;
+    if (!n) return false;
     // 道中は逃げる相手も多いので、まともに戦うのは3分の1くらいと見る
     const need = (sum / n) * fights * 0.35;
-    if (healingPool() >= need) return true;
-    // 休んでも増やしようがないなら、待っていても仕方がないので出発する
-    // （ここを入れないと宿に籠もりきりになる）
-    const full = player.hp >= player.maxHp && player.herb >= HERB_MAX
-                 && (!player.spells.includes('ホイミ') || player.mp >= player.maxMp);
-    return full;
+    return healingPool() < need;
 }
+// もう休んでも増やしようがない（宿へ寄っても意味がない）か
+function nothingMoreToGain() {
+    return player.hp >= player.maxHp && player.herb >= HERB_MAX
+        && (!player.spells.includes('ホイミ') || player.mp >= player.maxMp);
+}
+function tripSurvivable(path) { return !tripRisky(path) || nothingMoreToGain(); }
 
 // 道中で削られたら、目的地より先に宿へ寄る。
     // ここを入れないと、経路をたどる処理が下の宿屋処理より先に返してしまうので、
     // 瀕死のまま100歩歩いて途中で全滅する（全滅の大半がこれだった）
     if (autoPilot.path && autoPilot.path.length && autoPilot.goal !== 'やどやへ'
-        && !tripSurvivable(autoPilot.path)) {
+        && tripRisky(autoPilot.path)) {
         // 宿が目的地より遠くても寄る。削られたまま歩き続けると、
         // たいてい着く前に倒れる（全滅の3分の2が道中だった）
-        const inn = nearestInn();
+        const inn = !nothingMoreToGain() && nearestInn();
         if (inn) {
             autoPilot.inn = inn; autoPilot.path = inn.path;
             autoPilot.goal = 'やどやへ'; autoPilot.lastLine = '';
+            return;
+        }
+        // 満タンでも渡り切れない道は、そもそも強さが足りない。
+        // 買い物は後回しにできる用事なので、諦めて先に鍛える。
+        // （以前はここで「待っていても仕方がない」と出発していて、
+        //   序盤に小さな満タンで長旅に出て倒れるのが全滅の大半だった）
+        if (autoPilot.goal === 'かいものへ' || autoPilot.goal === 'みせへ') {
+            autoPilot.path = null; autoPilot.goal = null; autoPilot.shopKey = null;
+            autoPilot.grindUntil = Math.max(autoPilot.grindUntil || 0,
+                                            Math.min(30, player.level + 1));
+            autoPilot.lastLine = '';
             return;
         }
     }
