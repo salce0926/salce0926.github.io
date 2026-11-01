@@ -1109,7 +1109,8 @@ function stepKeyToward(from, to) {
 const autoPilot = {
     on: false, targetLevel: 0, battles: 0, rests: 0, deaths: 0,
     goldGoal: 0, goldGoalName: '', goldGoalTown: null,   // 「装備が買えるまで」モードの目標
-    lastLine: '',                        // 画面下に出している状況行
+    lastLine: '',                        // 画面下に出している状況行（'' は出し直しの合図）
+    phaseShown: '', hist: [], shownAt: 0,  // いま出している目的・その履歴・最後に書いた時刻
     questMode: false, questName: '', questFails: 0, grindUntil: 0,   // 本編を自動で進めるモード
     shoppedGold: 0, shopKey: null,       // 同じ店で買い直しを繰り返さないための記録
     battlesAtRest: -1,               // 前回泊まった時点の戦闘数（泊まり直しの歯止め）
@@ -1443,6 +1444,7 @@ function resetAutoState() {
     MOVE_INTERVAL = MOVE_INTERVAL_AUTO;
     currentState = STATE.FIELD;
     autoPilot.lastLine = '';
+    autoPilot.phaseShown = ''; autoPilot.hist = []; autoPilot.shownAt = 0;
 }
 
 // ダンジョン探索モードを開始する
@@ -1711,41 +1713,73 @@ function autoBattleChoice() {
     return { cmd: 0 };
 }
 
-// いま何をしているところかを1行で出す。「◯◯へ むかっています」を出しっぱなしに
-// すると、着いたあとも同じ表示のままで何をしているか分からなくなる
+// いま何をしようとしているか。歩数や戦闘では変わらない「目的」だけを返す。
+// ここに残り歩数や戦闘中の敵名を混ぜると、1歩ごと・1戦ごとに行が書き換わって
+// 目で追えなくなる（戦闘や歩数は autoDetailLine 側に出す）
 function autoStatusLine() {
     const p = autoPilot;
-    const left = p.path ? `あと${p.path.length}ほ` : '';
-    if (currentState === STATE.BATTLE || (typeof battleResolver !== 'undefined' && battleResolver !== null))
-        return `せんとう：${typeof enemy !== 'undefined' && enemy ? enemy.name : ''}`;
     if (p.tour) {
         const t = p.tour, leg = t.plan[t.at];
-        const name = inDungeon() ? currentDungeon().name : 'どうくつ';
-        const floor = inDungeon() ? currentDungeon().floorName : 'ちじょう';
-        if (t.kind === 'traverse') return `${name}を とおりぬける`;
-        if (t.kind === 'rora')     return `ローラひめを たすけに いく（${floor}）`;
-        if (t.kind === 'castleKing')  return `しろ ${floor}：おうさまに あいに いく`;
-        if (t.kind === 'castleStone') return `しろ ${floor}：たいようのいしを とりに いく`;
-        if (TOWN_ERRANDS[t.kind])     return `${name}：ようじを すませる`;
-        if (t.kind === 'visit')       return `${name}：みせに よる`;
-        if (t.retreat) return `どうくつ ${floor}：ひきあげ中`;
-        if (!leg) return 'どうくつ：たんさく おわり';
+        const d = inDungeon() ? currentDungeon() : null;
+        // 地上を歩いている間は階の名前が無い。城を「どうくつ」と呼ばないよう
+        // マップの名前をそのまま使う
+        const here = d ? `${d.name} ${d.floorName}` : '';
+        if (t.kind === 'traverse') return `${d ? d.name : 'どうくつ'}を とおりぬける`;
+        if (t.kind === 'rora')     return 'ローラひめを たすけに いく';
+        if (t.kind === 'castleKing')  return 'おうさまに あいに いく';
+        if (t.kind === 'castleStone') return 'たいようのいしを とりに いく';
+        if (t.kind === 'castleOut')   return 'たまざのまから そとへ でる';
+        // 地上を歩いている間も、どの町の用事かは分かるようにする
+        const goal = d ? d.name : errandPlaceName(t);
+        if (TOWN_ERRANDS[t.kind])     return `${goal}：ようじを すませる`;
+        if (t.kind === 'visit')       return `${goal}：みせに よる`;
+        if (t.retreat) return here ? `${here}：ひきあげ中` : 'ひきあげ中';
+        if (!leg) return 'たんさく おわり';
         const left = t.plan.filter(l => l.act === 'chest').length
                    - t.plan.slice(0, t.at).filter(l => l.act === 'chest').length;
         if (leg.act === 'enter') return 'どうくつへ むかっています';
-        if (leg.act === 'exit')  return `どうくつ ${floor}：そとへ もどる`;
-        return `どうくつ ${floor}：たからばこ のこり${left}`;
+        if (leg.act === 'exit')  return here ? `${here}：そとへ もどる` : 'そとへ もどる';
+        return here ? `${here}：たからばこ のこり${left}` : `たからばこ のこり${left}`;
     }
-    if (p.goal === 'やどやへ')     return `やどやへ いく（${left}）`;
-    if (p.goal === 'かいものへ')   return `${p.goldGoalName || 'そうび'}を かいに いく（${left}）`;
-    if (p.goal === 'みせへ')       return `${p.goldGoalName}を かいに いく（${left}）`;
-    if (p.goal === 'もくてきちへ') return `${p.questName}へ（${left}）`;
-    if (p.goal === 'かりばへ もどる') return `かりばへ もどる（${left}）`;
+    if (p.goal === 'やどやへ')     return 'やどやへ いく';
+    if (p.goal === 'かいものへ')   return `${p.goldGoalName || 'そうび'}を かいに いく`;
+    if (p.goal === 'みせへ')       return `${p.goldGoalName}を かいに いく`;
+    if (p.goal === 'もくてきちへ') return `${p.questName}へ`;
+    if (p.goal === 'かりばへ もどる') return 'かりばへ もどる';
     if (p.goldGoal)  return `かせぐ：${p.goldGoalName}まで あと${Math.max(0, p.goldGoal - player.gold)}G`;
     if (p.grindUntil && player.level < p.grindUntil)
         return `かりをする：Lv${player.level}→${p.grindUntil}（z${zoneAt(playerPosition.x, playerPosition.y)}）`;
     if (p.questMode) return `かりをする（z${zoneAt(playerPosition.x, playerPosition.y)}）／つぎ：${p.questName}`;
     return `かりをする：Lv${player.level}→${p.targetLevel}（z${zoneAt(playerPosition.x, playerPosition.y)}）`;
+}
+
+// その用事の行き先の名前。地上を歩いている間は現在地から取れないので、
+// 入口の座標からマップをたどって名前を引く
+function errandPlaceName(t) {
+    const e = DUNGEON_ENTRANCES[t.entranceKey];
+    const d = e && DUNGEONS[e[0]];
+    return d ? d.name : 'もくてきち';
+}
+// 細かいほうの行。歩数は10歩きざみに丸めて、ちらつきを抑える
+function autoDetailLine() {
+    const p = autoPilot, bits = [];
+    if (currentState === STATE.BATTLE || (typeof battleResolver !== 'undefined' && battleResolver !== null))
+        bits.push(`せんとう：${typeof enemy !== 'undefined' && enemy ? enemy.name : ''}`);
+    else if (p.path && p.path.length)
+        bits.push(p.path.length < 10 ? 'もうすぐ つく' : `あと やく${Math.round(p.path.length / 10) * 10}ほ`);
+    bits.push(`Lv${player.level} HP${player.hp}/${player.maxHp} ${player.gold}G`);
+    bits.push(`${p.battles}せん やど${p.rests} ぜんめつ${p.deaths}`);
+    return bits.join('　');
+}
+// 目的が変わった順に残しておく。ぱっと切り替わって読めなかったぶんを後から追える。
+// 行が折り返して読みにくくなるので、2件だけ・長い名前は切って出す
+const AUTO_HIST_MAX = 2;
+function autoShort(line) { return line.length > 20 ? line.slice(0, 19) + '…' : line; }
+function autoPushHistory(line) {
+    if (!autoPilot.hist) autoPilot.hist = [];
+    if (autoPilot.hist[0] === line) return;
+    autoPilot.hist.unshift(line);
+    if (autoPilot.hist.length > AUTO_HIST_MAX + 1) autoPilot.hist.length = AUTO_HIST_MAX + 1;
 }
 
 // =====================================================================
@@ -2235,11 +2269,22 @@ let autoBusy = false;
 function autoTick(now) {
     if (!autoPilot.on) return;
 
-    // 状況表示（変わったときだけ書き換える）
-    const line = `オート ${autoStatusLine()}　${autoPilot.battles}戦 宿${autoPilot.rests} 死${autoPilot.deaths}`;
-    if (line !== autoPilot.lastLine) {
-        autoPilot.lastLine = line;
-        document.getElementById('message').textContent = line;
+    // 状況表示。目的の行は変わったときだけ、細かい行は0.4秒おきに書き換える。
+    // 以前は1行に全部詰めていて、1歩ごと・1戦ごとに全文が変わって読めなかった
+    const phase = autoStatusLine();
+    const phaseChanged = phase !== autoPilot.phaseShown;
+    if (phaseChanged) {
+        if (autoPilot.phaseShown) autoPushHistory(autoPilot.phaseShown);
+        autoPilot.phaseShown = phase;
+    }
+    // lastLine='' は「表示を出し直したい」という古くからの合図なので、そのまま使う
+    if (phaseChanged || autoPilot.lastLine === '' || now - (autoPilot.shownAt || 0) > 400) {
+        autoPilot.shownAt = now;
+        autoPilot.lastLine = phase;
+        const hist = (autoPilot.hist || []).slice(0, AUTO_HIST_MAX).map(autoShort);
+        document.getElementById('message').textContent =
+            `オート：${phase}\n${autoDetailLine()}`
+            + (hist.length ? `\nさっきまで：${hist.join(' ← ')}` : '');
     }
     // autoBusy中（宿の処理待ち）でもメッセージ送りは続ける。ここで止めると
     // 「やすんだ」の表示から進めなくなって固まる
