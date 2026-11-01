@@ -1,7 +1,7 @@
 {
     "name": "Salce's Pages",
     "short_name": "SP",
-    "description": "Description",
+    "description": "Salce's small games and tools",
     "start_url": "./index.html",
     "display": "standalone",
     "background_color": "#ffffff",
