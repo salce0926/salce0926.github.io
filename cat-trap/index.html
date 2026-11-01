@@ -96,7 +96,8 @@
   .playing .cell.wall, .replay .cell { cursor: default; }
   .cell.pop { animation: pop .28s ease-out; }
   @keyframes pop { 0% { transform: scale(.4); } 70% { transform: scale(1.12); } 100% { transform: scale(1); } }
-  .cat-fill { fill: var(--cat); }
+  /* 塗りと同じ色の太い縁取りで角を丸め、部品の境目を溶かす */
+  .cat-fill { fill: var(--cat); stroke: var(--cat); stroke-width: 2.2; stroke-linejoin: round; }
   .cat-line { stroke: var(--cat); stroke-width: 3.2; stroke-linecap: round; fill: none; }
   #shadow { fill: var(--ink); opacity: .14; }
   #bubble { font: 700 13px var(--font); fill: var(--ink); text-anchor: middle; }
@@ -211,6 +212,7 @@
     <div id="brain" class="seg" role="group" aria-label="ネコの強さ">
       <button id="catNormal" data-brain="normal">のんびり</button>
       <button id="catSmart" data-brain="smart">かしこい</button>
+      <button id="catStrong" data-brain="strong">つよい</button>
     </div>
     </div>
     <button id="sheetClose">閉じる</button>
@@ -343,6 +345,7 @@ function moveCat(wa, c, br, rnd) {
     const most = Math.max(...opts.map(room));
     return pick(opts.filter(k => room(k) === most));
   }
+  if (br === 'strong') return strongMove(wa, c, rnd);
   if (br === 'smart') {
     // かしこいネコ：行き先ごとに「近くのどこを塞がれたら一番困るか」を全部試し、
     // それでも一番逃げやすいマスへ進む
@@ -373,6 +376,56 @@ function moveCat(wa, c, br, rnd) {
   const maxF = Math.max(...cands.map(freedom));
   cands = cands.filter(k => freedom(k) === maxF);
   return pick(cands);
+}
+
+/* つよいネコ：盤を電気の回路に見立て、ネコ(電圧1)から端(0)へ流れる電流を「逃げ道の太さ」として測る。
+   細い道1本より、太い道や何本もの道があるほど大きくなる（ヘックスというゲームのAIで使われる考え方）。
+   行き先ごとに「近くのどこを塞がれたら一番困るか」を全部試し、それでも一番太く残るマスへ進む。
+   太さと他の手がかりの配分 STRONG_W は、Claudeと約250局対戦させて決めた（近道の距離を少しだけ混ぜるのが一番だった） */
+const STRONG_W = [0.3, 0, 0, 0];   // [近道の距離, 出口までの距離, 使える広さ, 隣の空きマス] の重み
+function conductance(wa, c, cells) {
+  if (!cells.some(k => EDGEK[k])) return 0;
+  const V = new Float64Array(N * N); V[c] = 1;
+  const inner = cells.filter(k => k !== c && !EDGEK[k]);
+  for (let it = 0; it < 60; it++) for (const x of inner) {
+    let s = 0, n = 0;
+    for (const y of NBK[x]) if (!wa[y]) { s += V[y]; n++; }
+    V[x] += 1.6 * (s / n - V[x]);
+  }
+  let I = 0;
+  for (const y of NBK[c]) if (!wa[y]) I += 1 - V[y];
+  return I;
+}
+function strongValue(wa, n) {
+  const r = reach(wa, n), C = conductance(wa, n, r.cells);
+  if (C === 0) return -1e9;
+  let v = C;
+  const [wt, wo, wr, wn] = STRONG_W;
+  if (wt || wo) v -= wt * Math.min(twoDistArr(wa)[n], 20) + wo * Math.min(oneDistArr(wa)[n], 20);
+  v += wr * Math.min(r.cells.length, 120) / 100;
+  v += wn * NBK[n].filter(y => !wa[y]).length;
+  return v;
+}
+function strongMove(wa, c, rnd) {
+  const opts = NBK[c].filter(k => !wa[k]);
+  const exit = opts.find(k => EDGEK[k]);
+  if (exit !== undefined) return exit;
+  const near = reach(wa, c);
+  const blocks = near.cells.filter(k => k !== c && near.d[k] <= 4);
+  let best = -1e18, pool = [];
+  for (const n of opts) {
+    let worst = 1e18;
+    for (const b of blocks) {
+      if (b === n) continue;
+      wa[b] = 1;
+      const v = strongValue(wa, n);
+      wa[b] = 0;
+      if (v < worst) worst = v;
+      if (worst <= best) break;
+    }
+    if (worst > best) { best = worst; pool = [n]; } else if (worst === best) pool.push(n);
+  }
+  return pool[Math.floor(rnd() * pool.length)];
 }
 
 /* 今日の一問を裏で解く。ネコの手は決まっているので、壁の置き方だけを探せばよい。
@@ -556,78 +609,81 @@ const catSVG = `
   <ellipse id="shadow" cx="0" cy="0" rx="11" ry="3"/>
   <g id="catLift">
     <g id="catFlip">
-      <path id="tail" class="cat-line"/>
-      <line id="lb1" class="cat-line"/><line id="lb2" class="cat-line"/>
-      <line id="lf1" class="cat-line"/><line id="lf2" class="cat-line"/>
-      <ellipse id="cbody" class="cat-fill"/>
+      <path id="tail" class="cat-line" style="stroke-width:3.6"/>
+      <line id="legB" class="cat-line" style="stroke-width:4"/>
+      <line id="legF" class="cat-line" style="stroke-width:4"/>
+      <path id="cbody" class="cat-fill"/>
       <g id="head">
-        <polygon id="earL" class="cat-fill"/>
-        <polygon id="earR" class="cat-fill"/>
-        <circle r="6.6" class="cat-fill"/>
-        <g id="eyes">
-          <ellipse cx="1.2" cy="-1" rx="1.7" ry="1.9" fill="var(--eye)"/>
-          <ellipse cx="4.8" cy="-1" rx="1.7" ry="1.9" fill="var(--eye)"/>
-          <ellipse cx="1.5" cy="-1" rx=".55" ry="1.45" fill="var(--pupil)"/>
-          <ellipse cx="5.1" cy="-1" rx=".55" ry="1.45" fill="var(--pupil)"/>
-        </g>
-        <path id="sleepy" d="M-0.6,-0.6 q1.8,1.4 3.6,0 M3.2,-0.6 q1.6,1.3 3.2,0" stroke="var(--eye)" stroke-width="1.1" fill="none" stroke-linecap="round"/>
-        <path d="M6.3,1.6 l-1.6,0 l.8,1.1z" fill="var(--nose)"/>
+        <path id="earL" class="cat-fill"/>
+        <path id="earR" class="cat-fill"/>
+        <ellipse rx="5.6" ry="5.1" class="cat-fill"/>
       </g>
     </g>
   </g>
-  <text id="bubble" x="0" y="-38"></text>
+  <text id="bubble" x="0" y="-42"></text>
 </g>`;
 
+/* アイコンと同じ「横向きに座った黒いシルエット」。顔は描かない。
+   体の輪郭は11個の点を通るなめらかな曲線で、座る・跳ぶ・香箱座り（ふて寝）の3つの形の点を混ぜて動かす。
+   右向きで描き、左向きは反転する */
+const BODY = {   // うなじから背中・お尻・足元・胸・のどへ一周
+  sit:  [[1,-18.5],[-3.5,-15.5],[-8,-11],[-10,-5.5],[-8.5,-1.2],[-3,-.2],[3,-.2],[6.5,-2],[7.4,-7.5],[6,-13],[3.6,-17.6]],
+  leap: [[6.5,-16],[1,-15.5],[-5.5,-15],[-10,-12.8],[-9.5,-9.4],[-4.5,-8.6],[2,-8.6],[6.5,-9],[9.2,-10.8],[9.2,-13.8],[8.4,-15.6]],
+  lie:  [[4,-8.8],[-2,-9.4],[-7.5,-8.6],[-11,-5.4],[-10.5,-1.4],[-5.5,-.2],[1,-.2],[6,-.6],[8,-2.6],[8,-5.8],[7,-8.4]],
+};
+// 点を順に通る閉じた曲線（Catmull-Rom を3次ベジェに直す）
+function smoothClosed(pts) {
+  const n = pts.length, f = v => v.toFixed(2);
+  let d = `M${f(pts[0][0])},${f(pts[0][1])}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    d += ` C${f(p1[0] + (p2[0] - p0[0]) / 6)},${f(p1[1] + (p2[1] - p0[1]) / 6)} ${f(p2[0] - (p3[0] - p1[0]) / 6)},${f(p2[1] - (p3[1] - p1[1]) / 6)} ${f(p2[0])},${f(p2[1])}`;
+  }
+  return d + 'Z';
+}
 let C = {};
 function drawCat(now) {
   const p = pose(now);
   const set = (el, attrs) => { for (const k in attrs) el.setAttribute(k, attrs[k]); };
+  const f = n => n.toFixed(2);
   C.cat.setAttribute('transform', `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`);
   set(C.shadow, { rx: (11 - p.lift * .3).toFixed(1) });
   C.lift.setAttribute('transform', `translate(0,${(-p.lift).toFixed(1)})`);
   C.flip.setAttribute('transform', `scale(${p.face},1)`);
 
-  const by = -12 + 4 * p.crouch + 6.5 * p.lie;
-  set(C.body, {
-    cx: 0, cy: by.toFixed(2),
-    rx: (10 * (1 + .22 * p.stretch) + 1.5 * p.lie).toFixed(2),
-    ry: (6.6 * (1 - .12 * p.stretch + .08 * p.crouch)).toFixed(2),
-  });
+  // 座る → 跳ぶ(stretch) → 寝る(lie) を混ぜ、かがむ(crouch)で縦につぶす
+  const mixPt = (a, b, c) => [lerp(lerp(a[0], b[0], p.stretch), c[0], p.lie), lerp(lerp(a[1], b[1], p.stretch), c[1], p.lie)];
+  const squash = 1 - .16 * p.crouch;
+  const pts = BODY.sit.map((q, i) => { const m = mixPt(q, BODY.leap[i], BODY.lie[i]); return [m[0], m[1] * squash]; });
+  C.body.setAttribute('d', smoothClosed(pts));
 
-  // 脚：立ち・伸び・香箱座りの3つを混ぜる
-  const hip = [-6, by + 3], sh = [6, by + 3];
-  const stand = [[-7.5, 0], [-4.5, 0], [4.5, 0], [7.5, 0]];
-  const leap = [[-16, by + 6], [-13.5, by + 8], [16, by + 4], [13.5, by + 7]];
-  const tuck = [[-8, by + 4], [-5, by + 4], [5, by + 4], [8, by + 4]];
-  const legs = [C.lb1, C.lb2, C.lf1, C.lf2];
-  legs.forEach((el, i) => {
-    let fx = lerp(stand[i][0], leap[i][0], p.stretch), fy = lerp(stand[i][1], leap[i][1], p.stretch);
-    fx = lerp(fx, tuck[i][0], p.lie); fy = lerp(fy, tuck[i][1], p.lie);
-    const o = i < 2 ? hip : sh;
-    set(el, { x1: o[0] + (i % 2 ? 2 : -1), y1: o[1].toFixed(2), x2: fx.toFixed(2), y2: fy.toFixed(2) });
-  });
+  // 足：座っているときは輪郭の中に隠れ、跳ぶと前後に伸びる
+  const legF = [mixPt([4.6, -5.5], [8, -10], [5.5, -2]), mixPt([5.2, -1.2], [14.5, -6.5], [9, -1.2])];
+  const legB = [mixPt([-5, -3.5], [-7.5, -10.5], [-5.5, -2]), mixPt([-3.5, -1.2], [-14.5, -6], [-3.5, -1.2])];
+  set(C.legF, { x1: f(legF[0][0]), y1: f(legF[0][1] * squash), x2: f(legF[1][0]), y2: f(legF[1][1]) });
+  set(C.legB, { x1: f(legB[0][0]), y1: f(legB[0][1] * squash), x2: f(legB[1][0]), y2: f(legB[1][1]) });
 
-  // 頭
-  const hx = 10 + 3 * p.stretch - 1 * p.lie, hy = by - 6.5 + 1.5 * p.crouch + 2.5 * p.lie;
-  C.head.setAttribute('transform', `translate(${hx.toFixed(2)},${hy.toFixed(2)}) rotate(${p.tilt.toFixed(1)})`);
-  const d = p.droop * 38;
-  C.earL.setAttribute('points', '-5.6,-3 -4.6,-11 0.2,-5.8');
-  C.earL.setAttribute('transform', `rotate(${-d} -3 -4)`);
-  C.earR.setAttribute('points', '1.4,-6.2 5.8,-10.6 6.4,-2.4');
-  C.earR.setAttribute('transform', `rotate(${d} 4 -4)`);
-  const blinkScale = Math.max(.08, 1 - p.blink);
-  C.eyes.setAttribute('transform', `translate(0,-1) scale(1,${blinkScale}) translate(0,1)`);
-  const sleeping = p.lie > .6;
-  C.eyes.style.display = sleeping ? 'none' : '';
-  C.sleepy.style.display = sleeping ? '' : 'none';
+  // 頭：うなじとのどの間の少し上
+  const nape = pts[0], throat = pts[10];
+  const off = mixPt([.9, -4.6], [2.8, -2.4], [2.2, -1.2]);
+  C.head.setAttribute('transform', `translate(${f((nape[0] + throat[0]) / 2 + off[0])},${f((nape[1] + throat[1]) / 2 + off[1])}) rotate(${p.tilt.toFixed(1)})`);
+  // 耳は小さく、頭の輪郭から少しだけ出す
+  const d = p.droop * 30;
+  C.earL.setAttribute('d', 'M-4.6,-2.6 L-3.6,-7.4 L-.8,-4.6 Z');
+  C.earL.setAttribute('transform', `rotate(${-d} -3 -3.5)`);
+  C.earR.setAttribute('d', 'M1.2,-4.8 L3.9,-7.4 L4.8,-2.4 Z');
+  C.earR.setAttribute('transform', `rotate(${d} 3 -3.5)`);
 
-  // しっぽ：普段は立てて揺らす／跳ぶときは後ろへ伸ばす／寝るときは体に巻く
-  const base = [-9, by - 1];
-  let ang = lerp(-2.1 + p.sway, Math.PI - .2, p.straight);
-  let len = lerp(14, 15, p.straight);
-  ang = lerp(ang, 2.75 + p.sway, p.lie); len = lerp(len, 12, p.lie);
-  const tip = [base[0] + Math.cos(ang) * len, base[1] + Math.sin(ang) * len];
-  C.tail.setAttribute('d', `M${base[0]},${base[1].toFixed(2)} Q${(base[0] - 9).toFixed(2)},${(base[1] + 2).toFixed(2)} ${tip[0].toFixed(2)},${tip[1].toFixed(2)}`);
+  // しっぽ：座っているときは背中側にゆるくS字に立てる／跳ぶときは後ろへ流す／寝るときは体に沿わせる
+  // 先は少し前へ曲げる
+  const base = mixPt([-8.5, -3], [-9.5, -12.5], [-9.5, -2]);
+  const sw = p.sway * 4;
+  const c1 = mixPt([-15, -3.5], [-14.5, -13], [-10, 2]);
+  const c2 = mixPt([-17 + sw * .5, -11], [-18.5, -14.5 + sw * .4], [-3, 2.5]);
+  const tip = mixPt([-14.5 + sw, -16.5], [-21.5, -15.5 + sw * .5], [2, 1.2]);
+  const hc = mixPt([-12.8 + sw, -20.5], [-23.5, -16.5 + sw * .5], [4, .8]);
+  const he = mixPt([-10.4 + sw, -20], [-24.5, -18.5 + sw * .5], [5.2, -.2]);
+  C.tail.setAttribute('d', `M${f(base[0])},${f(base[1] * squash)} C${f(c1[0])},${f(c1[1])} ${f(c2[0])},${f(c2[1])} ${f(tip[0])},${f(tip[1])} Q${f(hc[0])},${f(hc[1])} ${f(he[0])},${f(he[1])}`);
 
   // 吹き出し
   let text = '', op = 1, bob = 0;
@@ -639,7 +695,7 @@ function drawCat(now) {
   }
   C.bubble.textContent = text;
   C.bubble.setAttribute('opacity', op);
-  C.bubble.setAttribute('transform', `translate(${(p.face * 6).toFixed(1)},${(bob - p.lift + 14 * p.lie).toFixed(1)})`);
+  C.bubble.setAttribute('transform', `translate(${(p.face * 6).toFixed(1)},${(bob - p.lift + 20 * p.lie).toFixed(1)})`);
 }
 
 function loop(now) { drawCat(now); requestAnimationFrame(loop); }
@@ -670,11 +726,8 @@ function buildBoard() {
     cat: svg.querySelector('#cat'), shadow: svg.querySelector('#shadow'),
     lift: svg.querySelector('#catLift'), flip: svg.querySelector('#catFlip'),
     body: svg.querySelector('#cbody'), head: svg.querySelector('#head'),
-    earL: svg.querySelector('#earL'), earR: svg.querySelector('#earR'),
-    eyes: svg.querySelector('#eyes'),
-    sleepy: svg.querySelector('#sleepy'), tail: svg.querySelector('#tail'),
-    lb1: svg.querySelector('#lb1'), lb2: svg.querySelector('#lb2'),
-    lf1: svg.querySelector('#lf1'), lf2: svg.querySelector('#lf2'),
+    earL: svg.querySelector('#earL'), earR: svg.querySelector('#earR'), tail: svg.querySelector('#tail'),
+    legF: svg.querySelector('#legF'), legB: svg.querySelector('#legB'),
     bubble: svg.querySelector('#bubble'),
   };
 }
@@ -737,9 +790,10 @@ function randomWalls(rnd = Math.random, lv = level) {
 }
 
 let brain = 'normal';      // ネコの強さ
-try { if (localStorage.getItem('cattrap-brain') === 'smart') brain = 'smart'; } catch {}
-const brainName = () => brain === 'smart' ? 'かしこいネコ' : 'のんびりネコ';
-const brainShort = () => brain === 'smart' ? 'かしこい' : 'のんびり';
+try { const b = localStorage.getItem('cattrap-brain'); if (b === 'smart' || b === 'strong') brain = b; } catch {}
+const BRAINS = { normal: 'のんびり', smart: 'かしこい', strong: 'つよい' };
+const brainName = () => BRAINS[brain] + 'ネコ';
+const brainShort = () => BRAINS[brain];
 
 function syncButtons() {
   document.querySelectorAll('#level button').forEach(b =>
@@ -856,7 +910,7 @@ function showResult(won, improved) {
     resultEl.hidden = false; infoEl.hidden = true; setStatus('');
     return;
   }
-  document.getElementById('answerBtn').textContent = 'Claudeの解答';
+  answerBtn.textContent = 'Claudeの解答'; answerBtn.disabled = false;
   const best = loadBest();
   document.getElementById('resMoves').textContent = (daily ? `${daily.label}・${brainName()} ／ ` : '') +
     (won ? `${moves}手` : `${moves}手目で逃げられた`) + (best && !improved ? ` ／ ${daily ? '今日の記録' : '最少記録'} ${best}手` : '');
@@ -1047,7 +1101,7 @@ function closeReplay() {
 function bestKey() {
   if (daily) return `cattrap-daily-${daily.date}-${brain}`;
   const base = level === 'hard' ? 'cattrap-best' : `cattrap-best-${level}`;
-  return brain === 'smart' ? `${base}-smart` : base;
+  return brain === 'normal' ? base : `${base}-${brain}`;
 }
 function loadBest() { if (tsume) return null; try { return Number(localStorage.getItem(bestKey())) || null; } catch { return null; } }
 // 記録を更新したら true
@@ -1070,8 +1124,26 @@ document.getElementById('retryBtn').onclick = () => { if (!preparing) start(fals
 document.getElementById('undoBtn').onclick = undo;
 document.getElementById('dailyBtn').onclick = startDaily;
 document.getElementById('reviewBtn').onclick = () => openReplay(log, 'あなたの手順');
-document.getElementById('answerBtn').onclick = () =>
-  tsume ? openReplay(tsumeAnswer(PUZZLES[tsume.i]), '答え') : openReplay(daily.answers[brain], 'Claudeの解答');
+const answerBtn = document.getElementById('answerBtn');
+answerBtn.onclick = async () => {
+  if (tsume) return openReplay(tsumeAnswer(PUZZLES[tsume.i]), '答え');
+  // つよいネコの解答は重いので、押されたときに初めて考える（勝てる保証はない）
+  if (!(brain in daily.answers)) {
+    if (busy || preparing) return;
+    busy = true; answerBtn.textContent = 'Claudeが考えています…';
+    const d = daily;
+    const ans = await solve(initialWalls, 'strong', d.seed, performance.now() + 60000);
+    busy = false; answerBtn.textContent = 'Claudeの解答';
+    d.answers.strong = ans;
+    try {
+      const c = JSON.parse(localStorage.getItem('cattrap-daily-puzzle') || 'null');
+      if (c && c.date === d.date) { c.answers.strong = ans; localStorage.setItem('cattrap-daily-puzzle', JSON.stringify(c)); }
+    } catch {}
+    if (daily !== d) return;
+  }
+  if (!daily.answers[brain]) { answerBtn.textContent = 'Claudeも勝てませんでした'; answerBtn.disabled = true; return; }
+  openReplay(daily.answers[brain], 'Claudeの解答');
+};
 document.getElementById('prevBtn').onclick = () => { if (replay.i > 0) { replay.i--; showReplayStep(false); } };
 document.getElementById('nextBtn').onclick = () => { if (replay.i < replay.steps.length) { replay.i++; showReplayStep(true); } };
 document.getElementById('closeBtn').onclick = closeReplay;
