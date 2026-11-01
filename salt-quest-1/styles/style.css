@@ -37,6 +37,11 @@ canvas {
     max-width: 100%;
     box-sizing: border-box;
 }
+/* オートの状況は3行に分けて出す。改行をそのまま見せる */
+#message {
+    white-space: pre-line;
+    line-height: 1.45;
+}
 #game-info {
     position: relative;   /* 開発用AUTOキーをこの中の右上に置く */
     padding: 10px;

@@ -77,8 +77,14 @@ async function beginBattleSequence(enemyDef) {
     // 先制判定（本家の式）: すばやさ×4 ÷ (すばやさ×4 + 敵のすばやさ) で勇者が先手
     const a4 = player.agility * 4;
     if (Math.random() >= a4 / (a4 + (enemy.agility || enemy.defense || 1))) {
-        await showMessage([`${enemy.name}の きゅうしゅう！`]);
-        await executeEnemyTurn();
+        // きゅうしゅう も「1回のターン処理」なので錠をかける。ここが外にあると、
+        // 処理の途中でオートがAを押せてしまい、敵のターンが二重に走って
+        // ひとつの戦闘で2回 殺されていた（所持金も2回 半分になる）
+        battleBusy = true;
+        try {
+            await showMessage([`${enemy.name}の きゅうしゅう！`]);
+            await executeEnemyTurn();
+        } finally { battleBusy = false; }
     } else {
         currentState = STATE.BATTLE;
     }
@@ -227,6 +233,7 @@ async function executeSpellTurnInner(spellName) {
 }
 
 async function checkEnemySurvival() {
+    if (!battleResolver) return;        // すでに畳まれた戦闘
     if (enemy.hp > 0) {
         await executeEnemyTurn();
         return;
@@ -303,6 +310,9 @@ function pickEnemyAction() {
 }
 
 async function executeEnemyTurn() {
+    // すでに畳まれた戦闘（全滅・逃走・勝利のあと）では何もしない。
+    // 二重に走ると、城へ運ばれたあとの勇者をもう一度 殺してしまう
+    if (!battleResolver) return;
     currentState = STATE.MESSAGE;   // 処理中は入力をロック（たたかうと同じ扱い）
     if (enemy.asleep > 0) {
         enemy.asleep--;
