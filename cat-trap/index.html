@@ -247,6 +247,9 @@ let replay = null;         // 振り返り中なら { steps, i, title }
 let daily = null;          // 今日の一問なら { seed, date, label, short, answers }
 let tsume = null;          // 詰め問題なら { i }
 let startCat = 60;         // ネコの最初のマス（ふだんは真ん中 5,5）
+let gameSeed = 1;          // ネコの迷い方を決める種。同じ盤・同じ手なら同じ反応になるので、あとから別解を探せる
+let gameToken = 0;         // 対局ごとに増やす（古い対局の探索結果を捨てるため）
+let found = null;          // この対局で探した手順 { token, steps }
 let timer = null;
 
 const key = (r, c) => r * N + c;
@@ -430,11 +433,13 @@ function strongMove(wa, c, rnd) {
 
 /* 今日の一問を裏で解く。ネコの手は決まっているので、壁の置き方だけを探せばよい。
    見つかった手順はそのまま「Claudeの解答」になる */
-async function solve(initial, br, seed, deadline) {
-  const BEAM = 4, WIDTH = 20;
+async function solve(initial, br, seed, deadline, maxDepth = 40, onDepth = null) {
+  // つよいネコは1手が重いので、候補を絞って探す
+  const [BEAM, WIDTH] = br === 'strong' ? [3, 10] : [4, 20];
   let beam = [{ wa: toArr(initial), c: key(5, 5), seq: [] }];
-  for (let depth = 0; depth < 40 && beam.length; depth++) {
+  for (let depth = 0; depth < maxDepth && beam.length; depth++) {
     if (performance.now() > deadline) return null;
+    if (onDepth) onDepth(depth + 1);
     await new Promise(r => setTimeout(r, 0));   // 画面を止めない
     const next = [], seen = new Set();
     for (const st of beam) {
@@ -910,13 +915,15 @@ function showResult(won, improved) {
     resultEl.hidden = false; infoEl.hidden = true; setStatus('');
     return;
   }
-  answerBtn.textContent = 'Claudeの解答'; answerBtn.disabled = false;
+  answerBtn.disabled = false;
+  answerBtn.textContent = daily ? 'Claudeの解答' : won ? 'もっと短い手順を探す' : 'Claudeならどうする？';
   const best = loadBest();
   document.getElementById('resMoves').textContent = (daily ? `${daily.label}・${brainName()} ／ ` : '') +
-    (won ? `${moves}手` : `${moves}手目で逃げられた`) + (best && !improved ? ` ／ ${daily ? '今日の記録' : '最少記録'} ${best}手` : '');
+    (won ? `${moves}手` : `${moves}手目で逃げられた`) + (best && !improved ? ` ／ ${daily ? '今日の記録' : '最少記録'} ${best}手` : '') +
+    (daily && won && daily.answers[brain] && daily.answers[brain].length < moves ? ` ／ Claudeは${daily.answers[brain].length}手` : '');
   document.getElementById('resNew').hidden = !improved;
   document.getElementById('reviewBtn').hidden = log.length === 0;
-  document.getElementById('answerBtn').hidden = !daily;
+  document.getElementById('answerBtn').hidden = false;
   document.getElementById('shareBtn').hidden = !(daily && won);
   resultEl.hidden = false;
   infoEl.hidden = true;
@@ -925,6 +932,9 @@ function showResult(won, improved) {
 
 function start(fresh) {
   if (fresh) initialWalls = randomWalls();
+  // 同じ盤をやり直すときは種を変えない（別解をなぞれば同じ反応になる）
+  if (daily) gameSeed = daily.seed; else if (fresh) gameSeed = (Math.random() * 2 ** 31) | 0;
+  gameToken++; found = null;
   if (!tsume) startCat = 60;
   walls = new Set(initialWalls);
   cat = rc(startCat);
@@ -992,7 +1002,7 @@ function play(r, c) {
     return;
   }
   timer = setTimeout(() => {
-    const rnd = daily ? () => stateRandom(daily.seed, wa, here) : Math.random;
+    const rnd = () => stateRandom(gameSeed, wa, here);
     const next = rc(tsume ? tsumeCatMove(wa, here, PUZZLES[tsume.i].k - moves) : moveCat(wa, here, brain, rnd));
     log.push({ wall: k, cat: key(...next) });
     const from = cat;
@@ -1127,22 +1137,36 @@ document.getElementById('reviewBtn').onclick = () => openReplay(log, 'あなた�
 const answerBtn = document.getElementById('answerBtn');
 answerBtn.onclick = async () => {
   if (tsume) return openReplay(tsumeAnswer(PUZZLES[tsume.i]), '答え');
-  // つよいネコの解答は重いので、押されたときに初めて考える（勝てる保証はない）
-  if (!(brain in daily.answers)) {
-    if (busy || preparing) return;
-    busy = true; answerBtn.textContent = 'Claudeが考えています…';
-    const d = daily;
-    const ans = await solve(initialWalls, 'strong', d.seed, performance.now() + 60000);
-    busy = false; answerBtn.textContent = 'Claudeの解答';
-    d.answers.strong = ans;
-    try {
-      const c = JSON.parse(localStorage.getItem('cattrap-daily-puzzle') || 'null');
-      if (c && c.date === d.date) { c.answers.strong = ans; localStorage.setItem('cattrap-daily-puzzle', JSON.stringify(c)); }
-    } catch {}
-    if (daily !== d) return;
+  if (busy || preparing) return;
+  const won = lastResult && lastResult.won;
+  let steps;
+  if (daily && brain in daily.answers) steps = daily.answers[brain];
+  else if (found && found.token === gameToken) steps = found.steps;
+  else {
+    // 押されたときに探す。勝ったときは自分より短い手順だけを探す（見つからなくても、ないとは限らない）
+    const token = gameToken, d = daily;
+    busy = true;
+    answerBtn.textContent = 'Claudeが考えています…';
+    const limit = won && !d ? moves - 1 : 40;
+    steps = limit > 0 ? await solve(initialWalls, brain, gameSeed, performance.now() + (brain === 'strong' ? 60000 : 20000), limit,
+      n => { if (token === gameToken) answerBtn.textContent = `Claudeが考えています…（${n}手目）`; }) : null;
+    if (token !== gameToken) return;
+    busy = false;
+    if (d) {
+      d.answers[brain] = steps;
+      try {
+        const c = JSON.parse(localStorage.getItem('cattrap-daily-puzzle') || 'null');
+        if (c && c.date === d.date) { c.answers[brain] = steps; localStorage.setItem('cattrap-daily-puzzle', JSON.stringify(c)); }
+      } catch {}
+    } else found = { token, steps };
   }
-  if (!daily.answers[brain]) { answerBtn.textContent = 'Claudeも勝てませんでした'; answerBtn.disabled = true; return; }
-  openReplay(daily.answers[brain], 'Claudeの解答');
+  if (!steps) {
+    answerBtn.textContent = won && !daily ? 'これより短い手順は見つかりませんでした' : 'Claudeも勝てませんでした';
+    answerBtn.disabled = true;
+    return;
+  }
+  answerBtn.textContent = won && !daily ? `${steps.length}手の別解を見る` : 'Claudeの解答';
+  openReplay(steps, won && !daily ? `${steps.length}手の別解` : 'Claudeの解答');
 };
 document.getElementById('prevBtn').onclick = () => { if (replay.i > 0) { replay.i--; showReplayStep(false); } };
 document.getElementById('nextBtn').onclick = () => { if (replay.i < replay.steps.length) { replay.i++; showReplayStep(true); } };
