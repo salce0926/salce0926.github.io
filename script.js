@@ -18,7 +18,7 @@ function toggleLanguage() {
 // 前回選んだ言語でボタンの表示をそろえる（<html lang> は head の中で反映済み）
 setLanguage(document.documentElement.lang === 'ja' ? 'ja' : 'en');
 
-document.querySelectorAll('nav a, .menu a').forEach(anchor => {
+document.querySelectorAll('nav a, .menu a, .hero-cta').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
         e.preventDefault();
         // スマホ用メニューはリンクを押したら閉じる
