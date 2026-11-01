@@ -4,125 +4,76 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hit & Blow</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background-color: #f0f0f0;
-            margin: 0;
-        }
-        #gameContainer {
-            text-align: center;
-            background-color: #ffffff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            width: 80%;
-            max-width: 600px;
-            max-height: 90vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        #inputContainer {
-            margin: 20px 0;
-        }
-        input[type="text"], input[type="number"] {
-            padding: 10px;
-            font-size: 1em;
-            margin: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 1em;
-            border: none;
-            border-radius: 4px;
-            background-color: #28a745;
-            color: white;
-            cursor: pointer;
-            margin: 5px;
-        }
-        button:hover {
-            background-color: #218838;
-        }
-        .result {
-            margin: 10px 0;
-            padding: 10px;
-            background-color: #e9ecef;
-            border-radius: 4px;
-        }
-        #playerAnswerDisplay {
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        #restartContainer {
-            margin-top: 20px;
-            display: flex;
-            justify-content: center;
-        }
-        #results, #cpuProcess {
-            flex: 1;
-            overflow-y: auto;
-            width: 100%;
-            max-height: 200px;
-        }
-        #cpuProcessContainer {
-            margin-top: 20px;
-            text-align: left;
-            width: 100%;
-        }
-        #settingsContainer {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .setting {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .setting label {
-            margin-right: 10px;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="gameContainer">
-        <h1>Hit & Blow</h1>
-        <div id="settingsContainer">
+    <main class="app">
+        <a class="back" href="../index.html">&larr; トップへ</a>
+
+        <div class="title">HIT <span>&amp;</span> BLOW</div>
+        <p class="sub">CPUと数当て勝負</p>
+
+        <!-- 設定画面 -->
+        <section id="setup" class="panel">
             <div class="setting">
-                <label for="digitCount">桁数を選択:</label>
+                <label for="digitCount">桁数</label>
                 <input type="number" id="digitCount" min="1" max="10" value="4">
             </div>
             <div class="setting">
-                <label for="digitRange">数字の範囲を選択 (0 ~ n):</label>
+                <label for="digitRange">使う数字</label>
+                <span>0 〜</span>
                 <input type="number" id="digitRange" min="1" max="9" value="9">
             </div>
-            <button id="startBtn">ゲーム開始</button>
-        </div>
-        <div id="playerAnswerDisplay" style="display:none;">あなたの答え: <span id="playerAnswer"></span></div>
-        <div id="inputContainer" style="display:none;">
-            <input type="text" id="guessInput" placeholder="桁数の数字を入力">
-            <button id="submitBtn">推測</button>
-        </div>
-        <div id="results"></div>
-        <div id="cpuProcessContainer">
-            <h3>CPUの推測過程</h3>
-            <div id="cpuProcess"></div>
-        </div>
-        <div id="restartContainer">
-            <button id="restartBtn" style="display:none;">もう一度遊ぶ</button>
-        </div>
-        <button onclick="location.href='../index.html'">Return to main page</button>
-    </div>
+            <ul class="rules">
+                <li>おたがいに、同じ数字を使わない秘密の数を持っています。</li>
+                <li>数字も場所も合っていたら <b class="h">HIT</b>、数字だけ合っていたら <b class="b">BLOW</b>。</li>
+                <li>先に相手の数を当てた方の勝ちです。</li>
+            </ul>
+            <p id="setupError" class="error" role="alert"></p>
+            <button id="startBtn" class="primary">ゲーム開始</button>
+        </section>
+
+        <!-- 対戦画面 -->
+        <section id="game" hidden>
+            <div class="secrets">
+                <div class="secret">
+                    <div class="label">CPUの答え</div>
+                    <div id="cpuSecret" class="tiles"></div>
+                </div>
+                <div class="secret">
+                    <div class="label">あなたの答え</div>
+                    <div id="playerSecret" class="tiles"></div>
+                </div>
+            </div>
+
+            <div id="banner" class="banner" hidden></div>
+
+            <div class="boards">
+                <div class="board-wrap">
+                    <h2>あなたの推測</h2>
+                    <div id="playerBoard" class="board"></div>
+                    <div id="inputArea">
+                        <div id="inputRow" class="row input-row"></div>
+                        <p id="inputError" class="error" role="alert"></p>
+                        <div id="keypad" class="keypad"></div>
+                    </div>
+                    <div id="endButtons" class="end-buttons" hidden>
+                        <button id="againBtn" class="primary">もう一度</button>
+                        <button id="settingsBtn">設定を変える</button>
+                    </div>
+                </div>
+
+                <div class="board-wrap cpu">
+                    <h2>CPUの推測 <span id="candidates" class="count"></span></h2>
+                    <div id="cpuBoard" class="board"></div>
+                    <details class="cpu-details">
+                        <summary>CPUの考え</summary>
+                        <div id="cpuProcess"></div>
+                    </details>
+                </div>
+            </div>
+        </section>
+    </main>
     <script src="script.js"></script>
 </body>
 </html>
