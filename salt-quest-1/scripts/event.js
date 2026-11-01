@@ -2021,7 +2021,7 @@ function townStartPos(e) {
 function toolWorthBuying(key, price) {
     if (key === 'herb')  return player.herb  < HERB_MAX && player.gold >= price * (player.herb < 3 ? 1 : 4);
     if (key === 'key')   return player.key   < 3        && player.gold >= price * (player.key  < 1 ? 1 : 2);
-    if (key === 'wing')  return player.wing  < 1        && player.gold >= price * 6;
+    if (key === 'wing')  return player.wing  < 2        && player.gold >= price * 6;
     if (key === 'water') return player.water < 2        && player.gold >= price * 6;
     if (key === 'torch') return player.torch < 2        && player.gold >= price * 8;
     if (key === 'scale') return !player.scale           && player.gold >= price * 8;
@@ -2634,8 +2634,10 @@ function autoTick(now) {
         Promise.resolve(castFieldSpell('トヘロス')).then(() => { autoBusy = false; });
         return;
     }
-    // ダンジョンでは呪文が尽きてもやくそうで粘る（外に宿は無い）
-    if (autoPilot.tour && player.hp < player.maxHp * 0.5 && player.herb > 0
+    // 呪文が尽きたら やくそう で粘る。
+    // ここを「ダンジョンの用事中だけ」にしていたので、地上を歩いている間は
+    // やくそうを6つ抱えたまま削られて倒れていた（序盤の全滅の多くがこれ）
+    if (player.hp < player.maxHp * 0.5 && player.herb > 0
         && !(healSpell && player.mp >= healCost)) {
         autoStand(); autoBusy = true;
         Promise.resolve(useFieldItem('やくそう')).then(() => { autoBusy = false; });
@@ -2684,6 +2686,31 @@ function healingPool() {
 // この道を渡り切れそうか。危険度のつまみ(RISK_PATH)は「HP満タンでの1戦の死亡率」
 // しか見ておらず、実際に死ぬのは削られた状態なので当てにならなかった。
 // いまの体力・やくそう・MPと、道中で食らいそうな量を直接くらべる
+// 宿が遠いときは、本家と同じく ルーラ／キメラのつばさ で城へ飛ぶ。
+// ラダトームの町の宿は城のすぐ北にあるので、飛べば宿までほぼ歩かずに済む。
+// 削られたまま長い道を歩くのが全滅の元なので、その道をまるごと省く
+const WARP_HOME_STEPS = 30;      // これ以上歩くなら飛ぶ
+function afterWarpHome() {
+    // 城の中に出るので、地上の経路は捨てて組み直させる
+    autoPilot.path = null; autoPilot.goal = null; autoPilot.inn = null;
+    autoPilot.lastLine = '';
+}
+function autoWarpHome() {
+    if (inCave()) return false;                       // 洞窟の中では効かない（本家どおり）
+    const cost = FIELD_SPELL_MP['ルーラ'];
+    // ルーラはタダなので先に使う。MPは宿で戻るので惜しまない
+    if (player.spells.includes('ルーラ') && !player.sealed && player.mp >= cost) {
+        autoStand(); autoBusy = true;
+        Promise.resolve(castFieldSpell('ルーラ')).then(() => { autoBusy = false; afterWarpHome(); });
+        return true;
+    }
+    if (player.wing > 0) {
+        autoStand(); autoBusy = true;
+        Promise.resolve(useFieldItem('キメラのつばさ')).then(() => { autoBusy = false; afterWarpHome(); });
+        return true;
+    }
+    return false;
+}
 // この道を渡り切るには回復手段が足りない、と見るか
 function tripRisky(path) {
     if (!path || !path.length) return false;
@@ -2735,6 +2762,10 @@ function tripSurvivable(path) { return !tripRisky(path) || nothingMoreToGain(); 
             return;
         }
     }
+    // 宿が遠いなら歩かずに飛ぶ
+    if (autoPilot.goal === 'やどやへ' && autoPilot.path
+        && autoPilot.path.length > WARP_HOME_STEPS && autoWarpHome()) return;
+
     // 目的地があるときは、うろつかずに経路をたどる（宿へ／狩り場へ）
     if (autoPilot.path && autoPilot.path.length) {
         const next = autoPilot.path[0];
