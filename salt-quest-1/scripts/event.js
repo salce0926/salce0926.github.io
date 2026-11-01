@@ -2490,14 +2490,18 @@ function autoTick(now) {
                        && !errandReady(q.tour)) {
                 // 用事の入口に着いていても、体力や回復手段が整っていなければ始めない。
                 // 宿へ寄って整えてから出直す（やくそうも泊まったついでに買う）。
-                // ここで経路を消すだけだと、HPが満タンでMPも薬草も無いときに
-                // 宿へ行く条件も立たず、入口の前から永久に動けなくなる
-                const inn = nearestInn();
-                if (inn) {
-                    autoPilot.inn = inn; autoPilot.path = inn.path;
-                    autoPilot.goal = 'やどやへ'; autoPilot.lastLine = '';
-                    return;
+                // ただし、泊まっても何も変わらないなら寄らない。
+                // やくそうを買う金が無いときがこれで、HPは満タン・MPも満タン・
+                // それでも「回復手段なし」で用事が始められないので、宿に
+                // 泊まり直し続けていた（1,200回以上泊まった記録が出た）。
+                // そういうときは先に狩って金を作る
+                if (restWouldHelp()) {
+                    const inn = nearestInn();
+                    if (inn) { headForInn(inn); return; }
                 }
+                autoPilot.grindUntil = Math.max(autoPilot.grindUntil || 0,
+                                                Math.min(30, player.level + 1));
+                autoPilot.path = null; autoPilot.goal = null; autoPilot.lastLine = '';
             } else if (playerPosition.x === q.x && playerPosition.y === q.y) {
                 autoPilot.grindUntil = 0;
                 if (q.name === 'りゅうおうを たおす') {
@@ -2730,6 +2734,30 @@ function autoWarpHome() {
     }
     return false;
 }
+// 泊まれば何かが変わるか。HPもMPも満タンで、やくそうを買う金も無いなら
+// 泊まっても同じなので寄らない
+function restWouldHelp() {
+    if (player.hp < player.maxHp) return true;
+    if (player.mp < player.maxMp) return true;
+    return player.herb < HERB_MAX && player.gold >= toolGoods.herb.price;
+}
+// 宿へ向かう。もう宿の入口のマスに立っているなら、その場で泊まる。
+// findPath は出発点＝目的地のとき空の経路を返す。それを「行き先あり」として
+// 毎フレーム返していたので、入口のマスに立ったまま一歩も動けなくなっていた
+// （15秒ほど固まる症状の原因。皮肉なことに、この宿への寄り道は
+//   「入口の前から動けなくなるのを防ぐ」ために足されたものだった）
+function headForInn(inn) {
+    autoPilot.inn = inn;
+    autoPilot.lastLine = '';
+    if (inn.path && inn.path.length) {
+        autoPilot.path = inn.path;
+        autoPilot.goal = 'やどやへ';
+        return;
+    }
+    autoPilot.path = null; autoPilot.goal = null;
+    autoStand(); autoBusy = true;
+    Promise.resolve(autoCheckIn(inn)).then(() => { autoBusy = false; });
+}
 // この道を渡り切るには回復手段が足りない、と見るか
 function tripRisky(path) {
     if (!path || !path.length) return false;
@@ -2749,12 +2777,7 @@ function tripRisky(path) {
     const need = (sum / n) * fights * 0.35;
     return healingPool() < need;
 }
-// もう休んでも増やしようがない（宿へ寄っても意味がない）か
-function nothingMoreToGain() {
-    return player.hp >= player.maxHp && player.herb >= HERB_MAX
-        && (!player.spells.includes('ホイミ') || player.mp >= player.maxMp);
-}
-function tripSurvivable(path) { return !tripRisky(path) || nothingMoreToGain(); }
+function tripSurvivable(path) { return !tripRisky(path) || !restWouldHelp(); }
 
 // 道中で削られたら、目的地より先に宿へ寄る。
     // ここを入れないと、経路をたどる処理が下の宿屋処理より先に返してしまうので、
@@ -2763,12 +2786,11 @@ function tripSurvivable(path) { return !tripRisky(path) || nothingMoreToGain(); 
         && tripRisky(autoPilot.path)) {
         // 宿が目的地より遠くても寄る。削られたまま歩き続けると、
         // たいてい着く前に倒れる（全滅の3分の2が道中だった）
-        const inn = !nothingMoreToGain() && nearestInn();
-        if (inn) {
-            autoPilot.inn = inn; autoPilot.path = inn.path;
-            autoPilot.goal = 'やどやへ'; autoPilot.lastLine = '';
-            return;
-        }
+        // 泊まって増えるものがあるときだけ寄る。以前は「やくそうを満タンに
+        // 持っているか」で見ていたので、買う金が無いと条件が永遠に満たせず、
+        // 宿の入口に立ったまま泊まり直しを1,000回以上くり返していた
+        const inn = restWouldHelp() && nearestInn();
+        if (inn) { headForInn(inn); return; }
         // 満タンでも渡り切れない道は、そもそも強さが足りない。
         // 買い物は後回しにできる用事なので、諦めて先に鍛える。
         // （以前はここで「待っていても仕方がない」と出発していて、
@@ -2846,13 +2868,7 @@ function tripSurvivable(path) { return !tripRisky(path) || nothingMoreToGain(); 
     // 念のための歯止め: 前回の休憩から一度も戦っていなければ泊まり直さない
     if (wantRest && autoPilot.battles !== autoPilot.battlesAtRest) {
         const inn = nearestInn();
-        if (inn) {
-            autoPilot.inn = inn;
-            autoPilot.path = inn.path;
-            autoPilot.goal = 'やどやへ';
-                    autoPilot.lastLine = '';   // 表示を出し直す
-            return;
-        }
+        if (inn) { headForInn(inn); return; }
         // どの宿へも歩いて行けない場所（起きないはずだが保険）
         autoPilot.battlesAtRest = autoPilot.battles;
     }
