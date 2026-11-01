@@ -151,7 +151,7 @@ nav .languageToggle:hover::after {
     flex-direction: column;
     justify-content: center;
     align-items: flex-end;
-    padding: var(--header-height) clamp(20px, 6vw, 72px) 20px;
+    padding: var(--header-height) 20px 20px; /* 上はヘッダーの分あける */
     /* 文字のある右側だけ暗くして、写真を明るく見せる */
     background: linear-gradient(to left, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.35) 55%, rgba(0, 0, 0, 0.1) 100%);
     color: #fff;
@@ -159,47 +159,15 @@ nav .languageToggle:hover::after {
 }
 
 .text-overlay h2 {
-    margin: 0 0 12px;
-    font-size: clamp(2.2rem, 7vw, 4.2rem);
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    line-height: 1.1;
-    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.35);
+    margin-bottom: 10px;
 }
 
 .text-overlay p {
     margin: 0;
-    font-size: clamp(0.95rem, 2.4vw, 1.2rem);
-    opacity: 0.92;
-}
-
-.hero-cta {
-    margin-top: 28px;
-    padding: 12px 26px;
-    border-radius: 999px;
-    background-color: #fff;
-    color: #222;
-    font-weight: bold;
-    text-decoration: none;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.hero-cta::after {
-    content: " \2193"; /* ↓ */
-}
-
-@media (hover: hover) {
-    .hero-cta:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
-    }
 }
 
 .scroll {
     position: absolute;
-    right: 0;
-    left: 0;
     bottom: 10px;
     opacity: 0.8;
 }
