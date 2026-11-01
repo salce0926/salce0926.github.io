@@ -10,6 +10,8 @@
 //   sel: 写したい部分の CSS セレクタ（複数なら全部を囲む範囲）
 //   pad: そのまわりの余白(px)
 //   act: 撮る前の操作（数手進めるなど）
+//   vp:  画面の大きさ（省略時 1280x1000）
+//   url: ゲーム画面の代わりに使うページ（省略時 <フォルダ名>/index.html）
 // を1行追加する。切り出した範囲は 16:9 に収め、余白は左上の色で塗る。
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -22,11 +24,37 @@ const cfg = {
   '2048':         { sel: ['.container'], pad: 24, act: async p => { for (let i = 0; i < 40; i++) { await p.keyboard.press(['ArrowUp','ArrowLeft','ArrowDown','ArrowRight'][i % 4]); await p.waitForTimeout(70); } } },
   'tetris':       { sel: ['#game-container'], pad: 12, act: async p => { await p.evaluate(async () => { const plan = [-4,4,-2,2,0,-3,3,-1,1,4,-4,2]; for (const m of plan) { const piece = currentPiece; for (let i = 0; i < Math.abs(m); i++) (m < 0 ? movePieceLeft : movePieceRight)(piece); let n = 0; while (currentPiece === piece && !gameOver && n++ < 30) movePieceDown(piece); await new Promise(r => setTimeout(r, 30)); } for (let i = 0; i < 6; i++) movePieceDown(currentPiece); }); await p.waitForTimeout(300); } },
   'cat-trap':     { sel: ['#wrap'], pad: 16, act: wait(500) },
-  'hit-and-blow': { sel: ['#gameContainer'], pad: 16, act: async p => { await p.click('#startBtn'); for (const g of ['1234', '5678', '9012', '3456']) { await p.fill('#guessInput', g); await p.click('#submitBtn'); await p.waitForTimeout(250); } } },
-  'isshun':       { sel: ['#c'], pad: 0, act: wait(800) },
+  // CPUの答えを 5273 にして4手で当て、答え合わせの色が付いた終了画面
+  'hit-and-blow': { sel: ['.secrets', '.boards'], pad: 24, act: async p => {
+    await p.click('#startBtn');
+    await p.evaluate(() => { cpuAnswer = '5273'; });
+    for (const g of ['1234', '5678', '5723', '5273']) { await p.keyboard.type(g); await p.keyboard.press('Enter'); }
+    await p.waitForTimeout(500);
+  } },
+  // ジャグリング耐久モードのプレイ中
+  'isshun':       { sel: ['#c'], pad: 0, act: async p => { await p.evaluate(() => __isshun.startJuggle()); await p.waitForTimeout(1500); } },
   'pong':         { sel: ['#gameCanvas'], pad: 0, act: wait(1500) },
   'avoid-game':   { sel: ['#main'], pad: 0, act: wait(400) },
-  'napoleon':     { sel: ['.modal'], pad: 40, act: wait(500) },
+  // ビッドはパスし、場に3枚出たところ（カードは毎回ランダム）
+  'napoleon':     { vp: { width: 900, height: 700 }, sel: ['#trick-wrap', '#human-hand'], pad: 24, act: async p => {
+    await p.evaluate(() => { hideModal(); newGame(); });
+    for (let t = 0; t < 80; t++) {
+      await p.waitForTimeout(400);
+      const n = await p.evaluate(() => {
+        const vis = e => e && e.offsetParent !== null;
+        const pass = [...document.querySelectorAll('button')].find(b => vis(b) && b.textContent.trim() === 'パス');
+        if (pass) { pass.click(); return 0; }
+        const n = document.querySelectorAll('#trick-area .card').length;
+        const card = document.querySelector('#human-hand .card.playable');
+        if (card && n < 3) { card.click(); card.click(); }
+        return n;
+      });
+      if (n >= 3) break;
+    }
+    // カードが出た直後の拡大や、トリック決着時の点滅が終わってから撮る
+    await p.waitForTimeout(300);
+    await p.waitForFunction(() => !document.querySelector('#trick-area .flash, #trick-area .pop-in'), null, { timeout: 3000 }).catch(() => {});
+  } },
   'poker-flip':   { sel: ['.table'], pad: 16, act: wait(500) },
   'zombie-chess': { sel: ['h1', '#board-wrap'], pad: 20, act: async p => { await p.evaluate(() => { setMode('cvc'); newGame(); }); await p.waitForTimeout(5000); } },
   'shut-the-box': { sel: ['#rollButton', '#tilesContainer'], pad: 30, act: async p => { await p.click('#rollButton'); await p.waitForTimeout(600); } },
@@ -38,9 +66,9 @@ const cfg = {
   const enc = await (await b.newContext()).newPage();
   for (const [d, c] of Object.entries(cfg)) {
     if (only.length && !only.includes(d)) continue;
-    const p = await (await b.newContext({ viewport: { width: 1280, height: 1000 } })).newPage();
+    const p = await (await b.newContext({ viewport: c.vp || { width: 1280, height: 1000 } })).newPage();
     p.on('dialog', dl => dl.dismiss().catch(() => {}));
-    await p.goto(`http://127.0.0.1:8765/${d}/index.html`); await p.waitForTimeout(1000);
+    await p.goto(`http://127.0.0.1:8765/${c.url || d + '/index.html'}`); await p.waitForTimeout(1000);
     try { await c.act(p); } catch (e) { console.log(d, 'act failed:', e.message.split('\n')[0]); }
     const r = await p.evaluate(({ sel, pad }) => {
       const rs = sel.map(s => document.querySelector(s)).filter(Boolean).map(e => e.getBoundingClientRect());

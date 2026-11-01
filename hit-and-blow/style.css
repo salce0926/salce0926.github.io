@@ -1,0 +1,418 @@
+:root {
+    --hit: #43a047;
+    --hit-shade: #2e7031;
+    --blow: #ffb74d;
+    --blow-shade: #c98a2c;
+    --tile-bg: #f4f7fb;
+    --tile-ink: #1d2b44;
+    --tile-shade: #b9c6d8;
+    --muted: #9fb3d1;
+    --line: rgba(255, 255, 255, 0.1);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* display を指定した要素でも hidden 属性で確実に隠す */
+[hidden] {
+    display: none !important;
+}
+
+html {
+    min-height: 100%;
+    /* ページの長さに関係なく下まで同じ背景にする */
+    background: #0e1829 radial-gradient(circle at 30% 0, #23395d 0, #142238 600px, #0e1829 1200px) no-repeat;
+}
+
+body {
+    margin: 0;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+}
+
+.app {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 16px 16px 40px;
+}
+
+.back {
+    color: var(--muted);
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.back:hover {
+    color: #fff;
+}
+
+.title {
+    margin-top: 12px;
+    text-align: center;
+    font-size: clamp(36px, 9vw, 56px);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: 1.05;
+}
+
+.title span {
+    color: var(--blow);
+}
+
+.sub {
+    margin: 8px 0 20px;
+    text-align: center;
+    color: var(--muted);
+}
+
+button {
+    font: inherit;
+    cursor: pointer;
+}
+
+.primary,
+.end-buttons button {
+    padding: 12px 28px;
+    border: none;
+    border-radius: 999px;
+    font-weight: bold;
+}
+
+.primary {
+    background-color: var(--hit);
+    color: #fff;
+    box-shadow: 0 4px 0 var(--hit-shade);
+}
+
+.primary:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 var(--hit-shade);
+}
+
+.error {
+    min-height: 1.4em;
+    margin: 8px 0 0;
+    color: #ff8a80;
+    font-size: 14px;
+    text-align: center;
+}
+
+/* 設定画面 */
+.panel {
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 24px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background-color: rgba(255, 255, 255, 0.04);
+    text-align: center;
+}
+
+.setting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.setting label {
+    min-width: 5em;
+    text-align: right;
+    font-weight: bold;
+}
+
+.setting input {
+    width: 72px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background-color: #0b1322;
+    color: #fff;
+    font: inherit;
+    font-size: 18px;
+    text-align: center;
+}
+
+.rules {
+    margin: 18px 0 4px;
+    padding: 0;
+    list-style: none;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.7;
+    text-align: left;
+}
+
+.rules b {
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+}
+
+/* 数字のタイル */
+.tiles {
+    display: flex;
+    gap: var(--gap, 8px);
+}
+
+.d {
+    flex: 0 0 auto;
+    width: var(--tile, 52px);
+    height: calc(var(--tile, 52px) * 1.12);
+    border-radius: calc(var(--tile, 52px) * 0.2);
+    background-color: var(--tile-bg);
+    color: var(--tile-ink);
+    box-shadow: 0 3px 0 var(--tile-shade);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(var(--tile, 52px) * 0.6);
+    font-weight: 800;
+    transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.d.hit {
+    background-color: var(--hit);
+    color: #fff;
+    box-shadow: 0 3px 0 var(--hit-shade);
+}
+
+.d.blow {
+    background-color: var(--blow);
+    color: #3d2600;
+    box-shadow: 0 3px 0 var(--blow-shade);
+}
+
+/* まだ入れていない桁・伏せてある答え */
+.d.empty,
+.d.hidden {
+    background-color: #0b1322;
+    color: #4b6488;
+    border: 2px dashed #4b6488;
+    box-shadow: none;
+}
+
+/* 結果の HIT / BLOW */
+.res {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.res b,
+.rules b {
+    white-space: nowrap;
+}
+
+.res b {
+    padding: 4px 12px;
+    border-radius: 999px;
+}
+
+.h {
+    background-color: rgba(67, 160, 71, 0.22);
+    color: #7ed683;
+}
+
+.b {
+    background-color: rgba(255, 183, 77, 0.2);
+    color: #ffc878;
+}
+
+.row.win .res .h {
+    background-color: var(--hit);
+    color: #fff;
+}
+
+/* 対戦画面 */
+.secrets {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px 40px;
+    margin-bottom: 16px;
+}
+
+.secret {
+    --tile: 40px;
+    --gap: 6px;
+}
+
+.secret .label {
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.banner {
+    margin: 0 auto 16px;
+    padding: 12px 16px;
+    max-width: 440px;
+    border-radius: 14px;
+    background-color: rgba(255, 255, 255, 0.08);
+    font-size: 20px;
+    font-weight: 800;
+    text-align: center;
+}
+
+.banner.win {
+    background-color: var(--hit);
+}
+
+.banner.lose {
+    background-color: #5c6b82;
+}
+
+.boards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+@media (max-width: 720px) {
+    .boards {
+        grid-template-columns: 1fr;
+    }
+}
+
+.board-wrap {
+    container-type: inline-size;
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+.board-wrap h2 {
+    margin: 0 0 12px;
+    font-size: 16px;
+}
+
+.count {
+    margin-left: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: normal;
+}
+
+.board {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.board:empty::before {
+    content: "まだ推測していません";
+    color: #5d7393;
+    font-size: 14px;
+}
+
+.row {
+    /* 桁数と盤の幅に合わせてタイルの大きさを決める */
+    --tile: clamp(22px, calc((100cqw - 190px) / var(--n) - 6px), 52px);
+    --gap: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+}
+
+/* 盤が狭いときは HIT / BLOW を縦に重ね、タイルの横に収める */
+@container (max-width: 380px) {
+    .row {
+        --tile: clamp(22px, calc((100cqw - 104px) / var(--n) - 6px), 48px);
+        flex-wrap: nowrap;
+    }
+
+    .res {
+        flex-direction: column;
+        align-items: flex-start;
+        font-size: 13px;
+    }
+
+    .res b {
+        padding: 3px 10px;
+    }
+}
+
+.input-row {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+}
+
+.keypad {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.keypad button {
+    min-height: 48px;
+    border: none;
+    border-radius: 12px;
+    background-color: var(--tile-bg);
+    color: var(--tile-ink);
+    box-shadow: 0 3px 0 var(--tile-shade);
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.keypad button:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.keypad button:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 var(--tile-shade);
+}
+
+.keypad .del {
+    background-color: #33415a;
+    color: #fff;
+    box-shadow: 0 3px 0 #1f2a3d;
+}
+
+.keypad .go {
+    grid-column: span 2;
+    background-color: var(--hit);
+    color: #fff;
+    box-shadow: 0 3px 0 var(--hit-shade);
+    font-size: 16px;
+}
+
+.end-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.end-buttons button:not(.primary) {
+    background-color: #33415a;
+    color: #fff;
+}
+
+.cpu-details {
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.cpu-details summary {
+    cursor: pointer;
+}
+
+.cpu-details p {
+    margin: 8px 0 0;
+    line-height: 1.6;
+}
