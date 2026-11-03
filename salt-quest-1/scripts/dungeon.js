@@ -362,7 +362,7 @@ const DUNGEONS = {
             { x: 5,  y: 8,  sprite: 19, shop: 'rimuldar:key',     name: 'かぎや' },
             { x: 24, y: 8,  sprite: 24, shop: 'rimuldar:weapons', name: 'ぶきや' },
             { x: 17, y: 19, sprite: 24, shop: 'rimuldar:inn',     name: 'やどや' },
-            { x: 4,  y: 24, sprite: 19, shop: 'rimuldar:tools',   name: 'どうぐや' },
+            // 本家のリムルダールに道具屋は無い（武具屋・かぎ屋・宿屋の3軒だけ）
             { x: 28, y: 1,  sprite: 26, lines: ['おとこ「この しまは みずうみの なか', '　　　　はしを わたるしかない」'] },
             { x: 8,  y: 4,  sprite: 26, lines: ['おとこ「かぎやへは まちの そとを', '　　　　まわって いくのだ」'] },
             { x: 3,  y: 5,  sprite: 24, lines: ['しょうにん「まほうのかぎは', '　　　　　　ここが いちばん やすい」'] },
@@ -540,10 +540,9 @@ const DUNGEONS = {
         // 本家のNPCの立ち位置をそのまま使う。せりふは本作のもの
         npcs: [
             { x: 6,  y: 5,  sprite: 23, shop: 'weapons', name: 'ぶきや' },
-            // 本家の実画面マップではカウンターの1マス上に立っているが、そこに置くと
-            // カウンター越しの「1マス先を見る」判定から外れて話しかけられなくなるため、
-            // カウンターの真向かいに置いている（本家との意図的な差）
-            { x: 25, y: 5,  sprite: 19, lines: ['ろうじん「この へやは かぎが ないと', '　　　　　はいれんのじゃ」'] },
+            // かぎの扉(22,7)の奥の聖水屋。本家もここは かぎ が必要で、店員は女性
+            // （way78 の店一覧／ドラゴンクエスト大辞典／dqff.sakura.ne.jp が一致）
+            { x: 25, y: 5,  sprite: 22, shop: 'radatomeWater:water', name: 'せいすいや' },
             { x: 25, y: 11, sprite: 19, cure: true,  name: 'ろうじん' },
             { x: 11, y: 22, sprite: 23, shop: 'inn',     name: 'やどや' },
             { x: 26, y: 26, sprite: 23, shop: 'tools',   name: 'どうぐや' },
@@ -934,7 +933,7 @@ function npcStandLevel(d, x, y) {
     return d.standable[x + ',' + y] || 0;
 }
 // そのマスへ歩いて入れるか（人どうし・勇者とは重ならない）
-function npcCanStep(d, mapId, x, y, urgent) {
+function npcCanStep(d, mapId, x, y, allowTight) {
     const g = d.grid;
     if (!g[y] || g[y][x] === undefined) return false;
     if (TOWN_BLOCKED.includes(g[y][x])) return false;
@@ -946,8 +945,11 @@ function npcCanStep(d, mapId, x, y, urgent) {
     }
     if (d.npcAt[x + ',' + y]) return false;
     if (mapId === currentMapId && playerPosition.x === x && playerPosition.y === y) return false;
-    // 急ぎ（勇者がとなりに来た）のときだけ、袋小路にならない狭いマスへも どく
-    if (npcStandLevel(d, x, y) < (urgent ? 1 : 2)) return false;
+    // 立ってよいマス（通り道を分断しないマス）だけ。
+    // 以前は「勇者がとなりに来たら狭いマスへも どく」としていたが、
+    // それで入った先が行き止まりだと二度と出られず、ガライの町の階段前の
+    // 一本道で勇者を永久にふさいでいた。重なりを解くときだけ狭いマスも許す
+    if (npcStandLevel(d, x, y) < (allowTight ? 1 : 2)) return false;
     return true;
 }
 const NPC_STEP_MIN = 40, NPC_STEP_MAX = 110;   // 次に動くまでのフレーム数
@@ -988,7 +990,7 @@ function stepTownNpcs() {
         const near = [], far = [];
         for (const [dx, dy] of dirs) {
             const nx = n.x + dx, ny = n.y + dy;
-            if (!npcCanStep(d, currentMapId, nx, ny, blocking)) continue;
+            if (!npcCanStep(d, currentMapId, nx, ny, false)) continue;
             if (Math.abs(nx - n.home.x) > NPC_ROAM || Math.abs(ny - n.home.y) > NPC_ROAM) far.push([nx, ny]);
             else near.push([nx, ny]);
         }

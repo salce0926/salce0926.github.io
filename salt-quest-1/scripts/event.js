@@ -476,16 +476,18 @@ async function offerRecord() {
 // =====================================================================
 const townShops = {
     // 品揃え・宿代・かぎの値段は本家FC版の店データどおり(way78.com/dq1/fc/shop.html)。
-    // 本家はラダトームだけ城に鍵屋があるが、本作は城と町を分けていないので町でまとめる。
-    // リムルダールに道具屋を置いているのは本家との意図的な差（本家は鍵屋のみ）。
     // 品揃えは famicom-database.com の FC版ページの販売リストと1点ずつ突き合わせてある。
     // 本家: まほうのかぎは まちの どうぐやでは 売っていない（しろの かぎや／リムルダール）。
-    // せいすいを売っているのは本家ではメルキドの聖水屋だけ
-    radatome:   { inn: 6,   tools: ['herb', 'torch', 'scale'], keyPrice: 85,
+    // せいすいを売る店は本家では2つ。メルキドの聖水屋と、ラダトームの町の
+    // かぎの扉の奥の聖水屋（way78／ドラゴンクエスト大辞典／dqff.sakura.ne.jp の3点で一致）
+    radatome:   { inn: 6,   tools: ['herb', 'torch', 'scale'],
                   weapons: [1, 2, 3], armors: [1, 2], shieldList: [1] },
+    radatomeWater: { tools: ['water'] },   // かぎの扉の奥の聖水屋
     garai:      { inn: 25,  tools: ['herb', 'torch', 'scale'],  weapons: [2, 3, 4],  armors: [2, 3, 4], shieldList: [2] },
     maira:      { inn: 20,  tools: ['herb', 'torch', 'scale', 'wing'], weapons: [3, 4], armors: [4, 5], shieldList: [1] },
-    rimuldar:   { inn: 55,  tools: ['herb', 'wing', 'key'], keyPrice: 53, weapons: [3, 4, 5], armors: [4, 5, 6] },
+    // 本家のリムルダールは「武具屋・かぎ屋・宿屋」の3軒だけで道具屋は無い
+    // （famicom-database.com の町ページと way78 の店一覧が一致）
+    rimuldar:   { inn: 55,  tools: ['key'], keyPrice: 53, weapons: [3, 4, 5], armors: [4, 5, 6] },
     castle:     { tools: ['key'], keyPrice: 85 },   // ラダトーム城 北東の かぎや
     // メルキドは店が8つある。中身は famicom-database.com の FC版ページどおり
     melkidoW1:  { weapons: [1, 2, 3], armors: [2, 3], shieldList: [2] },
@@ -2015,14 +2017,17 @@ const TOWN_ERRANDS = {
 const TOWN_INSIDE = {
     // 店は「道具屋・かぎや → 武器屋」の順に回る。先に装備で使い切ると
     // やくそうが買えなくなって死にやすくなるため
+    // 聖水屋は かぎの扉(22,7)の奥。扉を開けてから(23,5)でカウンター越しに買う
     radatome: { entrance: '56,49',  map: 'radatome', inn: { x: 9,  y: 22 },
-                shops: [{ x: 24, y: 26 }, { x: 6,  y: 7  }] },
+                doors: [{ door: { x: 22, y: 7 }, at: { x: 22, y: 8 },
+                           need: () => toolWorthBuying('water', toolGoods.water.price) }],
+                shops: [{ x: 24, y: 26 }, { x: 6,  y: 7  }, { x: 23, y: 5 }] },
     garai:    { entrance: '10,10',  map: 'garai',    inn: { x: 16, y: 16 },
                 shops: [{ x: 4,  y: 12 }, { x: 11, y: 17 }] },
     maira:    { entrance: '112,18', map: 'maira',    inn: { x: 20, y: 3  },
                 shops: [{ x: 13, y: 22 }, { x: 21, y: 13 }] },
     rimuldar: { entrance: '110,80', map: 'rimuldar', inn: { x: 19, y: 19 },
-                shops: [{ x: 5,  y: 6  }, { x: 6,  y: 24 }, { x: 24, y: 10 }] },
+                shops: [{ x: 5,  y: 6  }, { x: 24, y: 10 }] },
     melkido:  { entrance: '81,108', map: 'melkido',  inn: { x: 8,  y: 5  },
                 // 鍵屋と「ほのおのつるぎ・みかがみのたて」の武器屋は(26,9)のとびらの奥
                 doors: [{ door: { x: 26, y: 9 }, at: { x: 25, y: 9 } }],
@@ -2069,7 +2074,9 @@ function startTownVisit(key, wantInn) {
     if (wantInn && reach.has(e.inn.x + ',' + e.inn.y))
         targets.push({ map: e.map, x: e.inn.x, y: e.inn.y, act: 'inn' });
     for (const d of (e.doors || []))
-        if (openDoors && doorLockedOn(e.map, d.door.x, d.door.y))
+        // need が付いている扉は、奥の店に用があるときだけ開ける。
+        // 町を出ると扉は閉じ直るので、無条件に開けると毎回かぎ1本を捨てることになる
+        if (openDoors && doorLockedOn(e.map, d.door.x, d.door.y) && (!d.need || d.need()))
             targets.push({ map: e.map, x: d.at.x, y: d.at.y, act: 'door' });
     for (const sp of e.shops)
         if (reach.has(sp.x + ',' + sp.y)) targets.push({ map: e.map, x: sp.x, y: sp.y, act: 'shop' });
