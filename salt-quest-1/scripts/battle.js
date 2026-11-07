@@ -387,9 +387,12 @@ async function executeEnemyTurn() {
     }
 
     if (player.hp <= 0) {
-        await showMessage([`${player.name}は しんでしまった！`]);
+        // 本家FC版の死亡メッセージと、城で生き返ったときの王様のことば
+        // （ドラゴンクエスト大辞典【あなたは　しにました】）
+        await showMessage(['あなたは しにました']);
         const lost = playerKilled();
-        await showMessage(['王様「しっかりするのじゃ！」',
+        await showMessage([`王様「おお ${player.name}！`,
+            '　　　しんでしまうとは なにごとだ！」',
             lost > 0 ? `ゴールドを ${lost} おとしてしまった...` : '',
             `のこりの もちきんは ${player.gold}G`]);
         endBattle('lose');

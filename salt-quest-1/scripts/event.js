@@ -180,9 +180,11 @@ async function talkToNpc(npc) {
         if (getGameFlag('lightBall')) { currentState = STATE.FIELD; return; }
         await showMessage(['りゅうおう「よくぞ まいった ゆうしゃよ',
                            '　　　　　　わしは そなたを まっておった」']);
-        await showMessage(['りゅうおう「どうじゃ ゆうしゃよ',
-                           '　　　　　　わしの みかたに なれば',
-                           '　　　　　　せかいの はんぶんを あたえよう」']);
+        // 本家FC版の文面（ドラゴンクエスト大辞典
+        // 【もし　わしの　みかたになれば　せかいの　はんぶんを　○○○○に　やろう。】）
+        await showMessage([`りゅうおう「もし わしの みかたになれば`,
+                           `　　　　　　せかいの はんぶんを`,
+                           `　　　　　　${player.name}に やろう。」`]);
         const yes = await chooseFromList(['りゅうおうの さそいに のりますか？'], ['いいえ', 'はい']);
         if (yes === 1) {
             await showMessage(['りゅうおう「ほんとうだな？',
@@ -510,13 +512,15 @@ async function stayInn(price) {
     player.gold -= price;
     player.hp = player.maxHp;
     player.mp = player.maxMp;
-    // 本家どおり、ローラ姫を連れたまま泊まると朝のセリフが変わる
-    // （pidlio のシナリオ攻略「ローラ王女の救出」03）。文面はこちらの創作
+    // 本家どおり、ローラ姫を抱えたまま泊まると朝のことばが変わる
+    // （ドラゴンクエスト大辞典【ゆうべは　おたのしみでしたね。】＝FC版の文面。
+    //   ふだんは「ゆうべは　よく　おやすみ　でしたね。」）
     if (getGameFlag('roraRescued') && !getGameFlag('roraLove'))
-        await showMessage(['やどや「おはようございます', '　　　　…ゆうべは ごゆっくり',
-                           '　　　　できましたかな」', 'HPとMPが かいふくした！']);
+        await showMessage(['やどや「おはよう ございます。', '　　　　ゆうべは おたのしみでしたね。」',
+                           'HPとMPが かいふくした！']);
     else
-        await showMessage(['やどや「おはようございます', '　　　　よい たびを！」', 'HPとMPが かいふくした！']);
+        await showMessage(['やどや「おはよう ございます。', '　　　　ゆうべは よく おやすみ でしたね。」',
+                           'HPとMPが かいふくした！']);
 }
 
 // 所持数の増減をまとめて扱う（りゅうのうろこは身に付ける装飾なので個数を持たない）
@@ -844,7 +848,8 @@ function applyPoison(x, y) {
     (async () => {
         await showMessage([`${player.name}は どくの ぬまちで`, 'たおれてしまった...']);
         const lost = playerKilled();
-        await showMessage(['王様「しっかりするのじゃ！」',
+        await showMessage([`王様「おお ${player.name}！`,
+            '　　　しんでしまうとは なにごとだ！」',
             lost > 0 ? `ゴールドを ${lost} おとしてしまった...` : '',
             `のこりの もちきんは ${player.gold}G`]);
         currentState = STATE.FIELD;
