@@ -250,7 +250,8 @@ async function talkToNpc(npc) {
         }
     }
     else if (npc.king) { await talkToKing(); }
-    else await showMessage(npc.lines || ['・・・']);
+    // lines は配列のほか、持ち物で言うことが変わる人のために関数も受ける
+    else await showMessage((typeof npc.lines === 'function' ? npc.lines() : npc.lines) || ['・・・']);
     currentState = STATE.FIELD;
 }
 
@@ -683,7 +684,9 @@ async function useFieldItem(itemName) {
         if (inCave()) { torchLit = true; await showMessage(['あたりが あかるく なった！']); }
         else await showMessage(['しかし ここは あかるい']);
     } else if (itemName === 'せんしのゆびわ') {
-        // 本家: 特に効果はない
+        // 本家: 能力は一切上がらない。身に付けたことが残り、リムルダールの
+        // 戦士のセリフだけが変わる——それが この指輪の唯一の使い道
+        setGameFlag('warriorRingWorn');
         await showMessage(['せんしのゆびわを みに つけた！', 'しかし なにも おこらなかった！']);
     } else if (itemName === 'しのくびかざり' || itemName === 'のろいのベルト') {
         if (getGameFlag('cursed')) await showMessage([`すでに のろわれている...`]);

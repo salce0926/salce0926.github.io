@@ -32,7 +32,10 @@ var gameFlags = {
     cursedBelt:         { bit: 24, flag: false, location: { x: 0, y: 0 } },  // ガライの墓 のろいのベルト
     // りゅうおうの しろ
     rotoSword:          { bit: 25, flag: false, location: { x: 0, y: 0 } },  // B2 ロトのつるぎ
-    cursedBelt2:        { bit: 26, flag: false, location: { x: 0, y: 0 } }   // B7 のろいのベルト
+    cursedBelt2:        { bit: 26, flag: false, location: { x: 0, y: 0 } },  // B7 のろいのベルト
+    // 本家では せんしのゆびわ の「身に付けた」状態も ふっかつのじゅもん に残る。
+    // flags は32bit取ってあり 27〜31 が空いているので、古い呪文も そのまま読める
+    warriorRingWorn:    { bit: 27, flag: false, location: { x: 0, y: 0 } }
 };
 
 function setGameFlag(flagName) { gameFlags[flagName].flag = true; }
