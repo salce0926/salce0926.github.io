@@ -375,6 +375,9 @@ const DUNGEONS = {
             { x: 20, y: 20, sprite: 18, lines: ['おとこ「メルキドの ゴーレムは', '　　　　ようせいの ふえで ねむる」'] },
             { x: 8,  y: 21, sprite: 21, lines: ['むすめ「ドムドーラは まものの すみか', '　　　　もう だれも おりません」'] },
             { x: 21, y: 24, sprite: 20, lines: ['ろうじん「かぎは つかうたび なくなる', '　　　　　おおめに かっておくがよい」'] },
+            // 本家の実画面マップ(09-01)でカウンター(5,24)の奥に立っている老人。
+            // 置き忘れていた。本家はこの町に20人いる（セリフはこちらの創作）
+            { x: 4,  y: 24, sprite: 20, lines: ['ろうじん「この しまには みせが', '　　　　　3つしか ないのじゃ」'] },
             // 本家の実画面では湖の対岸に立っているが、本家の町人は歩き回るので
             // あの位置はたまたまの一枚。こちらは動かないので、そのまま置くと
             // 一生 話しかけられない（ローラ姫の居場所を聞けなくなる）。町の中へ移した
@@ -441,14 +444,18 @@ const DUNGEONS = {
             { x: 27, y: 26, sprite: 24, shop: 'melkidoW3:weapons', name: 'ぶきや' },
             { x: 2,  y: 7,  sprite: 26, shop: 'melkidoT1:tools',   name: 'どうぐや' },
             { x: 7,  y: 12, sprite: 24, shop: 'melkidoT2:tools',   name: 'どうぐや' },
-            { x: 22, y: 13, sprite: 22, shop: 'melkidoWater:water', name: 'せいすいや' },
             { x: 27, y: 6,  sprite: 20, shop: 'melkidoKey:key',    name: 'かぎや' },
             // 本家の八百屋。大根が安いらしいが買えない
             { x: 2,  y: 12, sprite: 24, lines: ['やおや「だいこんが やすいよ！」', '（しかし かう ことは できない）'] },
-            { x: 22, y: 22, sprite: 20, lines: ['ろうじん「ロトの しるしは', '　　　　　みなみの だいちに ねむる」'] },
-            // 本家の実画面ではカウンターの奥に立っているが、本家の町人は歩き回るので
-            // あの位置はたまたまの一枚。こちらは動かないので、カウンター越しに
-            // 話しかけられる向かい側へ置いた
+            // 聖水屋。pidlio の実画面マップ(13-01)でこの町にいる人は11人ちょうどで、
+            // そのうち青いローブ（本家で かぎや・聖水屋 に使われる絵）でカウンターの
+            // 隣に立っているのはここだけ。(22,22)は3方を壁に囲まれ、下のカウンター
+            // (22,23)越しに (22,24) から話しかける造りで、店のかたちそのもの。
+            // 以前は (22,13) に置いていたが、そこは本家の実画面では無人だった
+            { x: 22, y: 22, sprite: 22, shop: 'melkidoWater:water', name: 'せいすいや' },
+            // 本家の実画面ではひとつ南西の(3,27)、店のたな(2,27)の横に立っている。
+            // 町人は歩き回るのであの位置はたまたまの一枚。こちらはカウンター(5,26)の
+            // 向かいに置いて、確実に話しかけられるようにしてある
             { x: 4,  y: 26, sprite: 24, lines: ['しょうにん「ゴーレムが いるかぎり', '　　　　　　この まちは あんぜんだ」'] },
             { x: 14, y: 28, sprite: 20, lines: ['ろうじん「みかがみの たては', '　　　　　この よで いちばんの たて」'] }
         ],
@@ -741,7 +748,8 @@ const CHEST_TABLE = {
     '1': () => ({ tool: 'herb', name: 'やくそう' }),
     '2': () => ({ item: 'せんしのゆびわ', flag: 'warriorRing' }),
     '3': () => ({ tool: 'torch', name: 'たいまつ' }),
-    '4': () => ({ gold: 10 + Math.floor(Math.random() * 6) }),
+    // 岩山の洞窟 B2 のゴールド。pidlio の一覧は「10〜17G」（way78 は実測の一例として15G）
+    '4': () => ({ gold: 10 + Math.floor(Math.random() * 8) }),
     // ラダトーム城（pidlio.com の「ラダトーム城で入手できるアイテム」より）
     //   1F の4つはどれも 6〜13ゴールド／2F は 120ゴールド・たいまつ・かぎ／B1 はたいようのいし
     '7': () => ({ gold: 6 + Math.floor(Math.random() * 8) }),
@@ -752,7 +760,9 @@ const CHEST_TABLE = {
     'G': () => ({ gold: 10 + Math.floor(Math.random() * 8) }),
     'w': () => ({ tool: 'wing', name: 'キメラのつばさ' }),
     // ほこらの宝箱。本家では老人が前に立ちはだかっていて、条件を満たすと
-    // 老人が消えて自分で開ける（famicom-database.com／pidlio のシナリオ攻略）
+    // 老人が消えて自分で開ける。攻略サイトの文章は雨・聖どちらも「老人にもらえる」と
+    // 要約しているが、pidlio の実画面マップ(05-01/10-01)には老人の隣に宝箱が写っている。
+    // 雨は老人の左、聖は老人の右。文章だけ見て「もらう」に変えないこと
     // ガライの墓（pidlio.com の「ガライの墓で入手できるアイテム」より）
     'g': () => ({ gold: 5 + Math.floor(Math.random() * 16) }),
     'k': () => ({ item: 'のろいのベルト', flag: 'cursedBelt' }),
@@ -945,10 +955,9 @@ function npcCanStep(d, mapId, x, y, allowTight) {
     }
     if (d.npcAt[x + ',' + y]) return false;
     if (mapId === currentMapId && playerPosition.x === x && playerPosition.y === y) return false;
-    // 立ってよいマス（通り道を分断しないマス）だけ。
-    // 以前は「勇者がとなりに来たら狭いマスへも どく」としていたが、
-    // それで入った先が行き止まりだと二度と出られず、ガライの町の階段前の
-    // 一本道で勇者を永久にふさいでいた。重なりを解くときだけ狭いマスも許す
+    // ふだんは「通り道を分断しないマス（level 2）」にしか立たない。
+    // allowTight のときだけ level 1（通り道を分断するが行き止まりではないマス）も許す。
+    // level 0（行き止まり）はどんなときも入れない。入ると出られなくなるため
     if (npcStandLevel(d, x, y) < (allowTight ? 1 : 2)) return false;
     return true;
 }
@@ -985,16 +994,26 @@ function stepTownNpcs() {
         n.wait = NPC_STEP_MIN + Math.floor(Math.random() * (NPC_STEP_MAX - NPC_STEP_MIN));
         const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]].sort(() => Math.random() - 0.5);
         // 勇者がすぐ隣にいるなら、その人は道をふさいでいる可能性が高い。
-        // うろつく範囲も「広い場所だけ」の決まりも外して、とにかく どく
+        // うろつく範囲も「広い場所だけ」の決まりも外して、とにかく どく。
+        // 今いるマスが狭い（通り道を分断する）ときも同じ。ここを許さないと、
+        // どいた先の狭いマスから二度と出られず、一本道で勇者を永久にふさぐ
+        // ——マイラの北の小道(9,2)で実際に起きた
+        const tight = npcStandLevel(d, n.x, n.y) < 2;
         const blocking = Math.abs(n.x - playerPosition.x) + Math.abs(n.y - playerPosition.y) === 1;
         const near = [], far = [];
         for (const [dx, dy] of dirs) {
             const nx = n.x + dx, ny = n.y + dy;
-            if (!npcCanStep(d, currentMapId, nx, ny, false)) continue;
+            if (!npcCanStep(d, currentMapId, nx, ny, tight || blocking)) continue;
             if (Math.abs(nx - n.home.x) > NPC_ROAM || Math.abs(ny - n.home.y) > NPC_ROAM) far.push([nx, ny]);
             else near.push([nx, ny]);
         }
-        const pick = near.length ? near[0] : (blocking && far.length ? far[0] : null);
+        // 狭いマスにいるときは、広いマスへ抜けられる向きを先に選ぶ
+        if (tight) {
+            const wide = c => npcStandLevel(d, c[0], c[1]) === 2 ? 1 : 0;
+            near.sort((a, b) => wide(b) - wide(a));
+            far.sort((a, b) => wide(b) - wide(a));
+        }
+        const pick = near.length ? near[0] : ((tight || blocking) && far.length ? far[0] : null);
         if (!pick) continue;
         const [nx, ny] = pick;
         delete d.npcAt[n.x + ',' + n.y];

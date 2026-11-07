@@ -509,7 +509,13 @@ async function stayInn(price) {
     player.gold -= price;
     player.hp = player.maxHp;
     player.mp = player.maxMp;
-    await showMessage(['やどや「おはようございます', '　　　　よい たびを！」', 'HPとMPが かいふくした！']);
+    // 本家どおり、ローラ姫を連れたまま泊まると朝のセリフが変わる
+    // （pidlio のシナリオ攻略「ローラ王女の救出」03）。文面はこちらの創作
+    if (getGameFlag('roraRescued') && !getGameFlag('roraLove'))
+        await showMessage(['やどや「おはようございます', '　　　　…ゆうべは ごゆっくり',
+                           '　　　　できましたかな」', 'HPとMPが かいふくした！']);
+    else
+        await showMessage(['やどや「おはようございます', '　　　　よい たびを！」', 'HPとMPが かいふくした！']);
 }
 
 // 所持数の増減をまとめて扱う（りゅうのうろこは身に付ける装飾なので個数を持たない）
@@ -2031,7 +2037,7 @@ const TOWN_INSIDE = {
     melkido:  { entrance: '81,108', map: 'melkido',  inn: { x: 8,  y: 5  },
                 // 鍵屋と「ほのおのつるぎ・みかがみのたて」の武器屋は(26,9)のとびらの奥
                 doors: [{ door: { x: 26, y: 9 }, at: { x: 25, y: 9 } }],
-                shops: [{ x: 4,  y: 7  }, { x: 5,  y: 12 }, { x: 20, y: 13 }, { x: 27, y: 8  },
+                shops: [{ x: 4,  y: 7  }, { x: 5,  y: 12 }, { x: 22, y: 24 }, { x: 27, y: 8  },
                         { x: 20, y: 5  }, { x: 25, y: 26 }, { x: 26, y: 12 }] }
 };
 function townStartPos(e) {
@@ -2153,6 +2159,13 @@ function errandLevelNeeded(kind) {
         const d = DUNGEONS[t.map];
         if (!d || d.zone === undefined || d.noEncounter) continue;
         need = Math.max(need, levelForZone(d.zone));
+    }
+    // 行き先の中だけでなく、そこまでの地上も見る。町やほこらは noEncounter なので
+    // 中を見るだけだと必要レベルが 0 になり、Lv1 のままリムルダールへ歩き出して
+    // 道中で死に続ける——という止まらない輪に入っていた（約2回に1回の割合で再現）
+    if (e.entrance) {
+        const [ex, ey] = e.entrance.split(',').map(Number);
+        need = Math.max(need, levelForZone(zoneAt(ex, ey)));
     }
     return need;
 }
