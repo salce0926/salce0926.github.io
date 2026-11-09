@@ -980,8 +980,8 @@ function applyPoison(x, y) {
     (async () => {
         await showMessage([`${player.name}は どくの ぬまちで`, 'たおれてしまった...']);
         const lost = playerKilled();
-        await showMessage([`王様「おお ${player.name}！`,
-            '　　　しんでしまうとは なにごとだ！」',
+        await showMessage([`おうさま「おお ${player.name}！`,
+            '　　　　　しんでしまうとは なにごとだ！」',
             lost > 0 ? `ゴールドを ${lost} おとしてしまった...` : '',
             `のこりの もちきんは ${player.gold}G`]);
         currentState = STATE.FIELD;

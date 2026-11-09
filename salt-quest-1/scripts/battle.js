@@ -391,8 +391,8 @@ async function executeEnemyTurn() {
         // （ドラゴンクエスト大辞典【あなたは　しにました】）
         await showMessage(['あなたは しにました']);
         const lost = playerKilled();
-        await showMessage([`王様「おお ${player.name}！`,
-            '　　　しんでしまうとは なにごとだ！」',
+        await showMessage([`おうさま「おお ${player.name}！`,
+            '　　　　　しんでしまうとは なにごとだ！」',
             lost > 0 ? `ゴールドを ${lost} おとしてしまった...` : '',
             `のこりの もちきんは ${player.gold}G`]);
         endBattle('lose');
