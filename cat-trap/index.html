@@ -463,16 +463,23 @@ function pruneSteps(initial, br, seed, steps, avoid) {
 const padded = (initial, br, seed, steps) =>
   steps.some((_, i) => replaySteps(initial, br, seed, steps.filter((_, j) => j !== i).map(s => s.wall)));
 // avoid を渡すと、その壁の組み合わせと同じ勝ち方は飛ばして別の手順を探す
-async function solve(initial, br, seed, deadline, maxDepth = 40, onDepth = null, avoid = null) {
+async function solve(initial, br, seed, deadline, maxDepth = 40, onDepth = null, avoid = null, bw = null, memo = null) {
   // つよいネコは1手が重いので、候補を絞って探す
-  const [BEAM, WIDTH] = br === 'strong' ? [3, 10] : [4, 20];
+  const [BEAM, WIDTH] = bw || (br === 'strong' ? [3, 10] : [4, 20]);
   let beam = [{ wa: toArr(initial), c: key(5, 5), seq: [] }];
   for (let depth = 0; depth < maxDepth && beam.length; depth++) {
     if (performance.now() > deadline) return null;
     if (onDepth) onDepth(depth + 1);
     await new Promise(r => setTimeout(r, 0));   // 画面を止めない
     const next = [], seen = new Set();
+    let lastYield = performance.now();
     for (const st of beam) {
+      // 候補を広げると1手ぶんの計算も長くなるので、こまめに画面へ返し、時間切れも確かめる
+      if (performance.now() - lastYield > 40) {
+        await new Promise(r => setTimeout(r, 0));
+        if (performance.now() > deadline) return null;
+        lastYield = performance.now();
+      }
       const near = reach(st.wa, st.c);
       const td0 = twoDistArr(st.wa), od0 = oneDistArr(st.wa);
       // 置く候補：ネコから出口への近道の上にあるマスから WIDTH 個
@@ -488,7 +495,10 @@ async function solve(initial, br, seed, deadline, maxDepth = 40, onDepth = null,
           if (avoid !== null && padded(initial, br, seed, p)) continue;
           return p;
         }
-        const n = moveCat(wa, st.c, br, () => stateRandom(seed, st.c));
+        // 広げて探し直すときは、同じ局面のネコの手を覚えておいて使い回す
+        const mk = memo && Array.from(wa).join('') + st.c;
+        let n = memo ? memo.get(mk) : undefined;
+        if (n === undefined) { n = moveCat(wa, st.c, br, () => stateRandom(seed, st.c)); if (memo) memo.set(mk, n); }
         if (n < 0) {
           if (same) continue;
           const p = pruneSteps(initial, br, seed, fin, avoid);
@@ -509,6 +519,25 @@ async function solve(initial, br, seed, deadline, maxDepth = 40, onDepth = null,
     beam = next.slice(0, BEAM);
   }
   return null;
+}
+
+// 狭く探して1つ見つけたら、時間の許す限り候補を広げて、もっと短い手順を探し直す。
+// 最初の1つは hardMs まで粘り、広げる探索は softMs で打ち切って、その時点で一番短いものを返す
+async function solveBest(initial, br, seed, hardMs, softMs, onProgress, avoid = null) {
+  const t0 = performance.now();
+  const plan = br === 'strong' ? [[3, 10], [6, 15], [10, 20], [16, 24]] : [[4, 20], [10, 20], [30, 30], [100, 40]];
+  let best = null;
+  const memo = new Map();
+  for (const bw of plan) {
+    const limit = best ? best.length - 1 : 40;
+    if (limit < 1) break;
+    const deadline = t0 + (best ? softMs : hardMs);
+    if (performance.now() > deadline) break;
+    const s = await solve(initial, br, seed, deadline, limit,
+      n => onProgress(n, best && best.length), avoid, bw, memo);
+    if (s && (!best || s.length < best.length)) best = s;
+  }
+  return best;
 }
 
 /* ---------- 詰め問題 ----------
@@ -1189,8 +1218,8 @@ answerBtn.onclick = async () => {
     const token = gameToken, d = daily;
     busy = true;
     answerBtn.textContent = 'Claudeが考えています…';
-    steps = await solve(initialWalls, brain, gameSeed, performance.now() + (brain === 'strong' ? 60000 : 20000), 40,
-      n => { if (token === gameToken) answerBtn.textContent = `Claudeが考えています…（${n}手目）`; },
+    steps = await solveBest(initialWalls, brain, gameSeed, brain === 'strong' ? 60000 : 20000, 10000,
+      (n, b) => { if (token === gameToken) answerBtn.textContent = b ? `もっと短い手を探しています…（いま${b}手）` : `Claudeが考えています…（${n}手目）`; },
       won && !d ? wallSetKey(log) : null);
     if (token !== gameToken) return;
     busy = false;
