@@ -330,10 +330,10 @@ function mulberry32(a) {
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 }
-function stateRandom(seed, wa, c) {
-  let h = seed ^ (c * 7919);
-  for (let k = 0; k < N * N; k++) if (wa[k]) h = Math.imul(h ^ (k + 1), 2654435761);
-  return mulberry32(h)();
+// ネコの迷い方のくじ。盤ごとの種とネコのいるマスだけで決める。
+// 壁の並びや手数を混ぜると、意味のない壁を1枚はさむだけでくじが引き直しになり、Claudeがそれを悪用してしまう
+function stateRandom(seed, c) {
+  return mulberry32(Math.imul(seed ^ (c * 7919), 2654435761))();
 }
 
 // 次にネコが行くマス。動けなければ -1
@@ -435,6 +435,33 @@ function strongMove(wa, c, rnd) {
    見つかった手順はそのまま「Claudeの解答」になる */
 // 手順の壁の組み合わせ（置く順番は問わない）。同じ置き方かどうかを比べるのに使う
 const wallSetKey = steps => steps.map(s => s.wall).sort((a, b) => a - b).join(',');
+// 壁を順に置いてネコを動かす。閉じ込めたら手順を、逃げられたら null を返す
+function replaySteps(initial, br, seed, ws) {
+  const wa = toArr(initial), steps = [];
+  let c = key(5, 5);
+  for (const w of ws) {
+    if (wa[w] || w === c) return null;
+    wa[w] = 1;
+    if (enclosed(wa, c)) return [...steps, { wall: w, cat: c }];
+    const n = moveCat(wa, c, br, () => stateRandom(seed, c));
+    if (n < 0) return [...steps, { wall: w, cat: c }];
+    if (EDGEK[n]) return null;
+    steps.push({ wall: w, cat: n });
+    c = n;
+  }
+  return null;
+}
+// 抜いても勝てる手（無駄な手）を取り除く。avoid と同じ置き方になる抜き方はしない
+function pruneSteps(initial, br, seed, steps, avoid) {
+  for (let i = 0; i < steps.length; i++) {
+    const t = replaySteps(initial, br, seed, steps.filter((_, j) => j !== i).map(s => s.wall));
+    if (t && (avoid === null || wallSetKey(t) !== avoid)) { steps = t; i = -1; }
+  }
+  return steps;
+}
+// まだ抜ける手が残っている＝あなたの置き方に無駄な1手を足しただけ。別解とは呼ばない
+const padded = (initial, br, seed, steps) =>
+  steps.some((_, i) => replaySteps(initial, br, seed, steps.filter((_, j) => j !== i).map(s => s.wall)));
 // avoid を渡すと、その壁の組み合わせと同じ勝ち方は飛ばして別の手順を探す
 async function solve(initial, br, seed, deadline, maxDepth = 40, onDepth = null, avoid = null) {
   // つよいネコは1手が重いので、候補を絞って探す
@@ -455,9 +482,19 @@ async function solve(initial, br, seed, deadline, maxDepth = 40, onDepth = null,
         const wa = st.wa.slice(); wa[w] = 1;
         const fin = [...st.seq, { wall: w, cat: st.c }];
         const same = avoid !== null && wallSetKey(fin) === avoid;
-        if (enclosed(wa, st.c)) { if (same) continue; return fin; }
-        const n = moveCat(wa, st.c, br, () => stateRandom(seed, wa, st.c));
-        if (n < 0) { if (same) continue; return fin; }
+        if (enclosed(wa, st.c)) {
+          if (same) continue;
+          const p = pruneSteps(initial, br, seed, fin, avoid);
+          if (avoid !== null && padded(initial, br, seed, p)) continue;
+          return p;
+        }
+        const n = moveCat(wa, st.c, br, () => stateRandom(seed, st.c));
+        if (n < 0) {
+          if (same) continue;
+          const p = pruneSteps(initial, br, seed, fin, avoid);
+          if (avoid !== null && padded(initial, br, seed, p)) continue;
+          return p;
+        }
         if (EDGEK[n]) continue;
         const td = twoDistArr(wa), od = oneDistArr(wa);
         const h = Array.from(wa).join('') + n;
@@ -863,7 +900,7 @@ async function startDaily() {
   const date = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
   const label = `${d.getMonth() + 1}月${d.getDate()}日の一問`, short = `${d.getMonth() + 1}/${d.getDate()}`;
   let cached = null;
-  try { cached = JSON.parse(localStorage.getItem('cattrap-daily-puzzle') || 'null'); } catch {}
+  try { cached = JSON.parse(localStorage.getItem('cattrap-daily-puzzle-v2') || 'null'); } catch {}
   if (!cached || cached.date !== date || cached.v !== 2) {
     preparing = true; busy = true;
     setStatus('今日の一問を用意しています…', '');
@@ -878,7 +915,7 @@ async function startDaily() {
     }
     preparing = false; busy = false;
     if (!cached) { setStatus('今日の一問を用意できませんでした。もう一度押してください', 'lose'); return; }
-    try { localStorage.setItem('cattrap-daily-puzzle', JSON.stringify(cached)); } catch {}
+    try { localStorage.setItem('cattrap-daily-puzzle-v2', JSON.stringify(cached)); } catch {}
   }
   daily = { seed: cached.seed, date, label, short, answers: cached.answers };
   tsume = null;
@@ -1007,7 +1044,7 @@ function play(r, c) {
     return;
   }
   timer = setTimeout(() => {
-    const rnd = () => stateRandom(gameSeed, wa, here);
+    const rnd = () => stateRandom(gameSeed, here);
     const next = rc(tsume ? tsumeCatMove(wa, here, PUZZLES[tsume.i].k - moves) : moveCat(wa, here, brain, rnd));
     log.push({ wall: k, cat: key(...next) });
     const from = cat;
@@ -1160,8 +1197,8 @@ answerBtn.onclick = async () => {
     if (d) {
       d.answers[brain] = steps;
       try {
-        const c = JSON.parse(localStorage.getItem('cattrap-daily-puzzle') || 'null');
-        if (c && c.date === d.date) { c.answers[brain] = steps; localStorage.setItem('cattrap-daily-puzzle', JSON.stringify(c)); }
+        const c = JSON.parse(localStorage.getItem('cattrap-daily-puzzle-v2') || 'null');
+        if (c && c.date === d.date) { c.answers[brain] = steps; localStorage.setItem('cattrap-daily-puzzle-v2', JSON.stringify(c)); }
       } catch {}
     } else found = { token, steps };
   }
