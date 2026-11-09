@@ -433,7 +433,10 @@ function strongMove(wa, c, rnd) {
 
 /* 今日の一問を裏で解く。ネコの手は決まっているので、壁の置き方だけを探せばよい。
    見つかった手順はそのまま「Claudeの解答」になる */
-async function solve(initial, br, seed, deadline, maxDepth = 40, onDepth = null) {
+// 手順の壁の組み合わせ（置く順番は問わない）。同じ置き方かどうかを比べるのに使う
+const wallSetKey = steps => steps.map(s => s.wall).sort((a, b) => a - b).join(',');
+// avoid を渡すと、その壁の組み合わせと同じ勝ち方は飛ばして別の手順を探す
+async function solve(initial, br, seed, deadline, maxDepth = 40, onDepth = null, avoid = null) {
   // つよいネコは1手が重いので、候補を絞って探す
   const [BEAM, WIDTH] = br === 'strong' ? [3, 10] : [4, 20];
   let beam = [{ wa: toArr(initial), c: key(5, 5), seq: [] }];
@@ -450,9 +453,11 @@ async function solve(initial, br, seed, deadline, maxDepth = 40, onDepth = null)
         .sort((a, b) => (near.d[a] + od0[a] - near.d[b] - od0[b]) || (td0[a] - td0[b])).slice(0, WIDTH);
       for (const w of cands) {
         const wa = st.wa.slice(); wa[w] = 1;
-        if (enclosed(wa, st.c)) return [...st.seq, { wall: w, cat: st.c }];
+        const fin = [...st.seq, { wall: w, cat: st.c }];
+        const same = avoid !== null && wallSetKey(fin) === avoid;
+        if (enclosed(wa, st.c)) { if (same) continue; return fin; }
         const n = moveCat(wa, st.c, br, () => stateRandom(seed, wa, st.c));
-        if (n < 0) return [...st.seq, { wall: w, cat: st.c }];
+        if (n < 0) { if (same) continue; return fin; }
         if (EDGEK[n]) continue;
         const td = twoDistArr(wa), od = oneDistArr(wa);
         const h = Array.from(wa).join('') + n;
@@ -916,7 +921,7 @@ function showResult(won, improved) {
     return;
   }
   answerBtn.disabled = false;
-  answerBtn.textContent = daily ? 'Claudeの解答' : won ? 'もっと短い手順を探す' : 'Claudeならどうする？';
+  answerBtn.textContent = daily ? 'Claudeの解答' : won ? 'Claudeの別解を見る' : 'Claudeならどうする？';
   const best = loadBest();
   document.getElementById('resMoves').textContent = (daily ? `${daily.label}・${brainName()} ／ ` : '') +
     (won ? `${moves}手` : `${moves}手目で逃げられた`) + (best && !improved ? ` ／ ${daily ? '今日の記録' : '最少記録'} ${best}手` : '') +
@@ -1143,13 +1148,13 @@ answerBtn.onclick = async () => {
   if (daily && brain in daily.answers) steps = daily.answers[brain];
   else if (found && found.token === gameToken) steps = found.steps;
   else {
-    // 押されたときに探す。勝ったときは自分より短い手順だけを探す（見つからなくても、ないとは限らない）
+    // 押されたときに探す。勝ったときは、あなたと違う壁の置き方を1つ探す（短くても長くてもよい）
     const token = gameToken, d = daily;
     busy = true;
     answerBtn.textContent = 'Claudeが考えています…';
-    const limit = won && !d ? moves - 1 : 40;
-    steps = limit > 0 ? await solve(initialWalls, brain, gameSeed, performance.now() + (brain === 'strong' ? 60000 : 20000), limit,
-      n => { if (token === gameToken) answerBtn.textContent = `Claudeが考えています…（${n}手目）`; }) : null;
+    steps = await solve(initialWalls, brain, gameSeed, performance.now() + (brain === 'strong' ? 60000 : 20000), 40,
+      n => { if (token === gameToken) answerBtn.textContent = `Claudeが考えています…（${n}手目）`; },
+      won && !d ? wallSetKey(log) : null);
     if (token !== gameToken) return;
     busy = false;
     if (d) {
@@ -1161,12 +1166,19 @@ answerBtn.onclick = async () => {
     } else found = { token, steps };
   }
   if (!steps) {
-    answerBtn.textContent = won && !daily ? 'これより短い手順は見つかりませんでした' : 'Claudeも勝てませんでした';
+    answerBtn.textContent = won && !daily ? 'Claudeは別の手順を見つけられませんでした' : 'Claudeも勝てませんでした';
     answerBtn.disabled = true;
     return;
   }
-  answerBtn.textContent = won && !daily ? `${steps.length}手の別解を見る` : 'Claudeの解答';
-  openReplay(steps, won && !daily ? `${steps.length}手の別解` : 'Claudeの解答');
+  if (won && !daily) {
+    const diff = moves - steps.length;
+    const note = diff > 0 ? `あなたより${diff}手短い` : diff < 0 ? `あなたより${-diff}手長い` : 'あなたと同じ手数';
+    answerBtn.textContent = `${steps.length}手の別解を見る`;
+    openReplay(steps, `Claudeの別解 ${steps.length}手（${note}）`);
+  } else {
+    answerBtn.textContent = 'Claudeの解答';
+    openReplay(steps, 'Claudeの解答');
+  }
 };
 document.getElementById('prevBtn').onclick = () => { if (replay.i > 0) { replay.i--; showReplayStep(false); } };
 document.getElementById('nextBtn').onclick = () => { if (replay.i < replay.steps.length) { replay.i++; showReplayStep(true); } };
