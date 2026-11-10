@@ -387,13 +387,23 @@ function moveCat(wa, c, br, rnd) {
    行き先ごとに「近くのどこを塞がれたら一番困るか」を全部試し、それでも一番太く残るマスへ進む。
    太さと他の手がかりの配分 STRONG_W は、Claudeと約250局対戦させて決めた（近道の距離を少しだけ混ぜるのが一番だった） */
 const STRONG_W = [0.3, 0, 0, 0];   // [近道の距離, 出口までの距離, 使える広さ, 隣の空きマス] の重み
+const CV = new Float64Array(N * N), CNB = new Int16Array(N * N * 6), CID = new Int16Array(N * N), CCNT = new Uint8Array(N * N);
 function conductance(wa, c, cells) {
   if (!cells.some(k => EDGEK[k])) return 0;
-  const V = new Float64Array(N * N); V[c] = 1;
-  const inner = cells.filter(k => k !== c && !EDGEK[k]);
-  for (let it = 0; it < 60; it++) for (const x of inner) {
-    let s = 0, n = 0;
-    for (const y of NBK[x]) if (!wa[y]) { s += V[y]; n++; }
+  const V = CV; V.fill(0); V[c] = 1;
+  // 空いている隣を先に表にしておく（60回の繰り返しの中で壁かどうかを調べ直さない）
+  let m = 0;
+  for (const x of cells) {
+    if (x === c || EDGEK[x]) continue;
+    let n = 0;
+    for (const y of NBK[x]) if (!wa[y]) CNB[m * 6 + n++] = y;
+    CID[m] = x; CCNT[m++] = n;
+  }
+  for (let it = 0; it < 60; it++) for (let i = 0; i < m; i++) {
+    let s = 0;
+    const base = i * 6, n = CCNT[i];
+    for (let j = 0; j < n; j++) s += V[CNB[base + j]];
+    const x = CID[i];
     V[x] += 1.6 * (s / n - V[x]);
   }
   let I = 0;
@@ -417,6 +427,11 @@ function strongMove(wa, c, rnd) {
   const near = reach(wa, c);
   const blocks = near.cells.filter(k => k !== c && near.d[k] <= 4);
   let best = -1e18, pool = [];
+  // 有望な行き先から調べると、残りを早く見切れる。まず塞がれない場合の太さで並べる
+  const td0 = twoDistArr(wa);
+  const base = new Map(opts.map(n => [n, strongValue(wa, n, td0)]));
+  const order = opts.slice();
+  opts.sort((x, y) => base.get(y) - base.get(x));
   const tds = new Map();   // 塞ぎ方ごとの近道の距離（行き先が変わっても同じなので使い回す）
   for (const n of opts) {
     let worst = 1e18;
@@ -429,7 +444,7 @@ function strongMove(wa, c, rnd) {
       const v = strongValue(wa, n, td);
       wa[b] = 0;
       if (v < worst) worst = v;
-      if (worst <= best) {
+      if (worst < best) {
         // この塞ぎ方は効いたので、次の行き先では最初に試す（早く見切れる）
         blocks.splice(i, 1); blocks.unshift(b);
         break;
@@ -437,6 +452,8 @@ function strongMove(wa, c, rnd) {
     }
     if (worst > best) { best = worst; pool = [n]; } else if (worst === best) pool.push(n);
   }
+  // 本当に同点のものだけを残し、元の並びに戻してからくじで選ぶ（調べる順番で手が変わらないように）
+  pool = order.filter(n => pool.includes(n));
   return pool[Math.floor(rnd() * pool.length)];
 }
 
@@ -515,13 +532,13 @@ async function solve(initial, br, seed, deadline, maxDepth = 40, onDepth = null,
           return p;
         }
         if (EDGEK[n]) continue;
-        const td = twoDistArr(wa), od = oneDistArr(wa);
         const h = Array.from(wa).join('') + n;
         if (seen.has(h)) continue;
         seen.add(h);
-        const room = reach(wa, n).cells.length;
+        // 局面の良さは「逃げ道の細さ」で測る（つよいネコと同じ回路の見方）。
+        // 出口までの距離や広さで測るより、ずっと短い手順が見つかる
         next.push({ wa, c: n, seq: [...st.seq, { wall: w, cat: n }],
-          v: Math.min(td[n], 30) * 1000 + Math.min(od[n], 30) * 40 - room });
+          v: -conductance(wa, n, reach(wa, n).cells) });
       }
     }
     next.sort((a, b) => b.v - a.v);
