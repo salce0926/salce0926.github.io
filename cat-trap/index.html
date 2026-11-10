@@ -356,18 +356,19 @@ function moveCat(wa, c, br, rnd) {
     if (exit !== undefined) return exit;
     const near = reach(wa, c);
     const blocks = near.cells.filter(k => k !== c && near.d[k] <= 4);
-    const score = n => {
-      let worst = -1;
-      for (const b of blocks) {
-        if (b === n) continue;
-        wa[b] = 1;
-        const v = Math.min(twoDistArr(wa)[n], 99) * 1000 + Math.min(oneDistArr(wa)[n], 99);
-        wa[b] = 0;
-        if (v > worst) worst = v;
-      }
-      return worst;
-    };
-    const scored = opts.map(k => [k, score(k)]);
+    // 塞ぎ方ごとの距離は1回だけ計算して、全部の行き先で使い回す
+    const worst = opts.map(() => -1);
+    for (const b of blocks) {
+      wa[b] = 1;
+      const td = twoDistArr(wa), od = oneDistArr(wa);
+      wa[b] = 0;
+      opts.forEach((n, i) => {
+        if (b === n) return;
+        const v = Math.min(td[n], 99) * 1000 + Math.min(od[n], 99);
+        if (v > worst[i]) worst[i] = v;
+      });
+    }
+    const scored = opts.map((k, i) => [k, worst[i]]);
     const best = Math.min(...scored.map(([, v]) => v));
     return pick(scored.filter(([, v]) => v === best).map(([k]) => k));
   }
@@ -399,12 +400,12 @@ function conductance(wa, c, cells) {
   for (const y of NBK[c]) if (!wa[y]) I += 1 - V[y];
   return I;
 }
-function strongValue(wa, n) {
+function strongValue(wa, n, td = null) {
   const r = reach(wa, n), C = conductance(wa, n, r.cells);
   if (C === 0) return -1e9;
   let v = C;
   const [wt, wo, wr, wn] = STRONG_W;
-  if (wt || wo) v -= wt * Math.min(twoDistArr(wa)[n], 20) + wo * Math.min(oneDistArr(wa)[n], 20);
+  if (wt || wo) v -= wt * Math.min((td || twoDistArr(wa))[n], 20) + wo * Math.min(oneDistArr(wa)[n], 20);
   v += wr * Math.min(r.cells.length, 120) / 100;
   v += wn * NBK[n].filter(y => !wa[y]).length;
   return v;
@@ -416,15 +417,23 @@ function strongMove(wa, c, rnd) {
   const near = reach(wa, c);
   const blocks = near.cells.filter(k => k !== c && near.d[k] <= 4);
   let best = -1e18, pool = [];
+  const tds = new Map();   // 塞ぎ方ごとの近道の距離（行き先が変わっても同じなので使い回す）
   for (const n of opts) {
     let worst = 1e18;
-    for (const b of blocks) {
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i];
       if (b === n) continue;
       wa[b] = 1;
-      const v = strongValue(wa, n);
+      let td = tds.get(b);
+      if (!td) tds.set(b, td = twoDistArr(wa));
+      const v = strongValue(wa, n, td);
       wa[b] = 0;
       if (v < worst) worst = v;
-      if (worst <= best) break;
+      if (worst <= best) {
+        // この塞ぎ方は効いたので、次の行き先では最初に試す（早く見切れる）
+        blocks.splice(i, 1); blocks.unshift(b);
+        break;
+      }
     }
     if (worst > best) { best = worst; pool = [n]; } else if (worst === best) pool.push(n);
   }
