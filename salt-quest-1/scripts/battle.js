@@ -11,19 +11,27 @@ const COMBAT_SPELLS = ['ホイミ', 'ギラ', 'ラリホー', 'マホトーン',
 // ダメージ計算（FC版DQ1準拠）
 // 通常攻撃は (こうげき力 － しゅび力÷2) の 1/4〜1/2
 // =====================================================================
+// 本家FC版 ROM の battle_strike_enemy をそのまま写したもの
+// （gitlab.com/segaloco/dq1disasm src/battle.s）
+function rnd8() { return Math.floor(Math.random() * 256); }
 function calcDamage(attack, defense) {
-    const base = attack - Math.floor(defense / 2);
-    const lo = Math.floor(base / 4), hi = Math.floor(base / 2);
-    if (hi <= lo) return Math.max(0, lo);
-    return lo + Math.floor(Math.random() * (hi - lo + 1));
+    const a = attack - (defense >> 1);
+    if (a >= 2) {
+        // ダメージ = ( rand(0〜a) + a ) >> 2 ＝ だいたい a/4 〜 a/2
+        return (Math.floor(rnd8() * (a + 1) / 256) + a) >> 2;
+    }
+    // こうげき力が しゅび力の半分に届かないときは 0 か 1 しか通らない
+    return rnd8() & 1;
 }
 // 敵の攻撃。しゅび力が高いとかすり傷程度しか通らない
+// 本家FC版 ROM の battle_strike_player。しゅび力が高いとこちらの式になる
 function calcEnemyDamage(attack, defense) {
-    const base = attack - Math.floor(defense / 2);
-    if (base < Math.floor(attack / 2) + 1) {
-        return Math.floor(Math.random() * (Math.floor(attack / 2) + 2) / 4);
-    }
-    return calcDamage(attack, defense);
+    const d = defense >> 1;
+    const b = (attack >> 1) + 1;
+    const a = attack - d;
+    if (a >= 0 && a < b) return Math.floor((Math.floor(rnd8() * b / 256) + 2) / 3);
+    if (a >= 2) return (Math.floor(rnd8() * (a + 1) / 256) + a) >> 2;
+    return rnd8() & 1;
 }
 // 会心の一撃は1/32で出て、しゅび力を無視して攻撃力の約50〜100%
 function calcCritical(attack) {
@@ -116,7 +124,9 @@ async function executeBattleTurnInner() {
             await executeEnemyTurn();
             return;
         }
-        const critical = !enemy.noCritical && Math.floor(Math.random() * 32) === 0;
+        // 本家ROM: りゅうおうは1体目も2体目も会心の一撃の対象外
+        const critical = !enemy.noCritical && enemy.name !== 'りゅうおう'
+                         && Math.floor(Math.random() * 32) === 0;
         const damage = critical ? calcCritical(player.attack) : calcDamage(player.attack, enemy.defense);
         enemy.hp -= damage;
         if (damage > 0) enemyFlash = FLASH_FRAMES;

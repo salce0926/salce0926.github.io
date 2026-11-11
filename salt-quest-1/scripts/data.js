@@ -143,7 +143,7 @@ const enemyTable = [
     { name: 'だいまどう',     hp: 65,  maxHp: 65,  attack: 80,  defense: 70,  agility: 70,  evasion: 2,  exp: 50,  gold: 165, sprite: { x: 82,  y: 105, w: 36, h: 37 }, hit: { x: 158, y: 105, w: 36, h: 37 }, resist: { rariho: 15, mahoton: 7, gira: 15 }, escapeRank: 2, acts: { attack: { spell: 'begirama', p: 2/4 } } },
     // --- さそり系 ---
     { name: 'おおさそり',     hp: 20,  maxHp: 20,  attack: 18,  defense: 16,  agility: 16,  evasion: 1,  exp: 6,   gold: 16,  sprite: { x: 6,   y: 145, w: 41, h: 32 }, hit: { x: 135, y: 145, w: 41, h: 32 }, resist: { rariho: 0, mahoton: 15, gira: 0 } },
-    { name: 'てつさそり',     hp: 22,  maxHp: 22,  attack: 36,  defense: 42,  agility: 42,  evasion: 2,  exp: 14,  gold: 40,  sprite: { x: 49,  y: 145, w: 41, h: 32 }, hit: { x: 135, y: 145, w: 41, h: 32 }, resist: { rariho: 0, mahoton: 15, gira: 0 } },
+    { name: 'てつのさそり',     hp: 22,  maxHp: 22,  attack: 36,  defense: 42,  agility: 42,  evasion: 2,  exp: 14,  gold: 40,  sprite: { x: 49,  y: 145, w: 41, h: 32 }, hit: { x: 135, y: 145, w: 41, h: 32 }, resist: { rariho: 0, mahoton: 15, gira: 0 } },
     { name: 'しのさそり',     hp: 35,  maxHp: 35,  attack: 60,  defense: 90,  agility: 90,  evasion: 2,  exp: 26,  gold: 110, sprite: { x: 92,  y: 145, w: 41, h: 32 }, hit: { x: 135, y: 145, w: 41, h: 32 }, resist: { rariho: 7, mahoton: 15, gira: 0 }, escapeRank: 1 },
     // --- メーダ系 ---
     { name: 'メーダ',         hp: 22,  maxHp: 22,  attack: 20,  defense: 18,  agility: 18,  evasion: 2,  exp: 7,   gold: 16,  sprite: { x: 6,   y: 180, w: 36, h: 29 }, hit: { x: 82, y: 180, w: 36, h: 29 }, resist: { rariho: 0, mahoton: 15, gira: 0 } },
@@ -175,7 +175,7 @@ const enemyTable = [
     // --- ドラゴン系 ---
     { name: 'ドラゴン',       hp: 65,  maxHp: 65,  attack: 88,  defense: 74,  agility: 74,  evasion: 2,  exp: 45,  gold: 160, sprite: { x: 6,   y: 507, w: 47, h: 38 }, hit: { x: 179, y: 507, w: 47, h: 38 }, resist: { rariho: 7, mahoton: 15, gira: 2 }, escapeRank: 1, acts: { attack: { spell: 'fire', p: 1/4 } } },
     { name: 'キースドラゴン', hp: 70,  maxHp: 70,  attack: 98,  defense: 84,  agility: 84,  evasion: 2,  exp: 60,  gold: 150, sprite: { x: 55,  y: 504, w: 60, h: 41 }, hit: { x: 228, y: 504, w: 47, h: 38 }, resist: { rariho: 15, mahoton: 15, gira: 7 }, escapeRank: 2, acts: { attack: { spell: 'fire', p: 1/4 } } },
-    { name: 'ダースドラゴン', hp: 100, maxHp: 100, attack: 120, defense: 90,  agility: 90,  evasion: 2,  exp: 100, gold: 140, sprite: { x: 117, y: 504, w: 60, h: 41 }, hit: { x: 228, y: 504, w: 47, h: 38 }, resist: { rariho: 15, mahoton: 7, gira: 15 }, escapeRank: 3, acts: { support: { spell: 'rarihoo', p: 1/4 }, attack: { spell: 'fire', p: 1/4 } } }
+    { name: 'ダースドラゴ', hp: 100, maxHp: 100, attack: 120, defense: 90,  agility: 90,  evasion: 2,  exp: 100, gold: 140, sprite: { x: 117, y: 504, w: 60, h: 41 }, hit: { x: 228, y: 504, w: 47, h: 38 }, resist: { rariho: 15, mahoton: 7, gira: 15 }, escapeRank: 3, acts: { support: { spell: 'rarihoo', p: 1/4 }, attack: { spell: 'fire', p: 1/4 } } }
 ];
 // 名前から引くための索引（ゾーン表を名前で書けるようにする）
 const enemyByName = {};
@@ -219,8 +219,8 @@ const zoneEnemyNames = [
     ['ゴースト', 'まほうつかい', 'メイジドラキー', 'メイジドラキー', 'おおさそり'],
     ['ゴースト', 'まほうつかい', 'メイジドラキー', 'おおさそり', 'がいこつ'],
     ['メイジドラキー', 'おおさそり', 'がいこつ', 'まどうし', 'リカント'],
-    ['がいこつ', 'まどうし', 'てつさそり', 'リカント', 'リカント'],
-    ['てつさそり', 'しりょう', 'リカントマムル', 'リカントマムル', 'ゴールドマン'],
+    ['がいこつ', 'まどうし', 'てつのさそり', 'リカント', 'リカント'],
+    ['てつのさそり', 'しりょう', 'リカントマムル', 'リカントマムル', 'ゴールドマン'],
     ['しりょう', 'キメラ', 'リカントマムル', 'キメラ', 'ゴールドマン'],
     ['キメラ', 'しのさそり', 'しりょうのきし', 'よろいのきし', 'かげのきし'],
     ['しりょうのきし', 'よろいのきし', 'メイジキメラ', 'かげのきし', 'メタルスライム'],
@@ -230,7 +230,7 @@ const zoneEnemyNames = [
     ['ヘルゴースト', 'リカントマムル', 'メーダロード', 'ドロルメイジ', 'しりょうのきし'],
     ['キラーリカント', 'ドラゴン', 'スターキメラ', 'だいまどう', 'あくまのきし'],
     ['だいまどう', 'あくまのきし', 'キースドラゴン', 'キースドラゴン', 'ストーンマン'],
-    ['だいまどう', 'ストーンマン', 'しにがみのきし', 'しにがみのきし', 'ダースドラゴン'],
+    ['だいまどう', 'ストーンマン', 'しにがみのきし', 'しにがみのきし', 'ダースドラゴ'],
     ['ゴースト', 'まほうつかい', 'おおさそり', 'メーダ', 'メーダ']
 ];
 const zoneEnemySets = zoneEnemyNames.map(names => names.map(n => enemyByName[n]));

@@ -57,29 +57,29 @@ async function openChestHere() {
     }
     if (got.gold) {
         player.gold = Math.min(65535, player.gold + got.gold);
-        await showMessage(['たからばこを あけた！', `${got.gold} ゴールドを てにいれた！`]);
+        await showMessage([`${player.name}は ${got.gold}ゴールドを`, '　てにいれた。']);
     } else if (got.tool) {
         const max = got.tool === 'herb' ? HERB_MAX : ITEM_MAX;
-        if (player[got.tool] >= max) await showMessage(['たからばこを あけた！', `しかし ${got.name}は もう もてない`]);
+        if (player[got.tool] >= max) await showMessage([`${got.name}は それいじょう`, '　もてませんが…']);
         else {
             player[got.tool]++;
-            await showMessage(['たからばこを あけた！', `${got.name}を てにいれた！`]);
+            await showMessage([`${player.name}は ${got.name}を`, '　みつけた。']);
         }
     } else if (got.weapon) {
         const idx = weapons.findIndex(w => w.name === got.weapon);
-        if (player.weaponIndex >= idx) await showMessage(['たからばこを あけた！', 'しかし からっぽだった']);
+        if (player.weaponIndex >= idx) await showMessage(['なかは からっぽだった。']);
         else {
             setGameFlag(got.flag);
             player.weaponIndex = idx; recalcPlayerPower();
-            await showMessage(['たからばこを あけた！', `${got.weapon}を てにいれた！`,
-                               `こうげき力が ${player.attack}に なった！`]);
+            await showMessage([`${player.name}は ${got.weapon}を`, '　みつけた。',
+                               `こうげきカが ${player.attack}に なった！`]);
         }
     } else {
-        if (getGameFlag(got.flag)) await showMessage(['たからばこを あけた！', 'しかし からっぽだった']);
+        if (getGameFlag(got.flag)) await showMessage(['なかは からっぽだった。']);
         else {
             setGameFlag(got.flag); addItemToPlayer(got.item);
             updatePlayerItems();      // 引きかえに渡したもの（ぎんのたてごと等）を手放す
-            await showMessage(['たからばこを あけた！', `${got.item}を てにいれた！`]);
+            await showMessage([`${player.name}は ${got.item}を`, '　みつけた。']);
         }
     }
     currentState = STATE.FIELD;
@@ -121,7 +121,7 @@ const TOWN_EVENTS = {
             setGameFlag('rotoArmor');
             player.armorIndex = armors.findIndex(a => a.name === 'ロトのよろい');
             recalcPlayerPower();
-            await showMessage(['じめんを しらべた', 'ロトのよろいを 手に入れた！', `しゅび力が ${player.defense}に なった！`]);
+            await showMessage([`${player.name}は じぶんのあしもとを しらべた。`, 'ロトのよろいを てにいれた。', `しゅびカが ${player.defense}に なった！`]);
         } else if (result === 'flee') {
             await showMessage(['にげだしたが よろいは', 'あくまのきしが まもったままだ...']);
         }
@@ -133,7 +133,7 @@ const TOWN_EVENTS = {
         } else {
             setGameFlag('fairyFlute'); addItemToPlayer('ようせいのふえ');
             await showMessage(['じめんを しらべた', 'なにか うまっている！']);
-            await showMessage(['ようせいの ふえを てにいれた！']);
+            await showMessage(['ようせいのふえを てにいれた。']);
         }
         currentState = STATE.FIELD;
     }
@@ -146,9 +146,9 @@ async function talkToNpc(npc) {
         const [town, kind] = npc.shop.includes(':') ? npc.shop.split(':') : ['radatome', npc.shop];
         const shop = townShops[town] || townShops.radatome;
         // 店のことばは本家FC版の文面（xgamemania.com/dq/1/voice_fc.html）。
-        // どうぐやの「いらっしゃまいせ」は本家そのままの誤植なので直さないこと
+        // 文面はFC版ROMの逆アセンブル(gitlab.com/segaloco/dq1disasm の data/strings)で確認済み
         if (kind === 'weapons')     { await showMessage(['ぶきや「ここは ぶきとよろいの みせだ。', '　　　　なにか かうかね？」']); await shopWeapons(shop); }
-        else if (kind === 'tools')  { await showMessage(['どうぐや「いらっしゃまいせ。', '　　　　　ここは どうぐや です。', '　　　　　どんな ごようでしょうか？」']); await shopTools(shop.tools.filter(k => k !== 'water' && k !== 'key'), shop); }
+        else if (kind === 'tools')  { await showMessage(['どうぐや「いらっしゃいませ。', '　　　　　ここは どうぐや です。', '　　　　　どんな ごようでしょうか？」']); await shopTools(shop.tools.filter(k => k !== 'water' && k !== 'key'), shop); }
         else if (kind === 'water')  { await showMessage(['せいすいや「まものよけの せいすいは', '　　　　　　いかがでしょう？ ひとびん', `　　　　　　${toolGoods.water.price}ゴールドですが。」`]); await shopTools(['water'], shop); }
         else if (kind === 'key')    { await showMessage(['かぎや「どんなとびらも あけてしまう', '　　　　まほうの かぎは いらんかな？', `　　　　ひとつ ${shop.keyPrice}ゴールドでどうじゃ？」`]); await shopTools(['key'], shop); }
         else if (kind === 'inn')    { await stayInn(shop.inn); }
@@ -157,13 +157,12 @@ async function talkToNpc(npc) {
     }
     if (npc.cure) {
         if (getGameFlag('cursed')) {
-            await showMessage(['ろうじん「おお なんという のろいじゃ！」']);
-            await showMessage(['ろうじん「わしが といてしんぜよう」']);
+            await showMessage(['ろうじん「のろいをといて しんぜよう。」']);
             clearGameFlag('cursed');
             if (getGameFlag('deathNecklace')) setGameFlag('necklaceGone');
             updatePlayerItems();
-            await showMessage(['のろいが とけた！', 'のろいの しなは きえてしまった...']);
-        } else await showMessage(['ろうじん「のろわれた ものが おれば', '　　　　　いつでも つれてきなさい」']);
+            await showMessage(['ろうじん「さあ ゆくがよい。」']);
+        } else await showMessage(['ろうじん「もし そなたが のろわれたなら', '　　　　　ここに くるがよい。」']);
     }
     else if (npc.lightBe) {
         // 本家: 入口の東のカウンターの老人。「ひかりあれ」でMPを全快してくれる
@@ -203,7 +202,7 @@ async function talkToNpc(npc) {
         const result = await startBattle(dragonLordHuman);
         if (result === 'win') {
             setGameFlag('lightBall');
-            await showMessage(['りゅうおうを たおした！', 'ひかりのたまを 手に入れた！']);
+            await showMessage(['りゅうおうを たおした！', 'ひかりのたまを てにいれた。']);
             await showMessage(['せかいに ひかりが もどった！']);
             // 本家: 倒すと城の外へ自動で脱出する
             leaveDungeon(56, 56);
@@ -237,9 +236,8 @@ async function talkToNpc(npc) {
             await showMessage(['ろうじん「そなたが まことの ゆうしゃか', '　　　　　どうか ためさせてほしい。」']);
             await showMessage(['ろうじん「このちの どこかに まものたちを',
                                '　　　　　よびよせる ぎんのたてごとが', '　　　　　あるときく。」']);
-            // 「さすげよう」は出典の表記のまま（FC版の誤植かサイトの写し違いかは未確認）
             await showMessage(['ろうじん「それを もちかえったとき そなたを',
-                               '　　　　　ゆうしゃと みとめ', '　　　　　あまぐものつえを さすげよう。」']);
+                               '　　　　　ゆうしゃと みとめ', '　　　　　あまぐものつえを さずけよう。」']);
         }
         else {
             await showMessage([`ろうじん「おお ${player.name}！ たてごとを`, `　　　　　もってきたな！」`]);
@@ -261,8 +259,12 @@ async function talkToNpc(npc) {
             await showMessage(['ろうじん「ロトの ちをひくものよ。 いまこそ',
                                '　　　　　あめと たいようが', '　　　　　あわさるときじゃ！」']);
             await showMessage(['ろうじん「そなたに にじのしずくを', '　　　　　あたえよう！」']);
-            hiddenNpcs.add(currentMapId + ':' + npc.x + ',' + npc.y);
-            await showMessage(['ろうじんは すがたを けした']);
+            // 本家ROM($6D)は、ここで たいようのいし と あまぐものつえ を取り上げて
+            // にじのしずく をくれる。宝箱は無い（聖なるほこらは tbl_treasures に無い）
+            clearGameFlag('sunStone'); clearGameFlag('rainCloudStuff');
+            deleteItemFromPlayer('たいようのいし'); deleteItemFromPlayer('あまぐものつえ');
+            setGameFlag('rainbowDrop'); addItemToPlayer('にじのしずく');
+            updatePlayerItems();
         }
     }
     // メルキドの神殿の長老。本家はこの人が ロトのしるし の在りかを教える。
@@ -280,8 +282,10 @@ async function talkToNpc(npc) {
         }
     }
     else if (npc.king) { await talkToKing(); }
-    // 本家どおり「はい／いいえ」で返事が変わる人。名前を呼ぶ人は関数で受ける
-    else if (npc.ask) {
+    else if (npc.lora) { await talkToLora(); }
+    // 本家どおり「はい／いいえ」で返事が変わる人。名前を呼ぶ人は関数で受ける。
+    // 関数が null を返したときは ask をやめて lines を出す（姫を助けたあと等）
+    else if (npc.ask && (typeof npc.ask === 'function' ? npc.ask() : npc.ask)) {
         const a = typeof npc.ask === 'function' ? npc.ask() : npc.ask;
         const yes = await askYesNo(a.q);
         for (const screen of (yes ? a.yes : a.no)) await showMessage(screen);
@@ -296,18 +300,49 @@ async function talkToNpc(npc) {
     currentState = STATE.FIELD;
 }
 
+// 玉座の間の ローラ姫（本家ROMの会話ID $6F）。
+// rand&$60 が 0 なら str_0BB、$60 なら str_0BD、それ以外は
+// 「おもってくださいますか？」を いいえ のあいだ繰り返す
+async function talkToLora() {
+    const r = Math.floor(Math.random() * 4);
+    if (r === 0) {
+        await showMessage(['ローラ「ああ！ たとえ はなれて', '　　　　いても ローラは いつも', '　　　　あなたと ともに あります。」']);
+    } else if (r === 3) {
+        await showMessage([`ローラ「${player.name}さまを ローラは`, '　　　　おしたい もうしております。」']);
+    } else {
+        while (!await askYesNo([`ローラ「${player.name}さまは ローラのこと`, '　　　　を おもってくださいますか？」']))
+            await showMessage(['ローラ「そんな ひどい……。」']);
+        await showMessage(['ローラ「うれしゅうございます。 ぽっ」']);
+    }
+    currentState = STATE.FIELD;
+}
+
 // 玉座の間の王様。本家どおり、冒険の目的を聞き、ふっかつのじゅもんを教えてくれる
 async function talkToKing() {
     if (getGameFlag('cursed')) {
-        await showMessage(['おうさま「のろわれし ものよ', '　　　　　わしに ちかよるでない！」']);
-        await showMessage(['（ラダトームの まちで のろいを', '　といて もらうしか なさそうだ）']);
+        await showMessage(['おうさま「のろわれしものよ、でてゆけっ！」']);
         return;
     }
     if (getGameFlag('lightBall')) {
-        await showMessage(['王様「勇者よ！', '　　　よくぞ りゅうおうを 倒してくれた！', '　　　わしに代わって この国を 治めよ」']);
-        await showMessage(['しかし あなたは いいました（←！？）']);
-        await showMessage(['勇者「自分の治める国があるなら', '　　　それは自分で探したいのです」']);
-        await showMessage(['ローラ姫「私も連れて行ってください！」', 'ローラ姫は 返事も聞かずに隣に立った！']);
+        // 本家FC版のエンディング。ROMの str_11B〜str_11D をそのまま
+        // （出典: gitlab.com/segaloco/dq1disasm data/strings/strings.j2）
+        await showMessage([`おうさま「おお！ ${player.name}！`,
+                           '　　　　　すべては ふるい いいつたえの', '　　　　　ままで あった！」']);
+        await showMessage(['おうさま「すなわち そなたこそは',
+                           '　　　　　ゆうしゃロトの ちをひくもの！」']);
+        await showMessage(['おうさま「そなたこそ このせかいを',
+                           '　　　　　おさめるに ふさわしい おかた', '　　　　　なのじゃ！」']);
+        await showMessage(['おうさま「わしに かわって',
+                           '　　　　　このくにを おさめてくれるな？」']);
+        await showMessage([`しかし ${player.name}は いいました。`]);
+        await showMessage([`${player.name}「いいえ。 わたしの おさめる`,
+                           '　　　　くにが あるなら それは', '　　　　わたしじしんで さがしたいのです」']);
+        // 本家はローラを救出していたときだけ 姫がついてくる
+        if (getGameFlag('roraLove') || getGameFlag('roraRescued')) {
+            await showMessage(['ローラ「まってくださいませ！」']);
+            await showMessage(['ローラ「その あなたの たびに',
+                               '　　　　ローラも', '　　　　おともしとうございます。」']);
+        }
         await showMessage(['～THE END～']);
         return;
     }
@@ -321,7 +356,7 @@ async function talkToKing() {
                            `　　　　${player.name}さまに おくりものを`, `　　　　しとうございます。」`]);
         await showMessage([`ローラ「${player.name}さまを あいする`,
                            `　　　　わたしの こころ。 どうか`, `　　　　うけとってくださいませ。」`]);
-        await showMessage(['おうじょのあいを 手に入れた！']);
+        await showMessage(['おうじょのあいを てにいれた。']);
         await showMessage(['ローラ「ああ！ たとえ はなれていても',
                            '　　　　ローラは いつも あなたと ともに', '　　　　あります。」']);
         await showMessage([`ローラ「では ${player.name}さま……」`]);
@@ -343,8 +378,7 @@ async function talkToKing() {
                            '　　　　　そなたのよこにある', '　　　　　たからのはこを とるがよい！」']);
         await showMessage(['おうさま「そして このへやにいる',
                            '　　　　　へいしにきけば たびのちしきを', '　　　　　おしえてくれよう。」']);
-        await showMessage([`おうさま「たびのしたくが できたなら また`,
-                           `　　　　　わしに あいにくるがよい`, `　　　　　まっておるぞ ${player.name}よ！」`]);
+        await showMessage([`おうさま「では また あおう！ ゆうしゃ`, `　　　　　${player.name}よ！」`]);
         return;
     }
     await showMessage([`おうさま「おお ${player.name}！ よくぞ ぶじで`,
@@ -398,9 +432,9 @@ async function rescueRora() {
             await showMessage(['ローラ「うれしゅうございます。 ぽっ」']);
         else
             await showMessage(['ローラ「そんな ひどい……。」']);
-        await showMessage(['ローラ姫を だきかかえた！', 'ラダトームの しろへ つれて かえろう']);
+        await showMessage(['あなたは ひめを だきかかえた。']);
     } else {
-        await showMessage(['ローラ「はやく しろへ…」']);
+        await showMessage(['ローラ「わたしを おしろまで', '　　　　つれてかえってくれますね？」']);
     }
     currentState = STATE.FIELD;
 }
@@ -426,17 +460,16 @@ async function interactField() {
     if (isVisit(gameFlags.golemKilled.location.x, gameFlags.golemKilled.location.y)) {
         if(!getGameFlag('golemKilled')){
             if(!getGameFlag('fairyFlute')){
-                await showMessage(['ゴーレムが現れた！', '動きを止めないと勝ち目がない...！', 'しんでしまった...']);
+                await showMessage(['ゴーレムが あらわれた！', 'しんでしまった...']);
                 playerKilled();
             }else{
                 // 本家: 笛は眠らせるだけ。そのあと自分で倒す
-                await showMessage(['ゴーレムが たちはだかった！', 'ようせいのふえを ふいた！']);
+                await showMessage(['ゴーレムが あらわれた！', `${player.name}は ようせいのふえを つかった！`, 'ゴーレムは しずかに めをとじる…', 'ねむってしまった！']);
                 const golem = { ...enemyTable.find(e => e.name === 'ゴーレム'), noFlee: true, asleep: 99 };
                 const result = await startBattle(golem);
                 if (result === 'win') {
                     setGameFlag('golemKilled');
                     await showMessage(['ゴーレムを たおした！']);
-                    await showMessage(['ゴーレムが守っていた町', 'メルキドに 入ることができた！']);
                 } else if (result === 'flee') {
                     await showMessage(['にげだしたが メルキドへは', 'はいれないままだ...']);
                 }
@@ -444,20 +477,16 @@ async function interactField() {
         }
         // 倒したあとは stairsHere が先に効いて町へ入る
     } else if (isVisit(gameFlags.golemKilled.location.x, gameFlags.golemKilled.location.y + 2)) {
-        if(!getGameFlag('rotoEmblem')){
-            const dx = gameFlags.rotoEmblem.location.x - gameFlags.sunStone.location.x;
-            const dy = gameFlags.rotoEmblem.location.y - gameFlags.sunStone.location.y;
-            // 本家の長老と同じ言い回し（メルキドの神殿の長老も同じことを言う）
-            await showMessage(['ろうじん「ラダトームの おしろまで',
-                               `　　　　　きたに${dy} にしに${dx}の`, '　　　　　そのばしょを！」']);
-        }else{
-            await showMessage(['老人「てか おうじょのあい 重くない？」']);
-            await showMessage(['老人「もちろん 物理的な 話なんだけど」']);
-        }
+        const dx = gameFlags.rotoEmblem.location.x - gameFlags.sunStone.location.x;
+        const dy = gameFlags.rotoEmblem.location.y - gameFlags.sunStone.location.y;
+        // 本家の長老と同じ言い回し（メルキドの神殿の長老も同じことを言う）。
+        // 本家はしるしを取ったあとも同じことを言うので、条件で分けない
+        await showMessage(['ろうじん「ラダトームの おしろまで',
+                           `　　　　　きたに${dy} にしに${dx}の`, '　　　　　そのばしょを！」']);
     } else if (isVisit(gameFlags.rotoEmblem.location.x, gameFlags.rotoEmblem.location.y)) {
         if(!getGameFlag('rotoEmblem')){
             setGameFlag('rotoEmblem'); addItemToPlayer('ロトのしるし');
-            await showMessage(['ロトのしるしを手に入れた！']);
+            await showMessage(['ロトのしるしを てにいれた。']);
         }
     } else if (isVisit(gameFlags.rainbowBridge.location.x, gameFlags.rainbowBridge.location.y)) {
         if(!getGameFlag('rainbowBridge') && getGameFlag('rainbowDrop')){
@@ -465,9 +494,8 @@ async function interactField() {
             if (typeof mapData !== 'undefined' && mapData[gameFlags.rainbowBridge.location.y]) {
                 mapData[gameFlags.rainbowBridge.location.y][gameFlags.rainbowBridge.location.x-1] = 35;
             }
-            await showMessage(['虹のしずくを使った！']);
+            await showMessage([`${player.name}は にじのしずくを`, '　てんに かざした。']);
             deleteItemFromPlayer('にじのしずく');
-            await showMessage(['虹の橋が架かった！']);
         }
     } else {
         handled = false;
@@ -534,7 +562,6 @@ async function badEnding() {
 }
 
 async function offerRecord() {
-    if (!await askYesNo(['おうさま「そなたの ぼうけんを', '　　　　　きろくして おくかね？」'])) return;
     calcFlagsToCode();
     await showMessage(['おうさま「そなたに ふっかつの じゅもんを', '　　　　　おしえよう！」']);
     await showMessage(['ふっかつのじゅもん',
@@ -544,7 +571,7 @@ async function offerRecord() {
     rememberPass(pass);          // この端末で「つづきから」入力できるように控える
     const copied = await copyPass(pass);
     await showMessage(['この はしょに ひかえて あります',
-                       copied ? '（コピーしました　メモに はりつけられます）'
+                       copied ? '（コピーしました　メモに はれます）'
                               : '（したの らんを ながおしで コピーできます）',
                        'つぎは タイトルの「ふっかつのじゅもん」で']);
 }
@@ -593,7 +620,7 @@ async function stayInn(price) {
         }
     }
     if (player.gold < price) {
-        await showMessage(['やどや「おきゃくさん おかねが', '　　　　たりないようですが...」']);
+        await showMessage(['やどや「おかねが たりませんが。」']);
         return;
     }
     player.gold -= price;
@@ -604,11 +631,9 @@ async function stayInn(price) {
     // （ドラゴンクエスト大辞典【ゆうべは　おたのしみでしたね。】＝FC版の文面。
     //   ふだんは「ゆうべは　よく　おやすみ　でしたね。」）
     if (getGameFlag('roraRescued') && !getGameFlag('roraLove'))
-        await showMessage(['やどや「おはよう ございます。', '　　　　ゆうべは おたのしみでしたね。」',
-                           'HPとMPが かいふくした！']);
+        await showMessage(['やどや「おはよう ございます。', '　　　　ゆうべは おたのしみでしたね。」']);
     else
-        await showMessage(['やどや「おはよう ございます。', '　　　　ゆうべは よく おやすみでしたね。」',
-                           'HPとMPが かいふくした！']);
+        await showMessage(['やどや「おはよう ございます。', '　　　　ゆうべは よく おやすみ', '　　　　でしたね。」']);
     await showMessage(['やどや「では また どうぞ。」']);
 }
 
@@ -669,15 +694,15 @@ async function shopTools(stock, shop) {
         const max = key === 'herb' ? HERB_MAX : (key === 'scale' ? 1 : ITEM_MAX);
         if (toolCount(key) >= max) {
             if (v.who === 'かぎや') await say('わるいが これいじょう うるわけには いかんな。 では またな');
-            else await showMessage(key === 'scale'
-                ? [`${v.who}「もう みに つけていますよ」`]
-                : [`${v.who}「${goods.name}は ${max}こまでしか`, '　　　　　もてませんよ」']);
+            else await showMessage(key === 'herb'
+                ? [`${v.who}「それいじょう やくそうを`, '　　　　　もてませんが。」']
+                : [`${v.who}「それいじょう もちものを`, '　　　　　もてませんが。」']);
         } else if (player.gold < goods.price) {
             await say(v.poor);
         } else {
             player.gold -= goods.price;
             addTool(key);
-            const left = key === 'scale' ? `しゅび力が ${player.defense}に なった！`
+            const left = key === 'scale' ? `しゅびカが ${player.defense}に なった！`
                                          : `のこり ${player.gold}G　${goods.name} ${toolCount(key)}こ`;
             if (v.who === 'かぎや')         await say('ほれ。 かぎをひとつ わたそう。 まだ かぎを かうかな？', left);
             else if (v.who === 'せいすいや') await say('ありがとうございます。 もう ひとびん かわれますか？', left);
@@ -703,7 +728,7 @@ async function shopWeapons(shop) {
         const nowIndex = pick.kind === 'weapon' ? player.weaponIndex
                        : pick.kind === 'armor' ? player.armorIndex : player.shieldIndex;
         if (nowIndex === pick.index) {
-            await showMessage(['ぶきや「それは もう おもちですよ」']);
+            await showMessage(['ぶきや「それを かうわけには', '　　　　まいりません。」']);
             continue;
         }
         const tradeIn = Math.floor(pick.list[nowIndex].price / 2);
@@ -730,7 +755,7 @@ async function shopWeapons(shop) {
         else player.shieldIndex = pick.index;
         recalcPlayerPower();
         await showMessage([`${goods.name}を そうびした！`,
-            `こうげき力 ${player.attack}　しゅび力 ${player.defense}　のこり ${player.gold}G`]);
+            `こうげきカ ${player.attack}　しゅびカ ${player.defense}　のこり ${player.gold}G`]);
         await showMessage(['ぶきや「どうも ありがとう。', '　　　　ほかに なにか かうかね？」']);
     }
 }
@@ -770,26 +795,26 @@ async function castFieldSpell(spellName) {
     } else if (spellName === 'ルーラ') {
         player.mp -= mpCost;
         // 本家: 洞窟の中では効かない（町は地上あつかい）
-        if (inCave()) await showMessage([`${player.name}は ルーラを となえた！`, 'しかし なにも おこらなかった！']);
+        if (inCave()) await showMessage([`${player.name}は ルーラの`, '　じゅもんを となえた！', 'しかし なにも おきなかった。']);
         else {
             goToThroneRoom();
-            await showMessage([`${player.name}は ルーラを となえた！`, 'ラダトームの城に もどった！']);
+            await showMessage([`${player.name}は ルーラの`, '　じゅもんを となえた！']);
         }
     } else if (spellName === 'レミーラ') {
         player.mp -= mpCost;
         await showMessage([`${player.name}は レミーラを となえた！`]);
         if (inCave()) { radiantSteps = RADIANT_STEPS; await showMessage(['あたりが あかるく なった！']); }
-        else await showMessage(['しかし なにも おこらなかった！']);
+        else await showMessage(['しかし なにも おきなかった。']);
     } else if (spellName === 'リレミト') {
         player.mp -= mpCost;
         await showMessage([`${player.name}は リレミトを となえた！`]);
         if (inCave()) { leaveDungeon(); await showMessage(['どうくつの そとに もどった！']); }
-        else await showMessage(['しかし なにも おこらなかった！']);
+        else await showMessage(['しかし なにも おきなかった。']);
     } else if (spellName === 'トヘロス') {
         player.mp -= mpCost;
         await showMessage([`${player.name}は トヘロスを となえた！`]);
         // 本家: 洞窟の中では効かない。効くのは127歩
-        if (inCave()) await showMessage(['しかし なにも おこらなかった！']);
+        if (inCave()) await showMessage(['しかし なにも おきなかった。']);
         else { repelSteps = 127; await showMessage(['よわい まものが よってこなくなった！']); }
     } else {
         player.mp -= mpCost;
@@ -808,10 +833,9 @@ async function useFieldItem(itemName) {
         // 本家: ダンジョンの中では効かない（つばさは消える）
         player.wing--;
         await showMessage([`${player.name}は キメラのつばさを つかった！`]);
-        if (inCave()) await showMessage(['しかし なにも おこらなかった！']);
+        if (inCave()) await showMessage(['しかし なにも おきなかった。']);
         else {
             goToThroneRoom();
-            await showMessage(['ラダトームの城に もどった！']);
         }
     } else if (itemName === 'たいまつ') {
         // 本家: 一度つければダンジョンを出るまで消えない。周囲1マスを照らす
@@ -835,10 +859,10 @@ async function useFieldItem(itemName) {
         player.water--;
         await showMessage([`${player.name}は せいすいを まいた！`]);
         // 本家: トヘロスと同じく洞窟の中では効かない。効くのは127歩
-        if (inCave()) await showMessage(['しかし なにも おこらなかった！']);
+        if (inCave()) await showMessage(['しかし なにも おきなかった。']);
         else { repelSteps = 127; await showMessage(['よわい まものが よってこなくなった！']); }
     } else if (itemName === 'りゅうのうろこ') {
-        await showMessage(['りゅうのうろこを みに つけている', `しゅび力が 2 あがっている`]);
+        await showMessage([`${player.name}は りゅうのうろこを つかった！`, `しゅびカが 2 あがった！`]);
     } else if (itemName === 'ぎんのたてごと') {
         // 本家: フィールドで奏でると スライム/スライムベス/ドラキー/ゴースト/
         // まほうつかい/おおさそり のどれかがほぼ等確率で必ず出てくる
@@ -858,11 +882,15 @@ async function useFieldItem(itemName) {
         const dx = gameFlags.sunStone.location.x - playerPosition.x;
         const dy = gameFlags.sunStone.location.y - playerPosition.y;
         const next = playerStatus.find(p => p.level === player.level + 1);
-        await showMessage(['ローラ「あなたが つぎのレベルに なるまで',
-            next ? `　　あと ${Math.max(0, next.requiredExp - player.exp)} けいけんちが ひつようですわ」`
-                 : '　　　もう これいじょうは ありませんわ」']);
-        await showMessage(['ローラ「ラダトームの しろまで',
-            `　　　${dx > 0 ? '東' : '西'}へ ${Math.abs(dx)}　${dy > 0 ? '南' : '北'}へ ${Math.abs(dy)} ですわ」`]);
+        // 本家FC版: str_0DB（つぎのレベルまで）／str_105（最高レベル）
+        await showMessage(['ローラひめの こえが きこえる。']);
+        if (next) await showMessage(['ローラ「あなたが レベルをあげるには',
+            `　　　　あと ${Math.max(0, next.requiredExp - player.exp)}ポイント`, '　　　　けいけんが ひつようです。」']);
+        else await showMessage(['ローラ「あなたのレベルは もう',
+            '　　　　さいこうで ございます。」']);
+        await showMessage(['ローラ「わたしのいる おしろは',
+            `　　　　${dy > 0 ? 'みなみに' : 'きたに'}${Math.abs(dy)} ${dx > 0 ? 'ひがしに' : 'にしに'}${Math.abs(dx)}`,
+            '　　　　の ほうこう です。」']);
     } else {
         await showMessage([`${itemName}は ここでは つかえない！`]);
     }
@@ -935,7 +963,7 @@ function drawMenu() {
             const stats = [
                 `　　ちから：　　　${alignRight(player.strength, 3)}`, `　すばやさ：　　　${alignRight(player.agility, 3)}`,
                 `さいだいHP：　　　${alignRight(player.maxHp, 3)}`,   `さいだいMP：　　　${alignRight(player.maxMp, 3)}`,
-                `こうげき力：　　　${alignRight(player.attack, 3)}`,   `　しゅび力：　　　${alignRight(player.defense, 3)}`,
+                `こうげきカ：　　　${alignRight(player.attack, 3)}`,   `　しゅびカ：　　　${alignRight(player.defense, 3)}`,
                 `　ぶき：${alignRightWide(player.weapon, 7)}`, `よろい：${alignRightWide(player.armor, 7)}`, `　たて：${alignRightWide(player.shield, 7)}`
             ];
             drawWindow(displayTileSize * screenWidth - displayTileSize * 8.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 8.5, displayTileSize * 9.5, stats);
@@ -1199,7 +1227,7 @@ const INN_SPOTS = [   // 宿のある町。自動休憩はここへ運んで sta
     { name: 'ガライの町',     x: 10, y: 10, shop: 'garai' },
     { name: 'マイラの村',     x: 112, y: 18, shop: 'maira' },
     { name: 'リムルダールの町', x: 110, y: 80, shop: 'rimuldar' },
-    { name: 'メルキドの町',   x: 81, y: 108, shop: 'melkido' }
+    { name: 'メルキドの町',   x: 81, y: 110, shop: 'melkido' }
 ];
 
 // 幅優先探索で歩ける道をたどる。マップは端がつながっているので modAdd で回り込む。
@@ -1387,7 +1415,7 @@ function nextGearGoal() {
         for (const t of towns) for (const i of (townShops[t][kind] || [])) {
             if (i > idx && list[i].price > 0 && (!best || list[i].price < best.price)) {
                 const town = INN_SPOTS.find(s => s.shop === t)
-                          || { name: 'メルキドの町', x: 81, y: 108, shop: t };
+                          || { name: 'メルキドの町', x: 81, y: 110, shop: t };
                 best = { name: list[i].name, price: list[i].price, town };
             }
         }
@@ -2146,8 +2174,8 @@ const TOWN_ERRANDS = {
     fairyFlute: { entrance: '112,18', targets: [{ map: 'maira', x: 10, y: 7,  act: 'flute' }] },
     rainCloud:  { entrance: '89,9',   targets: [{ map: 'amehoko', x: 7, y: 6, act: 'talk' },
                                                 { map: 'amehoko', x: 5, y: 6, act: 'chest' }] },
-    rainbowDrop:{ entrance: '116,117',targets: [{ map: 'seihoko', x: 5, y: 7, act: 'talk' },
-                                                { map: 'seihoko', x: 7, y: 7, act: 'chest' }] },
+    // 本家は老人が にじのしずく を直接くれる（宝箱は無い）
+    rainbowDrop:{ entrance: '116,117',targets: [{ map: 'seihoko', x: 5, y: 7, act: 'talk' }] },
     // リムルダールは入るだけで「かぎが買える町」と分かる（買い物は地上から）
     magicKey:   { entrance: '110,80', targets: [] },
     rotoArmor:  { entrance: '33,97',  targets: [{ map: 'domdora', x: 19, y: 13, act: 'armor' }] },
@@ -2174,10 +2202,10 @@ const TOWN_INSIDE = {
                 shops: [{ x: 13, y: 22 }, { x: 21, y: 13 }] },
     rimuldar: { entrance: '110,80', map: 'rimuldar', inn: { x: 19, y: 19 },
                 shops: [{ x: 5,  y: 6  }, { x: 24, y: 10 }] },
-    melkido:  { entrance: '81,108', map: 'melkido',  inn: { x: 8,  y: 5  },
+    melkido:  { entrance: '81,110', map: 'melkido',  inn: { x: 8,  y: 5  },
                 // 鍵屋と「ほのおのつるぎ・みかがみのたて」の武器屋は(26,9)のとびらの奥
                 doors: [{ door: { x: 26, y: 9 }, at: { x: 25, y: 9 } }],
-                shops: [{ x: 4,  y: 7  }, { x: 5,  y: 12 }, { x: 22, y: 24 }, { x: 27, y: 8  },
+                shops: [{ x: 4,  y: 7  }, { x: 5,  y: 12 }, { x: 20, y: 13 }, { x: 27, y: 8  },
                         { x: 20, y: 5  }, { x: 25, y: 26 }, { x: 26, y: 12 }] }
 };
 function townStartPos(e) {
