@@ -400,11 +400,8 @@ async function executeEnemyTurn() {
         // 本家FC版の死亡メッセージと、城で生き返ったときの王様のことば
         // （ドラゴンクエスト大辞典【あなたは　しにました】）
         await showMessage(['あなたは しにました']);
-        const lost = playerKilled();
-        await showMessage([`おうさま「おお ${player.name}！`,
-            '　　　　　しんでしまうとは なにごとだ！」',
-            lost > 0 ? `ゴールドを ${lost} おとしてしまった...` : '',
-            `のこりの もちきんは ${player.gold}G`]);
+        playerKilled();
+        await kingRevivalSpeech();
         endBattle('lose');
     } else {
         currentState = STATE.BATTLE;

@@ -464,7 +464,8 @@ async function interactField() {
                 playerKilled();
             }else{
                 // 本家: 笛は眠らせるだけ。そのあと自分で倒す
-                await showMessage(['ゴーレムが あらわれた！', `${player.name}は ようせいのふえを つかった！`, 'ゴーレムは しずかに めをとじる…', 'ねむってしまった！']);
+                await showMessage(['ゴーレムが あらわれた！', `${player.name}は ようせいのふえを つかった！`]);
+                await showMessage(['ゴーレムは しずかに めをとじる…', 'ねむってしまった！']);
                 const golem = { ...enemyTable.find(e => e.name === 'ゴーレム'), noFlee: true, asleep: 99 };
                 const result = await startBattle(golem);
                 if (result === 'win') {
@@ -572,8 +573,9 @@ async function offerRecord() {
     const copied = await copyPass(pass);
     await showMessage(['この はしょに ひかえて あります',
                        copied ? '（コピーしました　メモに はれます）'
-                              : '（したの らんを ながおしで コピーできます）',
-                       'つぎは タイトルの「ふっかつのじゅもん」で']);
+                              : '（したの らんから コピーできます）']);
+    await showMessage(['つづきは タイトルの',
+                       '「ふっかつのじゅもん」から はじめられます']);
 }
 
 // =====================================================================
@@ -662,6 +664,11 @@ function wrapSay(who, text, extra) {
         const cand = (cur === head || cur === pad) ? cur + word : cur + ' ' + word;
         if (textWidth(cand) <= 42) cur = cand;
         else { out.push(cur); cur = pad + word; }
+    }
+    // 閉じカギのぶん(全角1字)も幅に入れる。入らなければ最後のことばを次の行へ送る
+    if (textWidth(cur + '」') > 42 && cur !== head && cur !== pad) {
+        const sp = cur.lastIndexOf(' ');
+        if (sp > 0) { out.push(cur.slice(0, sp)); cur = pad + cur.slice(sp + 1); }
     }
     out.push(cur + '」');
     if (extra && out.length < 3) out.push(extra);
@@ -755,7 +762,8 @@ async function shopWeapons(shop) {
         else player.shieldIndex = pick.index;
         recalcPlayerPower();
         await showMessage([`${goods.name}を そうびした！`,
-            `こうげきカ ${player.attack}　しゅびカ ${player.defense}　のこり ${player.gold}G`]);
+            `こうげきカ ${player.attack}　しゅびカ ${player.defense}`,
+            `のこりの もちきんは ${player.gold}G`]);
         await showMessage(['ぶきや「どうも ありがとう。', '　　　　ほかに なにか かうかね？」']);
     }
 }
@@ -949,24 +957,18 @@ function drawMenu() {
     drawWindow(displayTileSize * screenWidth - displayTileSize * 4.5 - displayTileSize / 2, displayTileSize / 2,
                displayTileSize * 4.5, displayTileSize * (commandList.length + 0.5), cmdText, menuCursor);
 
-    if (menuLevel === 1) {
-        const explains = [
-            ['つよさ：', '　あなたの つよさは あなたがきめよう', '　でも きゃっかんてきには こうみえてます'],
-            ['じゅもん：', '　あなたの つかえる じゅもんりすと', '　MPの ごりようは けいかくてきに'],
-            ['どうぐ：', '　あなたの もっている どうぐたち', '　でもほぼ ふらぐの りすとです'],
-            ['きろく：', '　ラダトームの おうさまに はなすと', '　ふっかつのじゅもんを おしえてくれる']
-        ];
-        drawWindowCommon(explains[menuCursor]);
-    } else if (menuLevel === 2) {
+    // 本家FC版のコマンド窓には説明文は出ないので、えらんでいるあいだは何も出さない
+    if (menuLevel === 2) {
         if (menuCursor === 0) {
-            // 並びは本家の「つよさ」に合わせる（さいだいHP/MPを含む9項目）
+            // 並びは本家ROM(data/windows/stats.j2)の「つよさ」に合わせた10項目
             const stats = [
+                `　　レベル：　　　${alignRight(player.level, 3)}`,
                 `　　ちから：　　　${alignRight(player.strength, 3)}`, `　すばやさ：　　　${alignRight(player.agility, 3)}`,
                 `さいだいHP：　　　${alignRight(player.maxHp, 3)}`,   `さいだいMP：　　　${alignRight(player.maxMp, 3)}`,
                 `こうげきカ：　　　${alignRight(player.attack, 3)}`,   `　しゅびカ：　　　${alignRight(player.defense, 3)}`,
                 `　ぶき：${alignRightWide(player.weapon, 7)}`, `よろい：${alignRightWide(player.armor, 7)}`, `　たて：${alignRightWide(player.shield, 7)}`
             ];
-            drawWindow(displayTileSize * screenWidth - displayTileSize * 8.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 8.5, displayTileSize * 9.5, stats);
+            drawWindow(displayTileSize * screenWidth - displayTileSize * 8.5 - displayTileSize / 2, displayTileSize / 2, displayTileSize * 8.5, displayTileSize * 10.5, stats);
             // 覚えたじゅもん。窓は3行までなので4つずつ折り返す（Lv20の全10個がちょうど収まる）
             const lines = player.spells.length
                 ? Array.from({ length: Math.ceil(player.spells.length / 4) },
@@ -993,6 +995,22 @@ function drawMenu() {
     }
 }
 
+// 死んだあと、ラダトーム城で王様が言うことば。本家FC版ROMの str_10D を
+// そのまま4画面に分けたもの（gitlab.com/segaloco/dq1disasm data/strings/strings.j2）
+async function kingRevivalSpeech() {
+    await showMessage([`おうさま「おお ${player.name}！`,
+                       '　　　　　しんでしまうとは なにごとだ！」']);
+    await showMessage(['おうさま「しかたのない やつだな。',
+                       '　　　　　おまえに もう いちど',
+                       '　　　　　きかいを あたえよう！」']);
+    await showMessage(['おうさま「たたかいで キズついたときは',
+                       '　　　　　まちにもどり やどやに とまって',
+                       '　　　　　キズをかいふくさせるのだぞ。」']);
+    await showMessage(['おうさま「ふたたび このようなことが',
+                       '　　　　　おこらぬことを',
+                       '　　　　　わしは いのっている！」']);
+}
+
 // =====================================================================
 // フィールド移動とデバッグ操作
 // =====================================================================
@@ -1015,11 +1033,8 @@ function applyFloorDamage(x, y) {
     if (player.hp > 0) return false;
     (async () => {
         if (tile === POISON_TILE) await showMessage([`${player.name}は どくの ぬまちで`, 'たおれてしまった...']);
-        const lost = playerKilled();
-        await showMessage([`おうさま「おお ${player.name}！`,
-            '　　　　　しんでしまうとは なにごとだ！」',
-            lost > 0 ? `ゴールドを ${lost} おとしてしまった...` : '',
-            `のこりの もちきんは ${player.gold}G`]);
+        playerKilled();
+        await kingRevivalSpeech();
         currentState = STATE.FIELD;
     })();
     return true;
@@ -1161,8 +1176,11 @@ async function confirmPasscode() {
         updatePlayerStyle();
         goToThroneRoom();                              // 本家同様ラダトーム城から再開
         await showMessage([`${player.name}よ よくぞもどった！`,
-            `レベル${player.level}　G ${player.gold}　やくそう ${player.herb}`,
-            `${player.weapon} / ${player.armor} / ${player.shield}`]);
+            `レベル${player.level}　G ${player.gold}　やくそう ${player.herb}`]);
+        // 装備は1行にまとめると「みかがみのたて」などで窓からはみ出す
+        await showMessage([`ぶき　${player.weapon}`,
+            `よろい ${player.armor}`,
+            `たて　${player.shield}`]);
         currentState = STATE.FIELD;
     } else {
         await showMessage(['じゅもんが ちがいます！', 'もういちど かくにんしてください']);
