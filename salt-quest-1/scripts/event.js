@@ -997,16 +997,24 @@ function drawMenu() {
 // フィールド移動とデバッグ操作
 // =====================================================================
 // 移動は時間基準(ms)。フレームレート(60Hz/120Hz)に依存しない
-const POISON_TILE = 34;   // 毒の沼地
-// 本家: 毒の沼地は1歩ごとに2ダメージ。ロトのよろいを着ていると無効。
-// 倒れたときだけメッセージ処理に入る（trueを返したら以降の処理は止める）
-function applyPoison(x, y) {
-    if (mapData[y][x] !== POISON_TILE) return false;
+const POISON_TILE = 34;    // どくの ぬまち
+const BARRIER_TILE = 8;    // 竜王の城などの ななめ縞のゆか
+// 本家ROM(src/game.s)は、ふむと減るゆかを blkid で見分けている。
+// blkid$06 = ぬまち  → 1歩2ダメージ
+// blkid$0D = バリア  → 1歩15ダメージ
+// どちらも rpg_equip & $1C == $1C（＝ロトのよろい）を着ていると無効。
+// 絵柄はマップごとにちがうが（tbl_metatiles.s）、ふるまいは全マップ共通
+// （data/tbl_blkids.s）。倒れたときだけメッセージ処理に入る
+// （trueを返したら以降の処理は止める）
+function applyFloorDamage(x, y) {
+    const tile = mapData[y][x];
+    const damage = (tile === POISON_TILE) ? 2 : (tile === BARRIER_TILE) ? 15 : 0;
+    if (!damage) return false;
     if (armors[player.armorIndex] && armors[player.armorIndex].name === 'ロトのよろい') return false;
-    player.hp = Math.max(0, player.hp - 2);
+    player.hp = Math.max(0, player.hp - damage);
     if (player.hp > 0) return false;
     (async () => {
-        await showMessage([`${player.name}は どくの ぬまちで`, 'たおれてしまった...']);
+        if (tile === POISON_TILE) await showMessage([`${player.name}は どくの ぬまちで`, 'たおれてしまった...']);
         const lost = playerKilled();
         await showMessage([`おうさま「おお ${player.name}！`,
             '　　　　　しんでしまうとは なにごとだ！」',
@@ -1089,7 +1097,7 @@ function updateField() {
                     fightCaveDragon();          // 本家: このマスに乗ると必ずドラゴンが出る
                     return;
                 }
-                if (applyPoison(nx, ny)) return;   // 毒沼で倒れたら以降は処理しない
+                if (applyFloorDamage(nx, ny)) return;   // ぬまち・バリアで倒れたら以降は処理しない
                 healWhileWalking();
                 // ランダムエンカウント（デバッグモード中は発生しない）
                 if (!debugMode && checkEncounter(nx, ny)) {

@@ -136,12 +136,12 @@ const DUNGEONS = {
         outside: T_GRASS,             // マップの外は草原（実機のスクリーンショットで確認）
         doorFlags: { '19,7': 'castleDoorB1', '5,14': 'castleDoorTreasure' },
         rows: [
-            '................................', '.#######........#######.###.T...', '.#BBBBB#.T.TT.T.#BBBBB#.#.#.....', '.#BBBBB#........#BBBBB#.#C#.....',
+            '................................', '.#######........#######.###.T...', '.#BBBBB#.T.TT.T.#BBBBB#.#B#.....', '.#BBBBB#........#BBBBB#.#C#.....',
             '.#BB#BB####BB####BB#BB#...TT....', '.#BBBBBBBBBBBBBBBBBBBB#.TTT.....', '.#BBBBB##########BBBBB#.........', '.#####B#BBBBBBBB###D#####B###...',
             '.#BBB#B#aBBBBB#B#BBBBBBBBBBB#...', '.#BBBBB#BBBBBBBB#BBBBBBBBBBB#...', '.#BBB#B###BBBB############BB#...', '.#####B#TTBBBBTT#BB#BB#BB#BB#...',
             '.#BBB#B#TTBBBBTT#BB#BB#BB#BB#...', '.#BBB#B#T.BBBB.T#BBBBBBBBBBB#...', '.#7BBDB#..BBBB..#BBBBBBBBBBB#...', '.#B7B#B#..BBBB..#BB#BB#BB#BB#...',
-            '.#7B7#B#.BBBBBB.#BB#BB#BB#BB#...', '.#####B#.B~~~~B.##########B##...', '.#BBBBBBBB~~~~BBBBBBBB#BBBBB#...', '.#BBBBBBBB~~~~BBBBBBBB#BBBBB#...',
-            '.###BB###B~~~~B##BBBBB#BBBBB#...', '.#BBBBBB#BBBBBB#BBBBBB#BBBBB#...', '.#BBBBBB##BBBB######BB#BBBBB#~..', '.#BB#BBBB#BBBB#BBBBBBB#######~..',
+            '.#7B7#B#.BBBBBB.#BB#BB#BB#BB#...', '.#####B#.B~~~~B.##########B##...', '.#BBBBBBBB~~~~BBBBBBBB#BBBBB#...', '.#BBBBBBBB~~~~BBBBBBBB#xxxxx#...',
+            '.###BB###B~~~~B##BBBBB#xxxxx#...', '.#BBBBBB#BBBBBB#BBBBBB#BBBBB#...', '.#BBBBBB##BBBB######BB#BBBBB#~..', '.#BB#BBBB#BBBB#BBBBBBB#######~..',
             '.#BBBBBBB#BBBB#BBBBBBB#~~~~~~~..', '.#B~~BB#B#BBBB#BB######~~~~~~~..', '.#~~~~BBB#BBBB#BB#BB#B#~~~~~~~..', '.#~~~~BBB##BB##BBBBBCB#~~~~~~~..',
             '.#~~~~~BB#BBBB#BB#BB#B#~~~~~~~..', '.##########BB##########~~~~~~~..', '.~~........EB........~~~~~~~~~b.', '................................'
         ],
@@ -183,7 +183,7 @@ const DUNGEONS = {
         outside: 0,                   // 玉座の間の外は石づくり（pidlio の実画面マップどおり）
         doorFlags: { '4,7': 'castleDoorThrone' },
         rows: [
-            '##########', '#BBBBB9BB#', '#BCCCCCCB#', '#BCCCCBCB#', '#BBB83BBB#',
+            '##########', '#BBBBB9BB#', '#BCCCCCCB#', '#BCBCCBCB#', '#BBB83BBB#',
             '#BBBBBBBB#', '#BBBBBBBB#', '####D#####', '#BBBBBBBa#', '##########'
         ],
         npcs: [
@@ -430,11 +430,11 @@ const DUNGEONS = {
             'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'B###BB########BBWssssssssB###B', 'B#BBBB#BB#BBB#BBss######sB#B#B', 'B###BB#BB#BBB#BBTT#BB#B#sB#B#B',
             'BBBBBB##C#B###BBBBBBBCB#sBBBBB', 'BBBBBB#BBBBBB#BBBBBBBCB#sB###B', 'B###BB##B##BB#BBTT#BB#B#sB#B#B', 'B#BCBBsIss#BB#BBss######sB#C#B',
             'B###BBssss####BBsssssssssB#B#B', 'BBBBBBBBBBBBBBBBBBBBBBBBBBDB#B', 'BBBBBBBBBBBBBBBBBBBBBBBBB##B#B', 'B###BB###BB.~~~....BB#####BB#B',
-            'B#BCBBC.#BB~~~~~...BB#B#BCBB#B', 'B###BB###BB~~T~~~..BBCB#B#BB#B', 'B#BCBBBBBBB.~~~.~~.BB########B', 'B###B####BB......?.BBBBBBBBBBB',
+            'B#BCBBCB#BB~~~~~...BB#B#BCBB#B', 'B###BB###BB~~T~~~..BBCB#B#BB#B', 'B#BCBBBBBBB.~~~.~~.BB########B', 'B###B####BB......?.BBBBBBBBBBB',
             'B#BBB#BB#BB......~.BBBBBBBBBBB', 'B#BBBBBB#BB.....~~.BB###BB###B', 'B########BB...~~~~~BBCB#BBBB#B', 'BBBBBBBBBBB..~~~T~~BB###BB#B#B',
             'BBBBBBBBBBB.~~~TT~~BBBBBBB###B', 'B###D####BB.~~TT~~.BB###BBBBBB', 'B#ssssss#BB..~~~~..BB#B####B#B', 'B#ssssss#BB...~~...BB#C#BBBB#B',
-            'B#####ss#BBB#BBBB#BBB#B##B###B', 'B#BBB#ssDB####DD####BBB#BB#K#B', 'B#BBBCss#B#BBBBBBBB#B#BBBBCB#B', 'B#KBB#ss#B#B######B#B#B#BB#K#B',
-            'B########B#BBBBBBBB#B########B', 'BBBBBBBBBb##########BBBBBBBBBB', 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'
+            'B#####ss#BBB#BBBB#BBB#B##B###B', 'B#BBB#ssDB####DD####BBB#BB#K#B', 'B#BBBCss#B#xxxxxxxx#B#BBBBCB#B', 'B#KBB#ss#B#x######x#B#B#BB#K#B',
+            'B########B#xxxBBxxx#B########B', 'BBBBBBBBBb##########BBBBBBBBBB', 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'
         ],
         npcs: [
             { x: 20, y: 15, sprite: 26, lines: ['おとこ「えーん。 あてが まいごの キムこう', '　　　　だす。」'] },
@@ -606,8 +606,8 @@ const DUNGEONS = {
         exitTo: { x: 56, y: 56 },
         rows: [
             'TTTTTTTTTTTTTTTTTTTTTT', 'TTT###TT###########TTT', 'TT##B##T#xxAxx#BBB##TT', 'T##BBB###xCCCx#B#BB##T',
-            'T#BB#BBB#xCxCx#BBBBB#T', 'T#B####B#xxxxx##B##B#T', 'T#B#BBBB#xxxxx#BBB#B#T', 'T#B##B#B##BBB##B#BBB#T',
-            'T#B#BBBBB##x##BBBBBB#T', 'T#B#####B#BBB######B#T', 'T#B#xxx#B##x###xxx#B#T', 'T#B#x#x#B#BBB##x#x#B#T',
+            'T#BB#BBB#xCBCx#BBBBB#T', 'T#B####B#xxxxx##B##B#T', 'T#B#BBBB#xxxxx#BBB#B#T', 'T#B##B#B##BBB##B#BBB#T',
+            'T#B#BBBBB##x##BBBBBB#T', 'T#B##D##B#BBB###D##B#T', 'T#B#xxx#B##x###xxx#B#T', 'T#B#x#x#B#BBB##x#x#B#T',
             'T#B#xxx#B##x###xxx#B#T', 'T#B#x#x#BBBBB##x#x#B#T', 'T#B#xxx########xxx#B#T', 'T#B##c##BBBBBB##f##B#T',
             'T#BB###BB#BB#BB###BB#T', 'T##BBBBBBBBBBBBBBBB##T', 'TT##BBB###BB###BBB##TT', 'TTT#####T#BB#T#####TTT',
             'TTTTTTTTT#EB#TTTTTTTTT', 'TTTTTTTTTTTTTTTTTTTTTT'
@@ -728,11 +728,11 @@ const DUNGEONS = {
             '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~', '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~', '~~~~####~~~~~~~#########~###~~~~', '~~~##BB#########BBB#BBB###B##~~~',
             '~~##BBBB##BBBB#BBBBBBBBB#BBB##~~', '~~#BBBBBB##BB##BBBB#BBBB#B#BB#~~', '~~#BB#BBB#BBBBBBBB###BBBBBBBB#~~', '~~#BBBBBB#BBBB#####B#####B#BB#~~',
             '~~##BBBB##BBBB#BBB###BBB#BBB##~~', '~~~##BB##BBBBB##BBBBBBB###B##s~~', '~~~~#B##BB#######BB#BB##s#B#ss~~', '~~~~#BBBBB#BBBBB##BBB##ssssss~~~',
-            '~~~~#B#####B1BBB###B##ss~sss~~~~', '~~~~#B#BBB#Bd9BBBBDB#ss~~~~s?s~~', '~~~~#B#B#B#Bwj1B###B##s~~~~~~.~~', '~~~~#B#BBB#BBBBB##BBB#~~.s~~T.~~',
-            '~~~~#B#B#B#######BBB##~s~Ts?s~~~', '~~~~#B#BBB##BBBBBBB##~~~~..~~~~~', '~~~~#B#B#B#BBB###B##~~~s~~Ts~~~~', '~~~~#B#BBB#BB##~###~~~ss~sT.~s~~',
-            '~~~~#B#B#B#B##~~~~~~~ss~~ss.ss~~', '~~~~#B#BBB#B#~~~###~~~~~ssTTs~~~', '~~~##B##B##B##~##B##~~~ss..Tss~~', '~~##BBB#B#BBB###BBB##~~s##B##s~~',
-            '~~#BBBBBBBBBB##BCCBB#####BBB#s~~', '~~#BB#BB##BBB#BBCBBBBBBBBBBB#.~~', '~~#BBBBB###B###BCCBB#####BBB#.~~', '~~##BBB##~#B#~##BBB##~~T#####s~~',
-            '~~~##B##~~#B#~~##B##~~~ssTTTss~~', '~~~~###~~T#B#T~~###~~~~~sssss~~~', '~~~~~~~~TT#U#TT~~~~~~~~~~~~~~~~~', '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
+            '~~~~#B#####B1BBB###B##ss~sss~~~~', '~~~~#B#BBB#Bd9BBBBDB#ss~~~~s?s~~', '~~~~#B#B#B#Bwj1B###B##s~~~~~~.~~', '~~~~#B#BBB#BBBBB##BBB#~~.s~~p.~~',
+            '~~~~#B#B#B#######BBB##~s~ps?s~~~', '~~~~#B#BBB##BBBBBBB##~~~~..~~~~~', '~~~~#B#B#B#BBB###B##~~~s~~ps~~~~', '~~~~#B#BBB#BB##~###~~~ss~sp.~s~~',
+            '~~~~#B#B#B#B##~~~~~~~ss~~ss.ss~~', '~~~~#B#BBB#B#~~~###~~~~~sspps~~~', '~~~##B##B##B##~##B##~~~ss..pss~~', '~~##BBB#B#BBB###BBB##~~s##B##s~~',
+            '~~#BBBBBBBBBB##BCCBB#####BBB#s~~', '~~#BB#BB##BBB#BBCBBBBBBBBBBB#.~~', '~~#BBBBB###B###BCCBB#####BBB#.~~', '~~##BBB##~#B#~##BBB##~~p#####s~~',
+            '~~~##B##~~#B#~~##B##~~~sspppss~~', '~~~~###~~T#B#T~~###~~~~~sssss~~~', '~~~~~~~~TT#U#TT~~~~~~~~~~~~~~~~~', '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
             '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
         ],
         npcs: [
